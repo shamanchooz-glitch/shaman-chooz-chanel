@@ -160,8 +160,9 @@
 <!-- ===== ECRAN MES VIDEOS (client) ===== -->
 <section class="screen" id="screen-client">
   <h2 class="section-title">Mes vidéos</h2>
-  <p class="section-sub">Entrez votre numéro de téléphone (utilisé lors de la commande) pour retrouver vos vidéos.</p>
+  <p class="section-sub">Entrez votre numéro de téléphone et votre code secret (donnés lors de la commande) pour retrouver vos vidéos.</p>
   <input class="input" id="clientPhoneInput" placeholder="Ex: 0748935686" inputmode="tel">
+  <input class="input" id="clientPinInput" placeholder="Code secret à 4 chiffres" inputmode="numeric" maxlength="4">
   <button class="btn btn-primary" id="clientLookupBtn">Voir mes vidéos</button>
   <div id="clientOrdersList" style="margin-top:18px;"></div>
 </section>

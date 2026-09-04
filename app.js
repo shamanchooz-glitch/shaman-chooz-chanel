@@ -52,6 +52,9 @@ async function sha256(text){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 function fcfa(n){ return n.toLocaleString('fr-FR') + ' FCFA'; }
+function esc(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, (c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 function placeholderThumb(seedHue, emoji){
   return `<svg viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg">
     <defs><linearGradient id="g${seedHue}" x1="0" y1="0" x2="1" y2="1">
@@ -323,6 +326,8 @@ function openCustomOrderSheet(){
     <input class="input" id="buyerName" placeholder="Ton nom">
     <input class="input" id="buyerPhone" placeholder="Numéro de téléphone / WhatsApp" inputmode="tel">
     <input class="input" id="buyerRef" placeholder="Référence de la transaction">
+    <input class="input" id="buyerPin" placeholder="Code secret à 4 chiffres (à retenir !)" inputmode="numeric" maxlength="4">
+    <p class="hint">Ce code te sera redemandé avec ton numéro pour retrouver ta vidéo — personne d'autre ne pourra y accéder sans lui.</p>
     <p class="hint">Colle la référence reçue après ton paiement mobile money.</p>
     <button class="btn btn-primary" id="submitCustomOrderBtn">Confirmer ma commande</button>
     <button class="btn btn-ghost" id="cancelSheetBtn">Annuler</button>
@@ -334,13 +339,16 @@ function openCustomOrderSheet(){
     const name = document.getElementById('buyerName').value.trim();
     const phone = document.getElementById('buyerPhone').value.trim();
     const ref = document.getElementById('buyerRef').value.trim();
+    const pin = document.getElementById('buyerPin').value.trim();
     if(!selectedPay) return toast('Choisis un moyen de paiement', 'err');
     if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
+    if(!/^\d{4}$/.test(pin)) return toast('Le code secret doit être 4 chiffres', 'err');
     await DB.push('orders', {
       type:'custom', title: `Vidéo sur mesure (${scenes.length} scènes)`, price,
       script: document.getElementById('customScript').value,
       visualStyle: customVisualStyle, gender: customGender, language: customLanguage,
       payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref,
+      pinHash: await sha256(pin),
       status:'pending', createdAt: Date.now()
     });
     closeSheet();
@@ -427,6 +435,8 @@ function openOrderPaymentSheet(order){
     <input class="input" id="buyerName" placeholder="Ton nom">
     <input class="input" id="buyerPhone" placeholder="Numéro de téléphone / WhatsApp" inputmode="tel">
     <input class="input" id="buyerRef" placeholder="Référence de la transaction">
+    <input class="input" id="buyerPin" placeholder="Code secret à 4 chiffres (à retenir !)" inputmode="numeric" maxlength="4">
+    <p class="hint">Ce code te sera redemandé avec ton numéro pour retrouver ta vidéo — personne d'autre ne pourra y accéder sans lui.</p>
     <button class="btn btn-primary" id="submitAiOrderBtn">Confirmer ma commande</button>
     <button class="btn btn-ghost" id="cancelSheetBtn">Annuler</button>
   `;
@@ -437,10 +447,13 @@ function openOrderPaymentSheet(order){
     const name = document.getElementById('buyerName').value.trim();
     const phone = document.getElementById('buyerPhone').value.trim();
     const ref = document.getElementById('buyerRef').value.trim();
+    const pin = document.getElementById('buyerPin').value.trim();
     if(!selectedPay) return toast('Choisis un moyen de paiement', 'err');
     if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
+    if(!/^\d{4}$/.test(pin)) return toast('Le code secret doit être 4 chiffres', 'err');
     await DB.push('orders', {
       ...order, payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref,
+      pinHash: await sha256(pin),
       status:'pending', createdAt: Date.now()
     });
     closeSheet();
@@ -677,6 +690,8 @@ function openProductSheet(id){
     <input class="input" id="buyerName" placeholder="Ton nom">
     <input class="input" id="buyerPhone" placeholder="Numéro de téléphone / WhatsApp" inputmode="tel">
     <input class="input" id="buyerRef" placeholder="Référence de la transaction">
+    <input class="input" id="buyerPin" placeholder="Code secret à 4 chiffres (à retenir !)" inputmode="numeric" maxlength="4">
+    <p class="hint">Ce code te sera redemandé avec ton numéro pour retrouver tes vidéos — choisis-en un que tu n'oublieras pas, personne d'autre ne pourra voir tes vidéos sans lui.</p>
     <p class="hint">Colle la référence reçue après ton paiement mobile money. Ta vidéo sera débloquée après vérification (généralement rapide).</p>
 
     <button class="btn btn-primary" id="submitOrderBtn">Confirmer ma commande</button>
@@ -696,13 +711,16 @@ async function submitOrder(){
   const name = document.getElementById('buyerName').value.trim();
   const phone = document.getElementById('buyerPhone').value.trim();
   const ref = document.getElementById('buyerRef').value.trim();
+  const pin = document.getElementById('buyerPin').value.trim();
   if(!SELECTED_PAY) return toast('Choisis un moyen de paiement', 'err');
   if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
+  if(!/^\d{4}$/.test(pin)) return toast('Le code secret doit être 4 chiffres', 'err');
 
   const v = CATALOG[SELECTED_ITEM];
   await DB.push('orders', {
     itemId: SELECTED_ITEM, title: v.title, price: v.price,
     payMethod: SELECTED_PAY, buyerName: name, buyerPhone: phone, ref,
+    pinHash: await sha256(pin),
     status: 'pending', createdAt: Date.now()
   });
   closeSheet();
@@ -712,31 +730,38 @@ async function submitOrder(){
 /* ---------- Espace client : mes vidéos ---------- */
 async function lookupClientOrders(){
   const phone = document.getElementById('clientPhoneInput').value.trim();
-  ORDERS = await DB.get('orders', {});
-  const mine = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone === phone);
+  const pin = document.getElementById('clientPinInput').value.trim();
   const list = document.getElementById('clientOrdersList');
-  if(!phone){ list.innerHTML=''; return; }
+  if(!phone || !pin){ list.innerHTML=''; return; }
+  if(!/^\d{4}$/.test(pin)){ list.innerHTML = `<div class="empty-state"><div class="big">🔒</div>Le code secret doit être à 4 chiffres.</div>`; return; }
+  ORDERS = await DB.get('orders', {});
+  const pinHash = await sha256(pin);
+  const mine = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone === phone && (!o.pinHash || o.pinHash === pinHash));
+  const wrongPin = Object.entries(ORDERS).some(([,o])=> o.buyerPhone === phone && o.pinHash && o.pinHash !== pinHash);
+  if(mine.length===0 && wrongPin){ list.innerHTML = `<div class="empty-state"><div class="big">🔒</div>Numéro trouvé, mais code secret incorrect.</div>`; return; }
   if(mine.length===0){ list.innerHTML = `<div class="empty-state"><div class="big">📭</div>Aucune commande trouvée pour ce numéro.</div>`; return; }
   list.innerHTML = mine.sort((a,b)=>b[1].createdAt-a[1].createdAt).map(([id,o])=>`
     <div class="order-card">
-      <div class="row"><strong>${o.title}</strong>
+      <div class="row"><strong>${esc(o.title)}</strong>
         <span class="status-pill status-${o.status==='paid'?'paid':o.status==='rejected'?'rejected':'pending'}">
           ${o.status==='paid'?'Débloquée':o.status==='rejected'?'Refusée':'En attente'}
         </span>
       </div>
       <div class="row" style="margin-bottom:0;">
-        <span class="hint" style="margin:0;">${fcfa(o.price)} • ${o.payMethod}</span>
+        <span class="hint" style="margin:0;">${fcfa(o.price)} • ${esc(o.payMethod)}</span>
         ${o.status==='paid' && o.type!=='custom' && CATALOG[o.itemId] && CATALOG[o.itemId].videoUrl
-          ? `<a class="btn btn-teal" style="width:auto;margin:0;padding:8px 14px;font-size:12.5px;" target="_blank" href="${CATALOG[o.itemId].videoUrl}">▶ Regarder</a>`
+          ? `<a class="btn btn-teal" style="width:auto;margin:0;padding:8px 14px;font-size:12.5px;" target="_blank" href="${esc(CATALOG[o.itemId].videoUrl)}">▶ Regarder</a>`
           : ''}
         ${o.status==='paid' && (o.type==='custom'||o.type==='ai') && !o.videoUrl
           ? `<button class="btn btn-teal" style="width:auto;margin:0;padding:8px 14px;font-size:12.5px;" data-generate="${id}">🎬 Générer ma vidéo</button>`
           : ''}
         ${o.status==='paid' && (o.type==='custom'||o.type==='ai') && o.videoUrl
-          ? `<a class="btn btn-teal" style="width:auto;margin:0;padding:8px 14px;font-size:12.5px;" target="_blank" href="${o.videoUrl}">▶ Regarder</a>`
+          ? `<a class="btn btn-teal" style="width:auto;margin:0;padding:8px 14px;font-size:12.5px;" target="_blank" href="${esc(o.videoUrl)}">▶ Regarder</a>`
           : ''}
       </div>
-    </div>`).join('');
+    </div>`).join('') + `
+    <button class="btn btn-ghost" id="changePinBtn" style="margin-top:14px;">🔑 Changer mon code secret</button>`;
+  document.getElementById('changePinBtn').onclick = changeClientPin;
   list.querySelectorAll('[data-generate]').forEach(btn=>{
     btn.onclick = ()=>{
       const id = btn.dataset.generate;
@@ -745,6 +770,22 @@ async function lookupClientOrders(){
       else runAiGeneration(order);
     };
   });
+}
+async function changeClientPin(){
+  const phone = document.getElementById('clientPhoneInput').value.trim();
+  const oldPin = document.getElementById('clientPinInput').value.trim();
+  ORDERS = await DB.get('orders', {});
+  const oldHash = await sha256(oldPin);
+  const ids = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone===phone && (!o.pinHash || o.pinHash===oldHash)).map(([id])=>id);
+  if(ids.length===0) return toast('Numéro ou code incorrect', 'err');
+  const newPin = (prompt('Choisis ton nouveau code secret à 4 chiffres :') || '').trim();
+  if(!newPin) return;
+  if(!/^\d{4}$/.test(newPin)) return toast('Le code doit être 4 chiffres', 'err');
+  const newHash = await sha256(newPin);
+  await Promise.all(ids.map(id => DB.update(`orders/${id}`, { pinHash: newHash })));
+  document.getElementById('clientPinInput').value = newPin;
+  toast('Ton code secret a été changé !', 'ok');
+  lookupClientOrders();
 }
 async function runSimpleGeneration(order){
   const sheet = document.getElementById('productSheet');
@@ -802,16 +843,28 @@ async function renderAdminOrders(){
           ${o.status==='paid'?'Validée':o.status==='rejected'?'Refusée':'En attente'}
         </span>
       </div>
-      <p class="hint" style="margin:2px 0 8px;">${o.buyerName} • ${o.buyerPhone} • ${o.payMethod} • Réf: ${o.ref}</p>
-      ${o.type==='custom' ? `<p class="hint" style="margin:0 0 8px;white-space:pre-line;">📝 ${o.script}</p>` : ''}
+      <p class="hint" style="margin:2px 0 8px;">${esc(o.buyerName)} • ${esc(o.buyerPhone)} • ${esc(o.payMethod)} • Réf: ${esc(o.ref)}</p>
+      ${o.type==='custom' ? `<p class="hint" style="margin:0 0 8px;white-space:pre-line;">📝 ${esc(o.script)}</p>` : ''}
       ${o.status==='pending' ? `
         <div style="display:flex; gap:8px;">
           <button class="btn btn-teal" style="margin:0;" data-validate="${id}">✓ Valider</button>
           <button class="btn btn-danger" style="margin:0;" data-reject="${id}">✕ Refuser</button>
         </div>` : ''}
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="btn btn-ghost" style="margin:0;padding:8px 14px;font-size:12.5px;" data-resetpin="${esc(o.buyerPhone)}">🔑 Réinitialiser son code secret</button>
+      </div>
     </div>`).join('');
   el.querySelectorAll('[data-validate]').forEach(b=> b.onclick = ()=> validateOrder(b.dataset.validate));
   el.querySelectorAll('[data-reject]').forEach(b=> b.onclick = ()=> updateOrderStatus(b.dataset.reject,'rejected'));
+  el.querySelectorAll('[data-resetpin]').forEach(b=> b.onclick = ()=> adminResetPin(b.dataset.resetpin));
+}
+async function adminResetPin(phone){
+  if(!confirm(`Réinitialiser le code secret de ${phone} ?\nLe client pourra en choisir un nouveau à sa prochaine visite (sans avoir besoin de l'ancien).`)) return;
+  ORDERS = await DB.get('orders', {});
+  const ids = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone===phone).map(([id])=>id);
+  await Promise.all(ids.map(id => DB.update(`orders/${id}`, { pinHash: null })));
+  toast('Code secret réinitialisé.', 'ok');
+  renderAdminOrders();
 }
 async function validateOrder(id){
   const o = ORDERS[id];
