@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SHAMAN CHOOZ CHANEL</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#181310">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== Bandeau chaîne ===== -->
+<header class="channel-band">
+  <button class="avatar-btn" id="avatarBtn" aria-label="Voir la photo en plein écran">
+    <img src="icon-512.png" alt="Photo du fondateur SHAMAN CHOOZ CHANEL">
+  </button>
+  <div class="channel-title">
+    <p class="display channel-title-text">SHAMAN CHOOZ CHANEL</p>
+    <p class="tagline">Vidéos dessins animés • sur demande</p>
+  </div>
+  <div class="header-actions">
+    <select id="siteLangSelect" class="site-lang-select" title="Choisir la langue du site"></select>
+    <button class="icon-btn" id="ordersShortcut" title="Mes vidéos">🎬</button>
+  </div>
+</header>
+
+<!-- Widget de traduction du site (cette div est utilisée par Google Traduction en coulisses, elle reste invisible) -->
+<div id="google_translate_element" style="display:none;"></div>
+
+<div class="marquee"><span>★ Nouveaux dessins animés chaque semaine — ★ Paiement Wave / MTN / Moov / Orange — ★ Regardez partout dans le monde — ★ Vidéos IA réalistes sur mesure —</span></div>
+
+<!-- Bannière d'installation PWA -->
+<div class="install-banner" id="installBanner">
+  <span>📲 Installe ce site comme une application sur ton appareil</span>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-ghost" style="width:auto;margin:0;padding:8px 12px;font-size:12px;" id="installDismiss">Plus tard</button>
+    <button class="btn btn-primary" style="width:auto;margin:0;padding:8px 14px;font-size:12px;" id="installBtn">Installer</button>
+  </div>
+</div>
+
+<!-- Lightbox photo plein écran -->
+<div class="lightbox" id="lightbox">
+  <button class="close-x" id="closeLightbox">✕</button>
+  <img src="icon-512.png" alt="Photo en plein écran">
+</div>
+
+<!-- ===== ECRAN CATALOGUE ===== -->
+<section class="screen active" id="screen-catalog">
+  <div style="margin:14px 16px 0;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,#C97B4A,#9c5c33);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+    <div>
+      <p style="margin:0;font-weight:800;font-size:14px;">🎨 Vidéo sur mesure</p>
+      <p style="margin:2px 0 0;font-size:12px;opacity:.9;">Ton texte, ton style — générée automatiquement</p>
+    </div>
+    <button class="btn" style="width:auto;margin:0;padding:9px 14px;background:#fff;color:#9c5c33;font-size:12.5px;" id="goCustomBtn">Créer</button>
+  </div>
+  <div class="filters" id="filters"></div>
+  <div class="catalog" id="catalogGrid"></div>
+</section>
+
+<!-- ===== ECRAN CREATION SUR MESURE ===== -->
+<section class="screen" id="screen-custom">
+  <h2 class="section-title">Créer ma vidéo sur mesure</h2>
+  <p class="section-sub">Choisis ton mode de création.</p>
+
+  <div class="filters" style="padding-left:0;">
+    <button class="chip active" data-mode="simple">🎈 Animation simple</button>
+    <button class="chip" data-mode="ai-realiste">🎬 Vidéo IA réaliste (mouvement)</button>
+    <button class="chip" data-mode="ai-template">🖼️ Vidéo IA pub / diaporama</button>
+  </div>
+
+  <div id="customMode-simple">
+    <p class="field-label">Ton texte (une phrase = une scène)</p>
+    <textarea class="input" id="customScript" rows="5" placeholder="Bienvenue chez SHAMAN CHOOZ CHANEL.&#10;Nous avons une offre spéciale pour vous.&#10;Contactez-nous dès aujourd'hui !"></textarea>
+
+    <p class="field-label">Voix de l'aperçu (pour t'aider à visualiser — écoute avant de commander)</p>
+    <select class="input" id="customVoiceSelect"></select>
+
+    <p class="field-label">Langue de la vidéo (texte affiché + voix off)</p>
+    <select class="input" id="customLanguageSelect"></select>
+
+    <p class="field-label">Voix de la vidéo finale (incluse automatiquement dans le fichier — pas besoin de CapCut)</p>
+    <div class="pay-grid" id="customFinalVoiceSwatches">
+      <button class="pay-option selected" data-gender="f">🗣️ Voix féminine</button>
+      <button class="pay-option" data-gender="m">🗣️ Voix masculine</button>
+    </div>
+
+    <p class="field-label">Style visuel</p>
+    <div class="pay-grid" id="customStyleSwatches">
+      <button class="pay-option selected" data-style="pop">✨ Pop coloré</button>
+      <button class="pay-option" data-style="nuit">🌙 Nuit étoilée</button>
+      <button class="pay-option" data-style="feu">🔥 Énergie</button>
+    </div>
+
+    <canvas id="customStage" width="640" height="360" style="width:100%;border-radius:14px;background:#000;display:block;margin-top:16px;"></canvas>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-ghost" style="margin:0;" id="customPreviewBtn">▶️ Prévisualiser</button>
+    </div>
+
+    <p class="price-tag" id="customPriceTag" style="margin-top:18px;">800 FCFA</p>
+    <p class="hint" id="customPriceHint">Prix de base 800 FCFA + 250 FCFA par scène supplémentaire. La voix choisie ci-dessus est automatiquement intégrée dans ta vidéo téléchargeable — tu n'as besoin d'aucune autre application pour ajouter du son.</p>
+    <button class="btn btn-primary" id="customOrderBtn">Commander cette vidéo</button>
+  </div>
+
+  <div id="customMode-ai-realiste" style="display:none;">
+    <p class="field-label">Décris la vidéo que tu veux (personnages, décor, action, ambiance)</p>
+    <textarea class="input" id="aiPrompt" rows="5" placeholder="Un lionceau réaliste qui court dans la savane au coucher du soleil, caméra qui suit son mouvement, ambiance chaleureuse..."></textarea>
+
+    <p class="field-label">Durée de la vidéo : <span id="aiDurationLabel">10</span> secondes</p>
+    <input type="range" class="range-input" id="aiDurationRange" min="5" max="600" step="5" value="10">
+    <p class="hint">Vidéo à mouvement généré par intelligence artificielle (moteur Kling). Au-delà de 10 secondes, plusieurs séquences sont générées puis assemblées automatiquement (transitions + carton de fin) pour atteindre la durée choisie — jusqu'à 10 minutes (600 secondes). ⏱️ Plus la durée choisie est longue, plus la génération prend de temps (plusieurs séquences à générer par l'IA).</p>
+
+    <p class="price-tag" id="aiRealisteePriceTag" style="margin-top:18px;">—</p>
+    <p class="hint">Prix = coût réel de la génération IA + marge, calculé automatiquement selon la durée choisie.</p>
+    <button class="btn btn-primary" id="aiRealisteOrderBtn">Commander cette vidéo IA</button>
+    <p class="hint" id="aiRealisteSetupWarning" style="display:none;color:var(--danger);margin-top:10px;"></p>
+  </div>
+
+  <div id="customMode-ai-template" style="display:none;">
+    <p class="field-label">Ton texte (une ligne = une scène : publicité, diaporama, annonce, témoignage...)</p>
+    <textarea class="input" id="templateScript" rows="5" placeholder="Bienvenue chez SHAMAN CHOOZ CHANEL.&#10;Découvrez notre nouvelle offre spéciale.&#10;Contactez-nous dès aujourd'hui !"></textarea>
+
+    <p class="field-label">Tes photos (optionnel — un lien par ligne)</p>
+    <textarea class="input" id="templateImages" rows="3" placeholder="https://... (laisser vide pour que l'IA génère des images adaptées à ton texte)"></textarea>
+    <p class="hint">Si tu ne mets pas de lien, une image est générée automatiquement par IA pour chaque scène, à partir de ton texte.</p>
+
+    <p class="field-label">Langue de la vidéo (texte affiché + voix off)</p>
+    <select class="input" id="templateLanguageSelect"></select>
+
+    <p class="field-label">Voix off</p>
+    <div class="pay-grid" id="templateVoiceSwatches">
+      <button class="pay-option selected" data-gender="f">🗣️ Voix féminine</button>
+      <button class="pay-option" data-gender="m">🗣️ Voix masculine</button>
+      <button class="pay-option" data-gender="aucune">🔇 Aucune voix off</button>
+    </div>
+
+    <p class="field-label">Musique de fond (optionnel)</p>
+    <input class="input" id="templateMusicUrl" placeholder="Lien vers un fichier musique .mp3 (laisser vide = aucune musique)">
+
+    <p class="field-label">Format</p>
+    <div class="pay-grid" id="templateFormatSwatches">
+      <button class="pay-option selected" data-format="horizontal">📺 Horizontal (16:9)</button>
+      <button class="pay-option" data-format="vertical">📱 Vertical (réseaux sociaux)</button>
+    </div>
+
+    <p class="field-label">Durée de la vidéo : <span id="templateDurationLabel">20</span> secondes</p>
+    <input type="range" class="range-input" id="templateDurationRange" min="5" max="600" step="5" value="20">
+    <p class="hint">Vidéo assemblée par IA (JSON2Video) : images, texte, voix off et musique — pour tous types de vidéos, pas seulement des dessins animés. Jusqu'à 10 minutes (600 secondes). Astuce : plus tu écris de lignes de texte (une ligne = une scène), plus la durée réelle colle à la durée choisie.</p>
+
+    <p class="price-tag" id="aiTemplatePriceTag" style="margin-top:18px;">—</p>
+    <p class="hint">Prix = coût réel de l'assemblage IA + marge, calculé automatiquement selon la durée choisie.</p>
+    <button class="btn btn-primary" id="aiTemplateOrderBtn">Commander cette vidéo</button>
+    <p class="hint" id="aiTemplateSetupWarning" style="display:none;color:var(--danger);margin-top:10px;"></p>
+  </div>
+</section>
+
+<!-- ===== ECRAN MES VIDEOS (client) ===== -->
+<section class="screen" id="screen-client">
+  <h2 class="section-title">Mes vidéos</h2>
+  <p class="section-sub">Entrez votre numéro de téléphone (utilisé lors de la commande) pour retrouver vos vidéos.</p>
+  <input class="input" id="clientPhoneInput" placeholder="Ex: 0748935686" inputmode="tel">
+  <button class="btn btn-primary" id="clientLookupBtn">Voir mes vidéos</button>
+  <div id="clientOrdersList" style="margin-top:18px;"></div>
+</section>
+
+<!-- ===== ECRAN ADMIN : LOGIN ===== -->
+<section class="screen" id="screen-admin-login">
+  <div class="lock-wrap">
+    <div class="lock-icon">🔒</div>
+    <h2 class="section-title">Espace administrateur</h2>
+    <p class="section-sub">Accès réservé au gérant de SHAMAN CHOOZ CHANEL.</p>
+    <div class="pw-field">
+      <input class="input" type="password" id="adminPwInput" placeholder="Mot de passe admin" autocomplete="current-password">
+      <button class="eye-toggle" id="eyeToggle" aria-label="Afficher/masquer le mot de passe">👁</button>
+    </div>
+    <button class="btn btn-primary" id="adminLoginBtn">Se connecter</button>
+    <p class="error-msg" id="adminLoginError"></p>
+  </div>
+</section>
+
+<!-- ===== ECRAN ADMIN : DASHBOARD ===== -->
+<section class="screen" id="screen-admin-dash">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h2 class="section-title" style="margin:0;">Tableau de bord</h2>
+    <button class="icon-btn" id="adminLogoutBtn" title="Se déconnecter">↩</button>
+  </div>
+  <p class="section-sub">Valide les paiements, gère le catalogue et ton mot de passe.</p>
+
+  <div class="filters">
+    <button class="chip active" data-admintab="orders">Commandes</button>
+    <button class="chip" data-admintab="catalog">Catalogue</button>
+    <button class="chip" data-admintab="settings">Réglages</button>
+  </div>
+
+  <div id="adminTab-orders">
+    <div id="adminOrdersList"></div>
+  </div>
+
+  <div id="adminTab-catalog" style="display:none;">
+    <p class="field-label" style="margin-top:0;">Créer une nouvelle vidéo pour le catalogue</p>
+    <input class="input" id="adminNewTitle" placeholder="Titre de la vidéo">
+    <input class="input" id="adminNewCat" placeholder="Catégorie (ex: Publicité, Anniversaire, Entreprise...)">
+
+    <p class="field-label">Style de la vidéo</p>
+    <div class="filters" style="padding-left:0;">
+      <button class="chip active" data-adminstyle="simple">🎈 Simple</button>
+      <button class="chip" data-adminstyle="realiste">🎬 Réaliste (mouvement)</button>
+      <button class="chip" data-adminstyle="template">🖼️ Pub / diaporama</button>
+    </div>
+
+    <div id="adminStyle-simple">
+      <p class="field-label">Texte (une ligne = une scène, avec voix off)</p>
+      <textarea class="input" id="adminSimpleScript" rows="4" placeholder="Bienvenue chez SHAMAN CHOOZ CHANEL...&#10;Une offre spéciale vous attend..."></textarea>
+      <p class="field-label">Langue de la vidéo</p>
+      <select class="input" id="adminSimpleLanguageSelect"></select>
+      <div class="pay-grid" id="adminSimpleVoiceSwatches">
+        <button class="pay-option selected" data-gender="f">🗣️ Voix féminine</button>
+        <button class="pay-option" data-gender="m">🗣️ Voix masculine</button>
+      </div>
+      <div class="pay-grid" id="adminSimpleStyleSwatches" style="margin-top:8px;">
+        <button class="pay-option selected" data-style="pop">✨ Pop coloré</button>
+        <button class="pay-option" data-style="nuit">🌙 Nuit étoilée</button>
+        <button class="pay-option" data-style="feu">🔥 Énergie</button>
+      </div>
+    </div>
+
+    <div id="adminStyle-realiste" style="display:none;">
+      <p class="field-label">Décris la vidéo (personnages, décor, action, ambiance)</p>
+      <textarea class="input" id="adminRealistePrompt" rows="4" placeholder="Un lionceau réaliste qui court dans la savane..."></textarea>
+      <p class="field-label">Durée : <span id="adminRealisteDurationLabel">10</span> secondes</p>
+      <input type="range" class="range-input" id="adminRealisteDurationRange" min="5" max="600" step="5" value="10">
+    </div>
+
+    <div id="adminStyle-template" style="display:none;">
+      <p class="field-label">Texte (une ligne = une scène)</p>
+      <textarea class="input" id="adminTemplateScript" rows="4" placeholder="Bienvenue chez SHAMAN CHOOZ CHANEL..."></textarea>
+      <p class="field-label">Photos (optionnel — un lien par ligne)</p>
+      <textarea class="input" id="adminTemplateImages" rows="2" placeholder="https://... (vide = images générées par IA)"></textarea>
+      <p class="field-label">Langue de la vidéo</p>
+      <select class="input" id="adminTemplateLanguageSelect"></select>
+      <div class="pay-grid" id="adminTemplateVoiceSwatches">
+        <button class="pay-option selected" data-gender="f">🗣️ Voix féminine</button>
+        <button class="pay-option" data-gender="m">🗣️ Voix masculine</button>
+        <button class="pay-option" data-gender="aucune">🔇 Sans voix</button>
+      </div>
+      <input class="input" id="adminTemplateMusicUrl" placeholder="Lien musique .mp3 (optionnel)" style="margin-top:8px;">
+      <div class="pay-grid" id="adminTemplateFormatSwatches" style="margin-top:8px;">
+        <button class="pay-option selected" data-format="horizontal">📺 Horizontal</button>
+        <button class="pay-option" data-format="vertical">📱 Vertical</button>
+      </div>
+      <p class="field-label">Durée : <span id="adminTemplateDurationLabel">20</span> secondes</p>
+      <input type="range" class="range-input" id="adminTemplateDurationRange" min="5" max="600" step="5" value="20">
+    </div>
+
+    <p class="price-tag" id="adminNewPriceTag" style="margin-top:18px;">—</p>
+    <p class="hint" id="adminNewStatus"></p>
+    <button class="btn btn-primary" id="adminGenerateBtn">🎬 Générer et ajouter au catalogue</button>
+
+    <div style="border-top:1px solid rgba(0,0,0,.08); margin:22px 0 14px;"></div>
+    <p class="field-label" style="margin-top:0;">Vidéos déjà dans le catalogue</p>
+    <button class="btn btn-ghost" id="addVideoBtn">+ Ajouter un lien vidéo externe (YouTube, Drive...)</button>
+    <div id="adminCatalogList" style="margin-top:14px;"></div>
+  </div>
+
+  <div id="adminTab-settings" style="display:none;">
+    <p class="field-label">Changer le mot de passe admin</p>
+    <input class="input" id="newPwInput" type="password" placeholder="Nouveau mot de passe">
+    <button class="btn btn-ghost" id="changePwBtn">Mettre à jour le mot de passe</button>
+
+    <p class="field-label" style="margin-top:24px;">Partager le site (QR code + lien)</p>
+    <div style="background:#fff;border-radius:14px;padding:16px;text-align:center;">
+      <div id="qrCodeBox"></div>
+    </div>
+    <input class="input" id="shareLinkInput" readonly style="margin-top:10px;">
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" style="margin:0;" id="copyLinkBtn">Copier le lien</button>
+      <button class="btn btn-primary" style="margin:0;" id="shareLinkBtn">Partager</button>
+    </div>
+
+    <p class="field-label" style="margin-top:24px;">État de connexion</p>
+    <p class="section-sub" id="firebaseStatusText">Vérification…</p>
+  </div>
+</section>
+
+<!-- ===== Nav basse ===== -->
+<nav class="tabbar">
+  <button class="tab active" data-tab="catalog"><span>🎞️</span>Catalogue</button>
+  <button class="tab" data-tab="custom"><span>🎨</span>Créer</button>
+  <button class="tab" data-tab="client"><span>📺</span>Mes vidéos</button>
+  <button class="tab" data-tab="admin"><span>🔒</span>Admin<span class="dot" id="adminDot"></span></button>
+</nav>
+
+<!-- ===== Fiche produit / commande (sheet) ===== -->
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="sheet" id="productSheet"></div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="ai-config.js"></script>
+<script src="app.js"></script>
+
+<!-- ===== Traduction du site dans toutes les langues (widget Google Traduction, gratuit) =====
+     Le site est écrit en français ; ce widget traduit tout son contenu à la volée dans la langue
+     choisie par le visiteur via le sélecteur en haut de la page. -->
+<script>
+  const SITE_LANGUAGES = [
+    {code:'fr', name:'🇫🇷 Français'}, {code:'en', name:'🇬🇧 English'}, {code:'es', name:'🇪🇸 Español'},
+    {code:'pt', name:'🇵🇹 Português'}, {code:'de', name:'🇩🇪 Deutsch'}, {code:'it', name:'🇮🇹 Italiano'},
+    {code:'nl', name:'🇳🇱 Nederlands'}, {code:'ru', name:'🇷🇺 Русский'}, {code:'tr', name:'🇹🇷 Türkçe'},
+    {code:'pl', name:'🇵🇱 Polski'}, {code:'uk', name:'🇺🇦 Українська'}, {code:'ar', name:'🇸🇦 العربية'},
+    {code:'zh-CN', name:'🇨🇳 中文'}, {code:'ja', name:'🇯🇵 日本語'}, {code:'ko', name:'🇰🇷 한국어'},
+    {code:'hi', name:'🇮🇳 हिन्दी'}, {code:'vi', name:'🇻🇳 Tiếng Việt'}, {code:'th', name:'🇹🇭 ไทย'},
+    {code:'id', name:'🇮🇩 Bahasa Indonesia'}, {code:'sv', name:'🇸🇪 Svenska'}, {code:'sw', name:'🌍 Kiswahili'},
+    {code:'am', name:'🌍 አማርኛ'}, {code:'zu', name:'🌍 isiZulu'}, {code:'ha', name:'🌍 Hausa'},
+    {code:'yo', name:'🌍 Yorùbá'}, {code:'bn', name:'🌍 বাংলা'}, {code:'fa', name:'🌍 فارسی'}
+  ];
+  function getCookieLang(){
+    const m = document.cookie.match(/googtrans=\/fr\/([a-zA-Z-]+)/);
+    return m ? m[1] : 'fr';
+  }
+  function setSiteLanguage(code){
+    if(code === 'fr'){
+      document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    } else {
+      document.cookie = `googtrans=/fr/${code}; path=/;`;
+    }
+    location.reload();
+  }
+  function initSiteLangSelect(){
+    const sel = document.getElementById('siteLangSelect');
+    if(!sel) return;
+    sel.innerHTML = SITE_LANGUAGES.map(l=>`<option value="${l.code}">${l.name}</option>`).join('');
+    sel.value = getCookieLang();
+    sel.addEventListener('change', ()=> setSiteLanguage(sel.value));
+  }
+  document.addEventListener('DOMContentLoaded', initSiteLangSelect);
+  function googleTranslateElementInit(){
+    new google.translate.TranslateElement({ pageLanguage: 'fr', autoDisplay: false }, 'google_translate_element');
+  }
+</script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+</body>
+</html>
