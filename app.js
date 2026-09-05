@@ -1258,9 +1258,38 @@ function bindEvents(){
 }
 
 function registerSW(){
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  }
+  if(!('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+    .then((reg)=>{
+      // Vérifie s'il existe une nouvelle version dès que l'onglet redevient actif
+      // (ex: le visiteur revient sur l'app après l'avoir laissée en arrière-plan).
+      document.addEventListener('visibilitychange', ()=>{
+        if(document.visibilityState === 'visible') reg.update().catch(()=>{});
+      });
+
+      // Dès qu'une nouvelle version est installée en arrière-plan, on l'active
+      // immédiatement au lieu d'attendre que tous les onglets soient fermés.
+      reg.addEventListener('updatefound', ()=>{
+        const newWorker = reg.installing;
+        if(!newWorker) return;
+        newWorker.addEventListener('statechange', ()=>{
+          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            newWorker.postMessage('SKIP_WAITING');
+          }
+        });
+      });
+    })
+    .catch(()=>{});
+
+  // Une fois la nouvelle version activée, chaque onglet ouvert se recharge tout
+  // seul (une seule fois) pour afficher automatiquement la dernière version.
+  let alreadyRefreshed = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(alreadyRefreshed) return;
+    alreadyRefreshed = true;
+    window.location.reload();
+  });
 }
 
 /* ---------- Installation PWA (tous navigateurs) ---------- */
