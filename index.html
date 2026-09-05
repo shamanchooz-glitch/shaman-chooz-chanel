@@ -173,6 +173,7 @@
     <div class="lock-icon">🔒</div>
     <h2 class="section-title">Espace administrateur</h2>
     <p class="section-sub">Accès réservé au gérant de SHAMAN CHOOZ CHANEL.</p>
+    <input class="input" type="email" id="adminEmailInput" placeholder="Email admin" autocomplete="username">
     <div class="pw-field">
       <input class="input" type="password" id="adminPwInput" placeholder="Mot de passe admin" autocomplete="current-password">
       <button class="eye-toggle" id="eyeToggle" aria-label="Afficher/masquer le mot de passe">👁</button>
@@ -193,11 +194,16 @@
   <div class="filters">
     <button class="chip active" data-admintab="orders">Commandes</button>
     <button class="chip" data-admintab="catalog">Catalogue</button>
+    <button class="chip" data-admintab="stats">Statistiques</button>
     <button class="chip" data-admintab="settings">Réglages</button>
   </div>
 
   <div id="adminTab-orders">
     <div id="adminOrdersList"></div>
+  </div>
+
+  <div id="adminTab-stats" style="display:none;">
+    <div id="adminStatsContent"></div>
   </div>
 
   <div id="adminTab-catalog" style="display:none;">
@@ -267,9 +273,10 @@
   </div>
 
   <div id="adminTab-settings" style="display:none;">
-    <p class="field-label">Changer le mot de passe admin</p>
-    <input class="input" id="newPwInput" type="password" placeholder="Nouveau mot de passe">
-    <button class="btn btn-ghost" id="changePwBtn">Mettre à jour le mot de passe</button>
+    <p class="field-label">Compte admin</p>
+    <p class="hint" id="adminAccountEmail" style="margin-top:0;"></p>
+    <button class="btn btn-ghost" id="sendPwResetBtn">Recevoir un lien pour changer mon mot de passe</button>
+    <p class="hint">Le lien arrive par email (vérifie aussi les spams) et te permet de choisir un nouveau mot de passe.</p>
 
     <p class="field-label" style="margin-top:24px;">Partager le site (QR code + lien)</p>
     <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center;">
@@ -303,6 +310,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="ai-config.js"></script>
 <script src="app.js"></script>

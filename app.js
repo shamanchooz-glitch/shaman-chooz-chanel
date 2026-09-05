@@ -630,10 +630,7 @@ async function init(){
   }
   ORDERS = await DB.get('orders', {});
 
-  const pwHash = await DB.get('adminPwdHash', null);
-  if(!pwHash){
-    await DB.set('adminPwdHash', await sha256('Shaman123chooz'));
-  }
+  firebase.auth().onAuthStateChanged(user => { ADMIN_LOGGED_IN = !!user; });
 
   renderFilters();
   renderCatalog();
@@ -728,10 +725,14 @@ async function submitOrder(){
 }
 
 /* ---------- Espace client : mes vidéos ---------- */
+let clientOrdersListener = null;
+let clientKnownStatuses = {};
+
 async function lookupClientOrders(){
   const phone = document.getElementById('clientPhoneInput').value.trim();
   const pin = document.getElementById('clientPinInput').value.trim();
   const list = document.getElementById('clientOrdersList');
+  if(clientOrdersListener){ firebase.database().ref('orders').off('value', clientOrdersListener); clientOrdersListener = null; }
   if(!phone || !pin){ list.innerHTML=''; return; }
   if(!/^\d{4}$/.test(pin)){ list.innerHTML = `<div class="empty-state"><div class="big">🔒</div>Le code secret doit être à 4 chiffres.</div>`; return; }
   ORDERS = await DB.get('orders', {});
@@ -740,6 +741,33 @@ async function lookupClientOrders(){
   const wrongPin = Object.entries(ORDERS).some(([,o])=> o.buyerPhone === phone && o.pinHash && o.pinHash !== pinHash);
   if(mine.length===0 && wrongPin){ list.innerHTML = `<div class="empty-state"><div class="big">🔒</div>Numéro trouvé, mais code secret incorrect.</div>`; return; }
   if(mine.length===0){ list.innerHTML = `<div class="empty-state"><div class="big">📭</div>Aucune commande trouvée pour ce numéro.</div>`; return; }
+  mine.forEach(([id,o])=>{ clientKnownStatuses[id] = o.status; });
+  renderClientOrdersList(mine);
+
+  // Suivi en direct : dès qu'une commande passe à "payée", le client est prévenu
+  // automatiquement (toast + notification si autorisée), sans avoir à rafraîchir.
+  if(DB.ready){
+    if(window.Notification && Notification.permission === 'default') Notification.requestPermission();
+    clientOrdersListener = (snap)=>{
+      ORDERS = snap.val() || {};
+      const mine2 = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone === phone && (!o.pinHash || o.pinHash === pinHash));
+      mine2.forEach(([id,o])=>{
+        if(clientKnownStatuses[id] && clientKnownStatuses[id] !== 'paid' && o.status === 'paid'){
+          toast(`🎉 Ta commande "${o.title}" est prête !`, 'ok');
+          if(window.Notification && Notification.permission === 'granted'){
+            new Notification('SHAMAN CHOOZ CHANEL', { body: `Ta commande "${o.title}" est prête !`, icon: 'icon-192.png' });
+          }
+        }
+        clientKnownStatuses[id] = o.status;
+      });
+      renderClientOrdersList(mine2);
+    };
+    firebase.database().ref('orders').on('value', clientOrdersListener);
+  }
+}
+
+function renderClientOrdersList(mine){
+  const list = document.getElementById('clientOrdersList');
   list.innerHTML = mine.sort((a,b)=>b[1].createdAt-a[1].createdAt).map(([id,o])=>`
     <div class="order-card">
       <div class="row"><strong>${esc(o.title)}</strong>
@@ -817,18 +845,26 @@ async function runSimpleGeneration(order){
 
 /* ---------- Admin : connexion ---------- */
 async function adminLogin(){
+  const email = document.getElementById('adminEmailInput').value.trim();
   const pw = document.getElementById('adminPwInput').value;
-  const hash = await sha256(pw);
-  const stored = await DB.get('adminPwdHash', null);
-  if(hash === stored){
+  const errEl = document.getElementById('adminLoginError');
+  if(!email || !pw){ errEl.textContent = 'Entre ton email et ton mot de passe.'; return; }
+  try{
+    await firebase.auth().signInWithEmailAndPassword(email, pw);
     ADMIN_LOGGED_IN = true;
-    document.getElementById('adminLoginError').textContent = '';
+    errEl.textContent = '';
     document.getElementById('adminPwInput').value = '';
     showScreen('admin-dash');
     renderAdminOrders();
     renderAdminCatalog();
-  } else {
-    document.getElementById('adminLoginError').textContent = 'Mot de passe incorrect.';
+  } catch(e){
+    if(e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found'){
+      errEl.textContent = 'Email ou mot de passe incorrect.';
+    } else if(e.code === 'auth/too-many-requests'){
+      errEl.textContent = 'Trop de tentatives, réessaie dans un instant.';
+    } else {
+      errEl.textContent = "Connexion impossible. Vérifie que le compte admin est bien créé dans Firebase (Authentication > Utilisateurs).";
+    }
   }
 }
 async function renderAdminOrders(){
@@ -880,6 +916,36 @@ async function updateOrderStatus(id, status){
   await DB.update(`orders/${id}`, {status});
   toast(status==='paid' ? 'Commande validée !' : 'Commande refusée.', status==='paid'?'ok':'err');
   renderAdminOrders();
+}
+
+/* ---------- Admin : statistiques ---------- */
+async function renderAdminStats(){
+  ORDERS = await DB.get('orders', {});
+  const el = document.getElementById('adminStatsContent');
+  const all = Object.values(ORDERS);
+  const paid = all.filter(o=>o.status==='paid');
+  const pending = all.filter(o=>o.status==='pending' || !o.status);
+  const rejected = all.filter(o=>o.status==='rejected');
+  const revenue = paid.reduce((sum,o)=> sum + (o.price||0), 0);
+
+  const counts = {};
+  paid.forEach(o=>{ const key = o.title || 'Vidéo sur mesure'; counts[key] = (counts[key]||0) + 1; });
+  const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  el.innerHTML = `
+    <div class="order-card">
+      <div class="row"><strong>💰 Chiffre d'affaires (validé)</strong><span class="hint" style="margin:0;">${fcfa(revenue)}</span></div>
+    </div>
+    <div class="order-card">
+      <div class="row"><strong>✓ Commandes validées</strong><span class="hint" style="margin:0;">${paid.length}</span></div>
+      <div class="row"><strong>⏳ En attente</strong><span class="hint" style="margin:0;">${pending.length}</span></div>
+      <div class="row" style="margin-bottom:0;"><strong>✕ Refusées</strong><span class="hint" style="margin:0;">${rejected.length}</span></div>
+    </div>
+    ${top.length ? `<div class="order-card">
+      <p class="field-label" style="margin-top:0;">🏆 Les plus vendues</p>
+      ${top.map(([title,n],i)=>`<div class="row" style="margin-bottom:${i===top.length-1?'0':'6px'};"><span>${esc(title)}</span><span class="hint" style="margin:0;">${n} vente${n>1?'s':''}</span></div>`).join('')}
+    </div>` : ''}
+  `;
 }
 
 /* ---------- Admin : catalogue ---------- */
@@ -1105,16 +1171,26 @@ function bindEvents(){
     inp.type = inp.type === 'password' ? 'text' : 'password';
     document.getElementById('eyeToggle').textContent = inp.type === 'password' ? '👁' : '🙈';
   };
+  document.getElementById('adminEmailInput').addEventListener('keydown', e=>{ if(e.key==='Enter') adminLogin(); });
   document.getElementById('adminPwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') adminLogin(); });
-  document.getElementById('adminLogoutBtn').onclick = ()=>{ ADMIN_LOGGED_IN = false; showScreen('catalog'); };
+  document.getElementById('adminLogoutBtn').onclick = async ()=>{
+    await firebase.auth().signOut();
+    ADMIN_LOGGED_IN = false;
+    showScreen('catalog');
+  };
 
   document.querySelectorAll('[data-admintab]').forEach(btn=>{
     btn.onclick = ()=>{
       document.querySelectorAll('[data-admintab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      ['orders','catalog','settings'].forEach(name=>{
+      ['orders','catalog','stats','settings'].forEach(name=>{
         document.getElementById('adminTab-'+name).style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
       });
+      if(btn.dataset.admintab==='stats') renderAdminStats();
+      if(btn.dataset.admintab==='settings'){
+        const user = firebase.auth().currentUser;
+        document.getElementById('adminAccountEmail').textContent = user ? `Connecté en tant que ${user.email}` : '';
+      }
     };
   });
   document.getElementById('addVideoBtn').onclick = addNewVideo;
@@ -1169,12 +1245,15 @@ function bindEvents(){
   document.getElementById('adminGenerateBtn').onclick = adminGenerateAndPublish;
   updateAdminPriceTag();
 
-  document.getElementById('changePwBtn').onclick = async ()=>{
-    const val = document.getElementById('newPwInput').value.trim();
-    if(val.length < 6) return toast('6 caractères minimum.', 'err');
-    await DB.set('adminPwdHash', await sha256(val));
-    document.getElementById('newPwInput').value='';
-    toast('Mot de passe mis à jour.', 'ok');
+  document.getElementById('sendPwResetBtn').onclick = async ()=>{
+    const user = firebase.auth().currentUser;
+    if(!user || !user.email) return toast("Impossible de trouver l'email du compte.", 'err');
+    try{
+      await firebase.auth().sendPasswordResetEmail(user.email);
+      toast('Email envoyé à ' + user.email, 'ok');
+    } catch(e){
+      toast("Erreur lors de l'envoi de l'email.", 'err');
+    }
   };
 }
 
