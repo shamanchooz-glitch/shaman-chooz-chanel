@@ -39,4 +39,4 @@ window.SCC_FIREBASE_READY = true;
 // Ensuite, dans l'espace admin du site, connecte-toi avec le mot de passe que tu as
 // choisi à l'étape 4 (le champ "pseudo/e-mail" n'existe pas sur le site : c'est cet
 // ADMIN_EMAIL qui est utilisé automatiquement en coulisses).
-const ADMIN_EMAIL = "admin@shamanchoozchanel.com"; // ⚠️ à remplacer par l'e-mail que tu as créé à l'étape 4
+const ADMIN_EMAIL = "Shamanchooz@gmail.com"; // ⚠️ crée bien un utilisateur avec cet e-mail exact dans Firebase Authentication (étape 4 ci-dessus)
