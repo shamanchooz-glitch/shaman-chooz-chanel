@@ -1,14 +1,14 @@
 :root{
-  --bg:#181310;
-  --surface:#241D17;
-  --surface-2:#2F2720;
-  --line:#42392E;
-  --yellow:#E8B368;
+  --bg:#FAF6F0;
+  --surface:#FFFFFF;
+  --surface-2:#F1EAE0;
+  --line:#E3D9C9;
+  --yellow:#C9821F;
   --pink:#C97B4A;
-  --teal:#8FAE8B;
-  --text:#F6EFE4;
-  --muted:#B7A996;
-  --danger:#E17361;
+  --teal:#3E7D63;
+  --text:#2B2318;
+  --muted:#7A6C58;
+  --danger:#C0392B;
   --radius:18px;
 }
 *{box-sizing:border-box;}
@@ -38,7 +38,7 @@ img{max-width:100%;display:block;}
 /* ===== Bandeau chaîne (header) ===== */
 .channel-band{
   position:sticky; top:0; z-index:40;
-  background:linear-gradient(135deg,#241D17 0%, #181310 70%);
+  background:linear-gradient(135deg,var(--surface) 0%, var(--bg) 70%);
   border-bottom:1px solid var(--line);
   padding:12px 16px;
   display:flex; align-items:center; gap:12px;
@@ -201,7 +201,7 @@ body{top:0 !important;}
 
 /* Squelette de chargement du catalogue (le temps que Firebase réponde) */
 .reel-card.skeleton{
-  background:linear-gradient(90deg, rgba(255,255,255,.06) 25%, rgba(255,255,255,.14) 37%, rgba(255,255,255,.06) 63%);
+  background:linear-gradient(90deg, var(--surface-2) 25%, var(--line) 37%, var(--surface-2) 63%);
   background-size:400% 100%; animation:shimmer 1.4s ease infinite; border-radius:14px; aspect-ratio:2/3; cursor:default;
 }
 @keyframes shimmer{ 0%{background-position:100% 50%;} 100%{background-position:0 50%;} }
