@@ -781,11 +781,23 @@ async function adminLogin(){
     renderAdminCatalog();
   };
   if(DB.ready){
+    if(typeof firebase.auth !== 'function'){
+      errEl.textContent = "Erreur technique : le module d'authentification Firebase ne s'est pas chargé (vérifie que index.html contient bien la ligne firebase-auth-compat.js, et essaie de recharger la page).";
+      return;
+    }
     try{
       await firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, pw);
       onSuccess();
     } catch(e){
-      errEl.textContent = 'Mot de passe incorrect.';
+      const messages = {
+        'auth/operation-not-allowed': "La connexion par e-mail/mot de passe n'est pas activée dans Firebase (Authentication > Sign-in method > active \"E-mail/Mot de passe\").",
+        'auth/user-not-found': `Aucun utilisateur avec l'e-mail ${ADMIN_EMAIL} n'existe dans Firebase Authentication (vérifie qu'il a bien été créé, sans espace ni faute de frappe).`,
+        'auth/invalid-email': "L'adresse ADMIN_EMAIL dans firebase-config.js n'est pas valide.",
+        'auth/wrong-password': 'Mot de passe incorrect.',
+        'auth/invalid-credential': 'Mot de passe incorrect (ou utilisateur introuvable — vérifie ton compte dans Firebase Authentication).',
+        'auth/too-many-requests': 'Trop de tentatives : attends quelques minutes puis réessaie.'
+      };
+      errEl.textContent = messages[e.code] || ('Erreur de connexion : ' + (e.code || e.message));
     }
   } else {
     if(pw === 'Shaman123chooz') onSuccess();
