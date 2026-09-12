@@ -180,6 +180,28 @@ C'est tout, à faire une seule fois. Ensuite, à chaque mise à jour que tu publ
 9. **Chargement des images optimisé** (lazy loading + effet de chargement fluide) — le site se sent plus rapide, surtout avec une connexion lente
 10. **Bouton "remonter en haut"** avec défilement fluide sur les longues listes
 
+## Étape 13 — 16 nouvelles fonctionnalités de gestion pour l'espace admin
+Cette fois, l'accent est mis sur une gestion plus approfondie de ton activité, côté admin :
+
+1. **📊 Tableau de bord des statistiques de vente** — nouvel onglet "Stats" (premier onglet de ton espace admin) : chiffre d'affaires, nombre de commandes validées, panier moyen, commandes en attente, vidéos IA générées ce mois-ci — avec un filtre par période (aujourd'hui / 7 jours / ce mois / tout)
+2. **📈 Graphique des ventes des 7 derniers jours** (petit graphique en barres, directement dans le tableau de bord)
+3. **🏆 Top 5 des vidéos les plus vendues**
+4. **👁️ Top 5 des vidéos les plus vues**
+5. **🎬 Répartition du chiffre d'affaires par type de vidéo** (catalogue / sur mesure / IA réaliste / IA pub-diaporama)
+6. **📂 Répartition du chiffre d'affaires par catégorie** de vidéo
+7. **🔍 Recherche et filtres dans les commandes** admin (par nom, téléphone, référence, ou statut)
+8. **📤 Export CSV de toutes les commandes** (ouvrable dans Excel/Google Sheets, pratique pour ta comptabilité)
+9. **🗑️ Suppression d'une commande** (nettoyage des doublons ou tests)
+10. **💬 Bouton WhatsApp direct** sur chaque commande, pour contacter le client en un clic
+11. **🧾 Historique client** : voir en un clic toutes les commandes passées par un même client et le total dépensé
+12. **✏️ Modifier une vidéo du catalogue** (titre, catégorie, prix) sans avoir à la supprimer et recréer
+13. **📋 Dupliquer une vidéo du catalogue** (pratique pour créer une variante rapidement)
+14. **🔍 Recherche dans le catalogue admin** (par titre ou catégorie)
+15. **🔔 Badge de commandes en attente** sur l'onglet "Admin" en bas de l'écran — visible même avant de te connecter, pour savoir d'un coup d'œil s'il y a des paiements à valider
+16. **🕐 Suivi de la dernière connexion admin** — affiché en haut de l'onglet Réglages, pratique pour repérer une connexion inhabituelle
+
+⚠️ Republie bien `database.rules.json` (mis à jour, une nouvelle entrée `lastAdminLogin` a été ajoutée) dans Firebase > Realtime Database > Règles > Publier.
+
 ## Pour aller plus loin (Phase 3)
 - **Paiement 100% automatique** (sans validation manuelle) : ouvrir un compte marchand CinetPay ou PayDunya
 - **Sous-titres automatiques et voix supplémentaires** : JSON2Video prend en charge d'autres langues et voix (voir sa documentation) si tu veux élargir l'offre

@@ -37,6 +37,15 @@ const DB = {
     if(this.ready) return this.ref(path).update(value);
     const current = await this.get(path, {});
     await this.set(path, {...current, ...value});
+  },
+  async remove(path){
+    if(this.ready) return this.ref(path).remove();
+    const parts = path.split('/');
+    const key = parts.pop();
+    const parentPath = parts.join('/');
+    const current = await this.get(parentPath, {});
+    delete current[key];
+    await this.set(parentPath, current);
   }
 };
 
@@ -88,6 +97,9 @@ let ADMIN_LOGGED_IN = false;
 let SEARCH_QUERY = '';
 let FAVORITES = JSON.parse(localStorage.getItem('scc_favorites') || '[]');
 let LAST_KNOWN_STATUSES = {};
+let ORDER_SEARCH = '';
+let ORDER_STATUS_FILTER = 'all';
+let STATS_RANGE = 'today';
 const NEW_BADGE_MS = 7 * 24 * 3600 * 1000; // 7 jours
 
 const PAY_METHODS = [
@@ -616,6 +628,7 @@ async function init(){
     await DB.set('catalog', CATALOG);
   }
   ORDERS = await DB.get('orders', {});
+  updateAdminDot();
 
   renderFilters();
   renderCatalog();
@@ -880,6 +893,20 @@ async function runSimpleGeneration(order){
   }
 }
 
+/* Enregistre et affiche la date/heure de la dernière connexion admin (utile pour repérer
+   une connexion suspecte si quelqu'un d'autre accédait à l'espace admin). */
+async function recordAdminLogin(){
+  const now = Date.now();
+  const previous = await DB.get('lastAdminLogin', null);
+  await DB.set('lastAdminLogin', now).catch(()=>{});
+  const el = document.getElementById('lastLoginInfo');
+  if(el){
+    el.textContent = previous
+      ? `Dernière connexion précédente : ${new Date(previous).toLocaleString('fr-FR')}`
+      : 'Première connexion enregistrée.';
+  }
+}
+
 /* ---------- Admin : connexion ---------- */
 /* Depuis que la base de données est protégée par de vraies règles Firebase, la connexion
    admin utilise Firebase Authentication (voir firebase-config.js pour créer ce compte).
@@ -894,6 +921,8 @@ async function adminLogin(){
     showScreen('admin-dash');
     renderAdminOrders();
     renderAdminCatalog();
+    renderAdminStats();
+    recordAdminLogin();
   };
   if(DB.ready){
     if(typeof firebase.auth !== 'function'){
@@ -919,11 +948,127 @@ async function adminLogin(){
     else errEl.textContent = 'Mot de passe incorrect. (Mode démo local : Shaman123chooz)';
   }
 }
+/* Convertit un numéro de téléphone (formats variés) en lien WhatsApp cliquable */
+function waLink(phone){
+  let digits = (phone||'').replace(/\D/g,'');
+  if(digits.startsWith('00')) digits = digits.slice(2);
+  if(digits.startsWith('0') && digits.length===10) digits = '225' + digits.slice(1); // format ivoirien local
+  return `https://wa.me/${digits}`;
+}
+
+/* ---------- Admin : statistiques de vente ---------- */
+function rangeCutoff(range){
+  if(range==='today'){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+  if(range==='week') return Date.now() - 7*24*3600*1000;
+  if(range==='month'){ const d=new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.getTime(); }
+  return 0; // tout
+}
+function renderAdminStats(){
+  ORDERS = ORDERS || {};
+  const cutoff = rangeCutoff(STATS_RANGE);
+  const paid = Object.values(ORDERS).filter(o=> o.status==='paid' && o.createdAt >= cutoff);
+  const revenue = paid.reduce((s,o)=>s+(o.price||0),0);
+  const count = paid.length;
+  const avg = count ? Math.round(revenue/count) : 0;
+  const pendingCount = Object.values(ORDERS).filter(o=>o.status==='pending').length;
+  const monthCutoff = rangeCutoff('month');
+  const aiThisMonth = Object.values(ORDERS).filter(o=> o.status==='paid' && o.createdAt>=monthCutoff && (o.type==='ai'||o.type==='custom')).length;
+
+  document.getElementById('statsCards').innerHTML = `
+    <div class="stat-card"><span class="stat-value">${fcfa(revenue)}</span><span class="stat-label">Chiffre d'affaires</span></div>
+    <div class="stat-card"><span class="stat-value">${count}</span><span class="stat-label">Commandes validées</span></div>
+    <div class="stat-card"><span class="stat-value">${fcfa(avg)}</span><span class="stat-label">Panier moyen</span></div>
+    <div class="stat-card"><span class="stat-value">${pendingCount}</span><span class="stat-label">En attente</span></div>
+    <div class="stat-card"><span class="stat-value">${aiThisMonth}</span><span class="stat-label">Vidéos IA ce mois</span></div>
+  `;
+
+  drawStatsChart();
+
+  const soldCount = {};
+  Object.values(ORDERS).filter(o=>o.status==='paid' && o.itemId).forEach(o=>{
+    soldCount[o.itemId] = soldCount[o.itemId] || { count:0, revenue:0, title:(CATALOG[o.itemId]?.title || o.title) };
+    soldCount[o.itemId].count++; soldCount[o.itemId].revenue += (o.price||0);
+  });
+  const topSold = Object.values(soldCount).sort((a,b)=>b.count-a.count).slice(0,5);
+  document.getElementById('statsTopSold').innerHTML = topSold.length
+    ? topSold.map((s,i)=>`<p class="hint" style="margin:4px 0;">${i+1}. ${s.title} — ${s.count} vente${s.count>1?'s':''} (${fcfa(s.revenue)})</p>`).join('')
+    : `<p class="hint">Aucune vente pour l'instant.</p>`;
+
+  const topViewed = Object.entries(CATALOG).sort((a,b)=>(b[1].views||0)-(a[1].views||0)).slice(0,5);
+  document.getElementById('statsTopViewed').innerHTML = topViewed.length
+    ? topViewed.map(([,v],i)=>`<p class="hint" style="margin:4px 0;">${i+1}. ${v.title} — ${v.views||0} vue${(v.views||0)>1?'s':''}</p>`).join('')
+    : `<p class="hint">Pas encore de données.</p>`;
+
+  const types = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0 };
+  const typeRevenue = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0 };
+  paid.forEach(o=>{
+    let key = 'Catalogue';
+    if(o.type==='custom') key = 'Vidéo sur mesure';
+    else if(o.type==='ai' && o.aiMode==='realiste') key = 'Vidéo IA réaliste';
+    else if(o.type==='ai' && o.aiMode==='template') key = 'Vidéo IA pub/diaporama';
+    types[key]++; typeRevenue[key]+=(o.price||0);
+  });
+  document.getElementById('statsByType').innerHTML = Object.keys(types).map(k=>
+    `<p class="hint" style="margin:4px 0;">${k} : ${types[k]} commande${types[k]>1?'s':''} — ${fcfa(typeRevenue[k])}</p>`
+  ).join('');
+
+  const catRevenue = {};
+  paid.filter(o=>o.itemId).forEach(o=>{
+    const cat = CATALOG[o.itemId]?.cat || 'Autre';
+    catRevenue[cat] = (catRevenue[cat]||0) + (o.price||0);
+  });
+  const catEntries = Object.entries(catRevenue).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('statsByCategory').innerHTML = catEntries.length
+    ? catEntries.map(([cat,rev])=>`<p class="hint" style="margin:4px 0;">${cat} — ${fcfa(rev)}</p>`).join('')
+    : `<p class="hint">Pas encore de ventes catalogue.</p>`;
+}
+function drawStatsChart(){
+  const canvas = document.getElementById('statsChart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const days = [];
+  for(let i=6;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
+    days.push(d.getTime());
+  }
+  const totals = days.map(dayStart=>{
+    const dayEnd = dayStart + 24*3600*1000;
+    return Object.values(ORDERS).filter(o=>o.status==='paid' && o.createdAt>=dayStart && o.createdAt<dayEnd).reduce((s,o)=>s+(o.price||0),0);
+  });
+  const max = Math.max(...totals, 1);
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  const gap = w / totals.length;
+  const barW = gap * 0.55;
+  const pink = getComputedStyle(document.documentElement).getPropertyValue('--pink').trim() || '#C97B4A';
+  const muted = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#7A6C58';
+  totals.forEach((val,i)=>{
+    const barH = (val/max) * (h-30);
+    const x = i*gap + (gap-barW)/2;
+    const y = h - barH - 20;
+    ctx.fillStyle = pink;
+    if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(x,y,barW,Math.max(barH,2),4); ctx.fill(); }
+    else ctx.fillRect(x,y,barW,Math.max(barH,2));
+    ctx.fillStyle = muted;
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(new Date(days[i]).toLocaleDateString('fr-FR',{weekday:'short'}), x+barW/2, h-6);
+  });
+}
+
 async function renderAdminOrders(){
   ORDERS = await DB.get('orders', {});
+  updateAdminDot();
   const el = document.getElementById('adminOrdersList');
-  const entries = Object.entries(ORDERS).sort((a,b)=>b[1].createdAt-a[1].createdAt);
-  if(entries.length===0){ el.innerHTML = `<div class="empty-state"><div class="big">🗂️</div>Aucune commande pour l'instant.</div>`; return; }
+  let entries = Object.entries(ORDERS).sort((a,b)=>b[1].createdAt-a[1].createdAt);
+  if(ORDER_STATUS_FILTER !== 'all'){
+    entries = entries.filter(([,o])=> (o.status||'pending') === ORDER_STATUS_FILTER);
+  }
+  if(ORDER_SEARCH){
+    const q = ORDER_SEARCH.toLowerCase();
+    entries = entries.filter(([,o])=> (o.buyerName||'').toLowerCase().includes(q) || (o.buyerPhone||'').includes(q) || (o.ref||'').toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q));
+  }
+  if(entries.length===0){ el.innerHTML = `<div class="empty-state"><div class="big">🗂️</div>Aucune commande trouvée.</div>`; return; }
   el.innerHTML = entries.map(([id,o])=>`
     <div class="order-card">
       <div class="row"><strong>${o.title}</strong>
@@ -933,14 +1078,56 @@ async function renderAdminOrders(){
       </div>
       <p class="hint" style="margin:2px 0 8px;">${o.buyerName} • ${o.buyerPhone} • ${o.payMethod} • Réf: ${o.ref}${o.accessCode ? ` • Code client : <strong>${o.accessCode}</strong>` : ''}</p>
       ${o.type==='custom' ? `<p class="hint" style="margin:0 0 8px;white-space:pre-line;">📝 ${o.script}</p>` : ''}
-      ${o.status==='pending' ? `
-        <div style="display:flex; gap:8px;">
-          <button class="btn btn-teal" style="margin:0;" data-validate="${id}">✓ Valider</button>
-          <button class="btn btn-danger" style="margin:0;" data-reject="${id}">✕ Refuser</button>
-        </div>` : ''}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        ${o.status==='pending' ? `
+          <button class="btn btn-teal" style="margin:0;width:auto;padding:8px 14px;" data-validate="${id}">✓ Valider</button>
+          <button class="btn btn-danger" style="margin:0;width:auto;padding:8px 14px;" data-reject="${id}">✕ Refuser</button>` : ''}
+        <a class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" href="${waLink(o.buyerPhone)}" target="_blank">💬 WhatsApp</a>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-history="${id}">🧾 Historique client</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-delete="${id}">🗑️</button>
+      </div>
     </div>`).join('');
   el.querySelectorAll('[data-validate]').forEach(b=> b.onclick = ()=> validateOrder(b.dataset.validate));
   el.querySelectorAll('[data-reject]').forEach(b=> b.onclick = ()=> updateOrderStatus(b.dataset.reject,'rejected'));
+  el.querySelectorAll('[data-history]').forEach(b=>{
+    b.onclick = ()=>{
+      const phone = ORDERS[b.dataset.history].buyerPhone;
+      const clientOrders = Object.values(ORDERS).filter(o=>o.buyerPhone===phone);
+      const totalSpent = clientOrders.filter(o=>o.status==='paid').reduce((s,o)=>s+(o.price||0),0);
+      const lines = clientOrders.sort((a,b)=>b.createdAt-a.createdAt)
+        .map(o=>`• ${new Date(o.createdAt).toLocaleDateString('fr-FR')} — ${o.title} (${o.status==='paid'?'validée':o.status==='rejected'?'refusée':'en attente'})`).join('\n');
+      alert(`Client : ${phone}\n${clientOrders.length} commande(s) au total — ${fcfa(totalSpent)} dépensés\n\n${lines}`);
+    };
+  });
+  el.querySelectorAll('[data-delete]').forEach(b=>{
+    b.onclick = async ()=>{
+      if(!confirm('Supprimer définitivement cette commande ?')) return;
+      await DB.remove(`orders/${b.dataset.delete}`);
+      renderAdminOrders();
+      toast('Commande supprimée.', 'ok');
+    };
+  });
+}
+function updateAdminDot(){
+  const dot = document.getElementById('adminDot');
+  if(!dot) return;
+  const pending = Object.values(ORDERS).filter(o=>o.status==='pending').length;
+  dot.classList.toggle('show', pending > 0);
+}
+function exportOrdersCsv(){
+  const rows = [['Date','Titre','Client','Téléphone','Moyen de paiement','Référence','Statut','Prix (FCFA)','Code client']];
+  Object.values(ORDERS).sort((a,b)=>b.createdAt-a.createdAt).forEach(o=>{
+    rows.push([
+      new Date(o.createdAt).toLocaleString('fr-FR'), o.title, o.buyerName, o.buyerPhone,
+      o.payMethod, o.ref, o.status, o.price, o.accessCode||''
+    ]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `commandes-shaman-chooz-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
 }
 async function validateOrder(id){
   const o = ORDERS[id];
@@ -959,14 +1146,25 @@ async function updateOrderStatus(id, status){
 }
 
 /* ---------- Admin : catalogue ---------- */
+let ADMIN_CATALOG_SEARCH = '';
 function renderAdminCatalog(){
   const el = document.getElementById('adminCatalogList');
-  el.innerHTML = Object.entries(CATALOG).map(([id,v])=>`
+  let entries = Object.entries(CATALOG);
+  if(ADMIN_CATALOG_SEARCH){
+    const q = ADMIN_CATALOG_SEARCH.toLowerCase();
+    entries = entries.filter(([,v])=> v.title.toLowerCase().includes(q) || v.cat.toLowerCase().includes(q));
+  }
+  el.innerHTML = entries.map(([id,v])=>`
     <div class="order-card">
       <div class="row"><strong>${v.title}</strong><span class="hint" style="margin:0;">${fcfa(v.price)}</span></div>
-      <p class="hint" style="margin:2px 0 8px;">${v.cat}</p>
+      <p class="hint" style="margin:2px 0 8px;">${v.cat} • 👁️ ${v.views||0} vue${(v.views||0)>1?'s':''}</p>
       <input class="input" style="margin-bottom:8px;" placeholder="Lien de la vidéo (YouTube non-listé, Drive, etc.)" value="${v.videoUrl||''}" data-videourl="${id}">
-      <button class="btn btn-ghost" style="margin:0;" data-savevideo="${id}">Enregistrer le lien</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-savevideo="${id}">💾 Enregistrer le lien</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-editvideo="${id}">✏️ Modifier</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-duplicatevideo="${id}">📋 Dupliquer</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-deletevideo="${id}">🗑️ Supprimer</button>
+      </div>
     </div>`).join('');
   el.querySelectorAll('[data-savevideo]').forEach(btn=>{
     btn.onclick = async ()=>{
@@ -975,6 +1173,38 @@ function renderAdminCatalog(){
       CATALOG[id].videoUrl = input.value.trim();
       await DB.set('catalog', CATALOG);
       toast('Lien enregistré.', 'ok');
+    };
+  });
+  el.querySelectorAll('[data-editvideo]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.dataset.editvideo;
+      const v = CATALOG[id];
+      const title = prompt('Titre :', v.title); if(title===null) return;
+      const cat = prompt('Catégorie :', v.cat); if(cat===null) return;
+      const price = parseInt(prompt('Prix en FCFA :', v.price)); if(isNaN(price)) return;
+      CATALOG[id] = {...v, title, cat, price};
+      await DB.set('catalog', CATALOG);
+      renderAdminCatalog(); renderFilters(); renderCatalog();
+      toast('Vidéo mise à jour.', 'ok');
+    };
+  });
+  el.querySelectorAll('[data-duplicatevideo]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const src = CATALOG[btn.dataset.duplicatevideo];
+      const id = 'v'+Date.now();
+      CATALOG[id] = {...src, title: src.title + ' (copie)', createdAt: Date.now(), views:0};
+      await DB.set('catalog', CATALOG);
+      renderAdminCatalog(); renderFilters(); renderCatalog();
+      toast('Vidéo dupliquée — modifie-la si besoin.', 'ok');
+    };
+  });
+  el.querySelectorAll('[data-deletevideo]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Supprimer définitivement cette vidéo du catalogue ?')) return;
+      delete CATALOG[btn.dataset.deletevideo];
+      await DB.set('catalog', CATALOG);
+      renderAdminCatalog(); renderFilters(); renderCatalog();
+      toast('Vidéo supprimée.', 'ok');
     };
   });
 }
@@ -1221,12 +1451,39 @@ function bindEvents(){
     btn.onclick = ()=>{
       document.querySelectorAll('[data-admintab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      ['orders','catalog','settings'].forEach(name=>{
+      ['stats','orders','catalog','settings'].forEach(name=>{
         document.getElementById('adminTab-'+name).style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
       });
+      if(btn.dataset.admintab === 'stats') renderAdminStats();
     };
   });
   document.getElementById('addVideoBtn').onclick = addNewVideo;
+
+  document.getElementById('adminOrderSearch').addEventListener('input', e=>{
+    ORDER_SEARCH = e.target.value.trim();
+    renderAdminOrders();
+  });
+  document.querySelectorAll('#orderStatusFilters .chip').forEach(btn=>{
+    btn.onclick = ()=>{
+      document.querySelectorAll('#orderStatusFilters .chip').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      ORDER_STATUS_FILTER = btn.dataset.orderstatus;
+      renderAdminOrders();
+    };
+  });
+  document.getElementById('exportCsvBtn').onclick = exportOrdersCsv;
+  document.getElementById('adminCatalogSearch').addEventListener('input', e=>{
+    ADMIN_CATALOG_SEARCH = e.target.value.trim();
+    renderAdminCatalog();
+  });
+  document.querySelectorAll('#statsRangeFilters .chip').forEach(btn=>{
+    btn.onclick = ()=>{
+      document.querySelectorAll('#statsRangeFilters .chip').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      STATS_RANGE = btn.dataset.range;
+      renderAdminStats();
+    };
+  });
 
   /* Câblage du constructeur de vidéo admin (3 styles → catalogue, prix auto) */
   document.querySelectorAll('[data-adminstyle]').forEach(btn=>{

@@ -14,6 +14,10 @@
       "$orderId": {
         ".write": "auth != null || !data.exists() || newData.child('status').val() == data.child('status').val()"
       }
+    },
+    "lastAdminLogin": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 }

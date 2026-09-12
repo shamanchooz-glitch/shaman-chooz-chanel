@@ -201,12 +201,41 @@
   <p class="section-sub">Valide les paiements, gère le catalogue et ton mot de passe.</p>
 
   <div class="filters">
-    <button class="chip active" data-admintab="orders">Commandes</button>
+    <button class="chip active" data-admintab="stats">📊 Stats</button>
+    <button class="chip" data-admintab="orders">Commandes</button>
     <button class="chip" data-admintab="catalog">Catalogue</button>
     <button class="chip" data-admintab="settings">Réglages</button>
   </div>
 
-  <div id="adminTab-orders">
+  <div id="adminTab-stats">
+    <div class="filters" id="statsRangeFilters" style="padding-left:0;">
+      <button class="chip active" data-range="today">Aujourd'hui</button>
+      <button class="chip" data-range="week">7 jours</button>
+      <button class="chip" data-range="month">Ce mois</button>
+      <button class="chip" data-range="all">Tout</button>
+    </div>
+    <div class="stats-grid" id="statsCards"></div>
+    <p class="field-label">Ventes des 7 derniers jours</p>
+    <canvas id="statsChart" width="600" height="180" style="width:100%;"></canvas>
+    <p class="field-label">🏆 Vidéos les plus vendues</p>
+    <div id="statsTopSold"></div>
+    <p class="field-label">👁️ Vidéos les plus vues</p>
+    <div id="statsTopViewed"></div>
+    <p class="field-label">🎬 Répartition par type de vidéo</p>
+    <div id="statsByType"></div>
+    <p class="field-label">📂 Chiffre d'affaires par catégorie</p>
+    <div id="statsByCategory"></div>
+  </div>
+
+  <div id="adminTab-orders" style="display:none;">
+    <input class="input" id="adminOrderSearch" placeholder="🔎 Rechercher (nom, téléphone, référence...)">
+    <div class="filters" id="orderStatusFilters" style="padding-left:0;">
+      <button class="chip active" data-orderstatus="all">Toutes</button>
+      <button class="chip" data-orderstatus="pending">En attente</button>
+      <button class="chip" data-orderstatus="paid">Validées</button>
+      <button class="chip" data-orderstatus="rejected">Refusées</button>
+    </div>
+    <button class="btn btn-ghost" id="exportCsvBtn">📤 Exporter en CSV</button>
     <div id="adminOrdersList"></div>
   </div>
 
@@ -272,11 +301,13 @@
 
     <div style="border-top:1px solid rgba(0,0,0,.08); margin:22px 0 14px;"></div>
     <p class="field-label" style="margin-top:0;">Vidéos déjà dans le catalogue</p>
+    <input class="input" id="adminCatalogSearch" placeholder="🔎 Filtrer par titre ou catégorie...">
     <button class="btn btn-ghost" id="addVideoBtn">+ Ajouter un lien vidéo externe (YouTube, Drive...)</button>
     <div id="adminCatalogList" style="margin-top:14px;"></div>
   </div>
 
   <div id="adminTab-settings" style="display:none;">
+    <p class="hint" id="lastLoginInfo" style="margin-top:0;"></p>
     <p class="field-label">Changer le mot de passe admin</p>
     <input class="input" id="newPwInput" type="password" placeholder="Nouveau mot de passe">
     <button class="btn btn-ghost" id="changePwBtn">Mettre à jour le mot de passe</button>
