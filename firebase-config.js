@@ -5,11 +5,6 @@
 // pour que les commandes et le catalogue soient synchronisés entre TOUS les
 // appareils (toi en tant qu'admin, et tous tes clients, partout dans le monde).
 //
-// ✅ L'URL de ta Realtime Database est renseignée ci-dessous
-// (https://shaman-chooz-chanel-default-rtdb.firebaseio.com), copiée depuis
-// ta console Firebase. Recharge ton site : Réglages > État de connexion
-// doit maintenant afficher "Connecté à Firebase".
-//
 // ⚠️ "Mode test" laisse la base de données ouverte en lecture/écriture pendant
 // 30 jours, puis se verrouille automatiquement. Avant l'échéance (ou tout de
 // suite si tu préfères), va dans Realtime Database > onglet "Règles" et mets :
