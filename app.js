@@ -332,15 +332,15 @@ function openCustomOrderSheet(){
     const ref = document.getElementById('buyerRef').value.trim();
     if(!selectedPay) return toast('Choisis un moyen de paiement', 'err');
     if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
+    const accessCode = await getOrCreateAccessCode(phone);
     await DB.push('orders', {
       type:'custom', title: `Vidéo sur mesure (${scenes.length} scènes)`, price,
       script: document.getElementById('customScript').value,
       visualStyle: customVisualStyle, gender: customGender, language: customLanguage,
-      payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref,
+      payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref, accessCode,
       status:'pending', createdAt: Date.now()
     });
-    closeSheet();
-    toast('Commande envoyée ! Ta vidéo se génèrera automatiquement après validation.', 'ok');
+    showAccessCodeConfirmation(accessCode);
   };
   document.getElementById('sheetOverlay').classList.add('open');
   sheet.classList.add('open');
@@ -435,12 +435,12 @@ function openOrderPaymentSheet(order){
     const ref = document.getElementById('buyerRef').value.trim();
     if(!selectedPay) return toast('Choisis un moyen de paiement', 'err');
     if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
+    const accessCode = await getOrCreateAccessCode(phone);
     await DB.push('orders', {
-      ...order, payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref,
+      ...order, payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref, accessCode,
       status:'pending', createdAt: Date.now()
     });
-    closeSheet();
-    toast('Commande envoyée ! Génération automatique après validation.', 'ok');
+    showAccessCodeConfirmation(accessCode);
   };
   document.getElementById('sheetOverlay').classList.add('open');
   sheet.classList.add('open');
@@ -691,23 +691,52 @@ async function submitOrder(){
   if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
 
   const v = CATALOG[SELECTED_ITEM];
+  const accessCode = await getOrCreateAccessCode(phone);
   await DB.push('orders', {
     itemId: SELECTED_ITEM, title: v.title, price: v.price,
-    payMethod: SELECTED_PAY, buyerName: name, buyerPhone: phone, ref,
+    payMethod: SELECTED_PAY, buyerName: name, buyerPhone: phone, ref, accessCode,
     status: 'pending', createdAt: Date.now()
   });
-  closeSheet();
-  toast('Commande envoyée ! Tu seras débloqué après vérification.', 'ok');
+  showAccessCodeConfirmation(accessCode);
 }
 
 /* ---------- Espace client : mes vidéos ---------- */
+/* Donne à un client un code d'accès personnel (6 chiffres), lié à son numéro de téléphone.
+   Si ce numéro a déjà commandé, on réutilise le même code (pour qu'un seul code retrouve
+   toutes ses commandes) ; sinon on en génère un nouveau. */
+async function getOrCreateAccessCode(phone){
+  const orders = await DB.get('orders', {});
+  const existing = Object.values(orders).find(o => o.buyerPhone === phone && o.accessCode);
+  if(existing) return existing.accessCode;
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+/* Affiche le code d'accès dans la fiche (persistant, contrairement au toast qui disparaît vite) */
+function showAccessCodeConfirmation(code){
+  const sheet = document.getElementById('productSheet');
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <h2>Commande envoyée !</h2>
+    <p class="sheet-desc">Ta vidéo sera débloquée après vérification de ton paiement.</p>
+    <div class="pay-number-box" style="display:block;font-size:14px;">
+      🔑 Ton code d'accès personnel : <strong style="font-size:22px;letter-spacing:2px;">${code}</strong><br><br>
+      Garde-le précieusement : avec ton numéro de téléphone, il te permet de retrouver et regarder tes vidéos dans "Mes vidéos". Sans ce code, personne d'autre ne peut voir tes vidéos.
+    </div>
+    <button class="btn btn-primary" id="closeConfirmBtn" style="margin-top:14px;">OK, j'ai noté mon code</button>
+  `;
+  document.getElementById('closeConfirmBtn').onclick = closeSheet;
+  document.getElementById('sheetOverlay').classList.add('open');
+  sheet.classList.add('open');
+}
+
 async function lookupClientOrders(){
   const phone = document.getElementById('clientPhoneInput').value.trim();
+  const code = document.getElementById('clientCodeInput').value.trim();
   ORDERS = await DB.get('orders', {});
-  const mine = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone === phone);
   const list = document.getElementById('clientOrdersList');
-  if(!phone){ list.innerHTML=''; return; }
-  if(mine.length===0){ list.innerHTML = `<div class="empty-state"><div class="big">📭</div>Aucune commande trouvée pour ce numéro.</div>`; return; }
+  if(!phone || !code){ list.innerHTML=''; return; }
+  const mine = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone === phone && o.accessCode === code);
+  if(mine.length===0){ list.innerHTML = `<div class="empty-state"><div class="big">📭</div>Aucune commande trouvée pour ce numéro et ce code. Vérifie les deux informations (le code t'a été communiqué après ta commande).</div>`; return; }
   list.innerHTML = mine.sort((a,b)=>b[1].createdAt-a[1].createdAt).map(([id,o])=>`
     <div class="order-card">
       <div class="row"><strong>${o.title}</strong>
@@ -816,7 +845,7 @@ async function renderAdminOrders(){
           ${o.status==='paid'?'Validée':o.status==='rejected'?'Refusée':'En attente'}
         </span>
       </div>
-      <p class="hint" style="margin:2px 0 8px;">${o.buyerName} • ${o.buyerPhone} • ${o.payMethod} • Réf: ${o.ref}</p>
+      <p class="hint" style="margin:2px 0 8px;">${o.buyerName} • ${o.buyerPhone} • ${o.payMethod} • Réf: ${o.ref}${o.accessCode ? ` • Code client : <strong>${o.accessCode}</strong>` : ''}</p>
       ${o.type==='custom' ? `<p class="hint" style="margin:0 0 8px;white-space:pre-line;">📝 ${o.script}</p>` : ''}
       ${o.status==='pending' ? `
         <div style="display:flex; gap:8px;">
