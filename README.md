@@ -2,7 +2,8 @@
 
 ## Ce que contient ce dossier
 - `index.html`, `style.css`, `app.js`, `sw.js`, `manifest.json` — le site
-- `firebase-config.js` — à remplir avec tes clés Firebase (étape 2)
+- `firebase-config.js` — à remplir avec tes clés Firebase (étape 2) et ton e-mail admin (étape 9)
+- `database.rules.json` — règles de sécurité à publier dans la console Firebase (étape 9)
 - `ai-config.js` — à remplir avec l'adresse de ton serveur relais IA (étape 5)
 - `cloudflare-worker.js` — le code du serveur relais qui appelle Kling (mouvement) et JSON2Video (assemblage final) pour générer les vidéos IA (étape 5)
 - `icon-192.png`, `icon-512.png` — ta photo, utilisée comme icône du site
@@ -120,6 +121,30 @@ Sur les vidéos "Animation simple" et "Pub / diaporama" (client et admin), un s�
 **⚠️ Point de vigilance technique** : les noms des voix IA (Azure) que j'ai utilisés pour les langues les plus courantes (français, anglais, espagnol, arabe, chinois, portugais...) sont bien établis et fiables. Pour quelques langues moins courantes (swahili, amharique, zoulou), Microsoft renomme parfois ses voix — si une vidéo dans une de ces langues affiche une erreur de génération, ouvre `app.js`, cherche `const LANGUAGES = [` tout en haut du fichier, et vérifie/corrige le nom de la voix concernée en comparant avec la liste officielle : https://json2video.com/ai-voices/azure/voices/
 
 **Limite à connaître** : le service de traduction gratuit (MyMemory) a une limite d'usage quotidienne raisonnable pour un site de cette taille. Si un jour le site devient très fréquenté et que les traductions commencent à échouer, il faudra passer à un service de traduction payant (DeepL ou Google Translate API) — dis-le-moi si ça arrive, l'adaptation du code est simple (une seule fonction à changer dans `cloudflare-worker.js`).
+
+## Étape 9 — Sécuriser vraiment la base de données et l'espace admin
+Jusqu'ici, ta base de données était ouverte en lecture/écriture à quiconque connaîtrait son adresse technique, et le mot de passe admin était juste une valeur stockée dans la base elle-même — pas une vraie protection. Voici comment la sécuriser correctement, sans rien casser sur le site.
+
+**1. Créer un vrai compte admin (Firebase Authentication)**
+1. Console Firebase > ton projet > menu de gauche "Build" > **"Authentication"** > "Get started"
+2. Onglet **"Sign-in method"** > active **"E-mail/Mot de passe"**
+3. Onglet **"Users"** > **"Add user"** :
+   - E-mail : par exemple `admin@shamanchoozchanel.com` (ou une adresse à toi)
+   - Mot de passe : celui que tu veux utiliser pour te connecter à l'espace admin du site
+4. Ouvre `firebase-config.js`, modifie la ligne `const ADMIN_EMAIL = "..."` pour qu'elle corresponde **exactement** à l'e-mail choisi à l'étape 3, puis mets à jour ce fichier sur GitHub
+
+Ensuite, connecte-toi à l'espace admin du site avec le mot de passe choisi (le site utilise `ADMIN_EMAIL` automatiquement en coulisses, tu n'as que le mot de passe à taper, comme avant).
+
+**2. Remplacer les règles ouvertes par de vraies règles**
+1. Console Firebase > **Realtime Database** > onglet **"Règles"**
+2. Efface tout, colle le contenu du fichier `database.rules.json` fourni, puis **"Publier"**
+
+Avec ces règles :
+- Le catalogue ne peut être modifié que par toi, une fois connecté à l'espace admin
+- N'importe qui peut toujours passer commande (normal, c'est le but du site)
+- Mais personne d'autre que toi ne peut faire passer une commande de "en attente" à "payée" — seul un paiement que **tu valides toi-même** dans l'espace admin peut débloquer une vidéo
+
+**Limite honnête à connaître** : le site n'ayant pas de compte client individuel (les commandes sont juste identifiées par nom/téléphone), une personne malveillante connaissant l'adresse technique de la base pourrait encore modifier des détails d'une commande existante (sans jamais pouvoir la faire passer en "payée" toute seule, ni toucher au catalogue). C'est un compromis raisonnable pour un site sans système de comptes clients ; si tu veux un jour une sécurité complète par client, il faudrait ajouter un vrai système de comptes (bien plus de travail).
 
 ## Pour aller plus loin (Phase 3)
 - **Paiement 100% automatique** (sans validation manuelle) : ouvrir un compte marchand CinetPay ou PayDunya

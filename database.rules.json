@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "catalog": {
+      ".read": true,
+      ".write": "auth != null || !data.exists()"
+    },
+    "orders": {
+      ".read": true,
+      "$orderId": {
+        ".write": "auth != null || !data.exists() || newData.child('status').val() == data.child('status').val()"
+      }
+    }
+  }
+}
