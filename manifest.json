@@ -1,14 +1,13 @@
 {
   "name": "SHAMAN CHOOZ CHANEL",
-  "short_name": "Shaman Chooz",
-  "description": "Catalogue de vidéos et vidéos générées par IA — SHAMAN CHOOZ CHANEL",
-  "start_url": "./index.html",
-  "scope": "./",
+  "short_name": "SHAMAN CHOOZ",
+  "description": "Vente de vidéos personnalisées et générées par IA",
+  "start_url": "index.html",
+  "scope": ".",
   "display": "standalone",
+  "background_color": "#181310",
+  "theme_color": "#181310",
   "orientation": "portrait",
-  "background_color": "#FAF7F2",
-  "theme_color": "#FAF7F2",
-  "lang": "fr",
   "icons": [
     {
       "src": "icon-192.png",
