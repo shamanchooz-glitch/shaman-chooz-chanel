@@ -16,7 +16,7 @@
 <!-- ===== Bandeau chaîne ===== -->
 <header class="channel-band">
   <button class="avatar-btn" id="avatarBtn" aria-label="Voir la photo en plein écran">
-    <img src="icon-512.png" alt="Photo du fondateur SHAMAN CHOOZ CHANEL">
+    <img src="icon-512.png" alt="Photo du fondateur SHAMAN CHOOZ CHANEL" loading="lazy">
   </button>
   <div class="channel-title">
     <p class="display channel-title-text">SHAMAN CHOOZ CHANEL</p>
@@ -45,7 +45,7 @@
 <!-- Lightbox photo plein écran -->
 <div class="lightbox" id="lightbox">
   <button class="close-x" id="closeLightbox">✕</button>
-  <img src="icon-512.png" alt="Photo en plein écran">
+  <img src="icon-512.png" alt="Photo en plein écran" loading="lazy">
 </div>
 
 <!-- ===== ECRAN CATALOGUE ===== -->
@@ -57,9 +57,18 @@
     </div>
     <button class="btn" style="width:auto;margin:0;padding:9px 14px;background:#fff;color:#9c5c33;font-size:12.5px;" id="goCustomBtn">Créer</button>
   </div>
+  <input class="input" id="catalogSearchInput" placeholder="🔎 Rechercher une vidéo..." style="margin:12px 16px 0;width:calc(100% - 32px);">
   <div class="filters" id="filters"></div>
-  <div class="catalog" id="catalogGrid"></div>
+  <div class="catalog" id="catalogGrid">
+    <div class="reel-card skeleton"></div>
+    <div class="reel-card skeleton"></div>
+    <div class="reel-card skeleton"></div>
+    <div class="reel-card skeleton"></div>
+  </div>
 </section>
+
+<!-- Bouton flottant "remonter en haut" -->
+<button id="backToTopBtn" class="back-to-top" aria-label="Remonter en haut">⬆</button>
 
 <!-- ===== ECRAN CREATION SUR MESURE ===== -->
 <section class="screen" id="screen-custom">
@@ -165,6 +174,7 @@
   <input class="input" id="clientCodeInput" placeholder="Code d'accès (ex: 482913)" inputmode="numeric" maxlength="6">
   <button class="btn btn-primary" id="clientLookupBtn">Voir mes vidéos</button>
   <div id="clientOrdersList" style="margin-top:18px;"></div>
+  <button class="btn btn-ghost" id="changeCodeBtn" style="display:none;margin-top:10px;">🔑 Changer mon code d'accès</button>
 </section>
 
 <!-- ===== ECRAN ADMIN : LOGIN ===== -->

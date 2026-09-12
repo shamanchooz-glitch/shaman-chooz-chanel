@@ -1,6 +1,7 @@
 # SHAMAN CHOOZ CHANEL — Guide de mise en ligne
 
 ## Ce que contient ce dossier
+- `version.json` — à mettre à jour (change juste le numéro) à chaque nouvelle mise en ligne, pour que tes clients voient le bandeau "Nouvelle version disponible" (étape 10)
 - `index.html`, `style.css`, `app.js`, `sw.js`, `manifest.json` — le site
 - `firebase-config.js` — à remplir avec tes clés Firebase (étape 2) et ton e-mail admin (étape 9)
 - `database.rules.json` — règles de sécurité à publier dans la console Firebase (étape 9)
@@ -145,6 +146,39 @@ Avec ces règles :
 - Mais personne d'autre que toi ne peut faire passer une commande de "en attente" à "payée" — seul un paiement que **tu valides toi-même** dans l'espace admin peut débloquer une vidéo
 
 **Limite honnête à connaître** : le site n'ayant pas de compte client individuel (les commandes sont juste identifiées par nom/téléphone), une personne malveillante connaissant l'adresse technique de la base pourrait encore modifier des détails d'une commande existante (sans jamais pouvoir la faire passer en "payée" toute seule, ni toucher au catalogue). C'est un compromis raisonnable pour un site sans système de comptes clients ; si tu veux un jour une sécurité complète par client, il faudrait ajouter un vrai système de comptes (bien plus de travail).
+
+## Étape 10 — Nouvelles fonctionnalités : mises à jour automatiques, code client modifiable
+**1. Bandeau "Nouvelle version disponible" pour tes clients — 100% automatique**
+Un robot GitHub (fichier `.github/workflows/update-version.yml`) met à jour `version.json` tout seul à chaque fois que tu modifies et republies un fichier du site. **Tu n'as plus rien à faire manuellement.** Les clients déjà en train d'utiliser le site (ou qui l'ont installé sur leur écran d'accueil) voient alors automatiquement un petit bandeau "✨ Nouvelle version disponible" avec un bouton pour recharger. Voir Étape 11 ci-dessous pour l'activer (une seule chose à vérifier dans les réglages GitHub).
+
+**2. Le client peut changer son propre code d'accès**
+Sur l'écran "Mes vidéos", une fois connecté avec son numéro + son code actuel, un bouton "🔑 Changer mon code d'accès" apparaît. Ça génère un nouveau code à 6 chiffres, l'ancien devient aussitôt invalide, et le nouveau s'affiche clairement à l'écran pour qu'il le note.
+
+**3. Rafraîchissement automatique de "Mes vidéos"**
+Tant qu'un client reste sur l'écran "Mes vidéos", la liste se met à jour toute seule toutes les 15 secondes — utile s'il attend que tu valides son paiement, il voit le changement de statut sans avoir à retaper son numéro et son code.
+
+**4. Mot de passe admin** : déjà en place depuis l'étape 9 (Firebase Authentication) — tu peux le changer à tout moment dans Réglages > "Changer le mot de passe", dans ton espace admin.
+
+## Étape 11 — Activer le robot de mise à jour automatique (une seule fois)
+Le fichier `.github/workflows/update-version.yml` a besoin d'une autorisation pour pouvoir republier `version.json` à ta place :
+1. Sur GitHub, ouvre ton dépôt (repository)
+2. **Settings** (Réglages du dépôt, pas ceux de ton compte) > **Actions** > **General**
+3. Descends jusqu'à **"Workflow permissions"**
+4. Choisis **"Read and write permissions"**, puis **"Save"**
+
+C'est tout, à faire une seule fois. Ensuite, à chaque mise à jour que tu publies sur GitHub (n'importe quel fichier sauf `version.json` lui-même), un petit robot ("GitHub Actions") se déclenche automatiquement en quelques secondes et republie `version.json` avec l'heure exacte de la mise à jour — c'est ce qui déclenche le bandeau chez tes clients. Tu peux suivre son activité dans l'onglet **"Actions"** de ton dépôt (une coche verte ✅ = ça a marché).
+
+## Étape 12 — 10 nouvelles fonctionnalités ajoutées au site
+1. **Mise à jour automatique** (étape 11 ci-dessus) — plus rien à faire manuellement
+2. **Recherche instantanée** dans le catalogue (tape un mot, les résultats se filtrent en direct)
+3. **Favoris ❤️** : chaque client peut "cœurer" les vidéos qu'il aime, retrouvées dans un onglet dédié (enregistré sur son appareil, pas besoin de compte)
+4. **Badge "🆕 Nouveau"** affiché automatiquement sur les vidéos ajoutées au catalogue depuis moins de 7 jours
+5. **Compteur de vues** sur chaque vidéo du catalogue (preuve sociale : "128 vues") — ⚠️ nécessite de republier `database.rules.json` mis à jour dans Firebase (Realtime Database > Règles > coller le nouveau contenu > Publier), sinon le compteur ne s'incrémentera pas
+6. **Partage en un clic** : bouton qui ouvre WhatsApp/Facebook/Messages directement (utilise le partage natif du téléphone)
+7. **Lien direct vers une vidéo précise** : pratique pour partager une vidéo exacte sur les réseaux au lieu du site entier
+8. **Notification automatique** quand une commande passe à "payée" pendant que le client garde l'onglet ouvert
+9. **Chargement des images optimisé** (lazy loading + effet de chargement fluide) — le site se sent plus rapide, surtout avec une connexion lente
+10. **Bouton "remonter en haut"** avec défilement fluide sur les longues listes
 
 ## Pour aller plus loin (Phase 3)
 - **Paiement 100% automatique** (sans validation manuelle) : ouvrir un compte marchand CinetPay ou PayDunya

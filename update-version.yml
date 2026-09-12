@@ -1,0 +1,34 @@
+# Met à jour version.json TOUT SEUL à chaque mise à jour du site — tu n'as plus jamais
+# besoin de changer ce numéro à la main. Dès que tu modifies un fichier et que tu le
+# publies ("Commit changes") sur GitHub, ce robot se déclenche automatiquement,
+# écrit l'heure exacte de la mise à jour dans version.json, et republie ce fichier.
+# C'est ce qui permet au bandeau "Nouvelle version disponible" de s'afficher tout seul
+# chez tes clients, sans aucune action de ta part.
+name: Mise à jour automatique de version.json
+
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - 'version.json'   # évite que ce robot se déclenche lui-même en boucle
+
+permissions:
+  contents: write   # ⚠️ nécessaire pour que le robot puisse republier le fichier (voir README, étape 11)
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Écrire la nouvelle version (date et heure de cette mise à jour)
+        run: |
+          echo "{\"v\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"note\": \"Ce fichier est généré et republié automatiquement par GitHub Actions à chaque mise à jour du site — inutile de le modifier à la main.\"}" > version.json
+
+      - name: Publier ce fichier
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git diff --staged --quiet || git commit -m "chore: mise à jour automatique de version.json"
+          git push

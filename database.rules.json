@@ -2,7 +2,12 @@
   "rules": {
     "catalog": {
       ".read": true,
-      ".write": "auth != null || !data.exists()"
+      ".write": "auth != null || !data.exists()",
+      "$itemId": {
+        "views": {
+          ".write": true
+        }
+      }
     },
     "orders": {
       ".read": true,

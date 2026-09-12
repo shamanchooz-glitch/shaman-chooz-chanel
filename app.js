@@ -85,6 +85,10 @@ let SELECTED_CATEGORY = 'Toutes';
 let SELECTED_ITEM = null;
 let SELECTED_PAY = null;
 let ADMIN_LOGGED_IN = false;
+let SEARCH_QUERY = '';
+let FAVORITES = JSON.parse(localStorage.getItem('scc_favorites') || '[]');
+let LAST_KNOWN_STATUSES = {};
+const NEW_BADGE_MS = 7 * 24 * 3600 * 1000; // 7 jours
 
 const PAY_METHODS = [
   {id:'wave', label:'Wave', number:'07 48 93 56 86', note:"Reçoit aussi les transferts internationaux directement (Wave accepte l'argent envoyé depuis l'étranger)."},
@@ -617,36 +621,70 @@ async function init(){
   renderCatalog();
   bindEvents();
   registerSW();
+  startUpdateChecks();
+
+  // Lien direct vers une vidéo précise (partagée via #v=id) : ouvre directement sa fiche
+  const hashMatch = location.hash.match(/^#v=(.+)$/);
+  if(hashMatch && CATALOG[hashMatch[1]]) openProductSheet(hashMatch[1]);
 }
 
 /* ---------- Rendu catalogue ---------- */
 function renderFilters(){
   const cats = ['Toutes', ...new Set(Object.values(CATALOG).map(v=>v.cat))];
   const el = document.getElementById('filters');
-  el.innerHTML = cats.map(c=>`<button class="chip ${c===SELECTED_CATEGORY?'active':''}" data-cat="${c}">${c}</button>`).join('');
+  el.innerHTML = cats.map(c=>`<button class="chip ${c===SELECTED_CATEGORY?'active':''}" data-cat="${c}">${c}</button>`).join('')
+    + `<button class="chip ${SELECTED_CATEGORY==='__favoris__'?'active':''}" data-cat="__favoris__">❤️ Favoris</button>`;
   el.querySelectorAll('.chip').forEach(btn=>{
     btn.onclick = ()=>{ SELECTED_CATEGORY = btn.dataset.cat; renderFilters(); renderCatalog(); };
   });
 }
+function toggleFavorite(id){
+  const i = FAVORITES.indexOf(id);
+  if(i>=0) FAVORITES.splice(i,1); else FAVORITES.push(id);
+  localStorage.setItem('scc_favorites', JSON.stringify(FAVORITES));
+  renderCatalog();
+}
 function renderCatalog(){
   const grid = document.getElementById('catalogGrid');
-  const entries = Object.entries(CATALOG).filter(([,v])=> SELECTED_CATEGORY==='Toutes' || v.cat===SELECTED_CATEGORY);
-  if(entries.length===0){ grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">🎬</div>Aucune vidéo dans cette catégorie pour l'instant.</div>`; return; }
-  grid.innerHTML = entries.map(([id,v],i)=>`
+  let entries = Object.entries(CATALOG).filter(([,v])=>
+    SELECTED_CATEGORY==='Toutes' || (SELECTED_CATEGORY==='__favoris__' ? false : v.cat===SELECTED_CATEGORY)
+  );
+  if(SELECTED_CATEGORY==='__favoris__'){
+    entries = Object.entries(CATALOG).filter(([id])=> FAVORITES.includes(id));
+  }
+  if(SEARCH_QUERY){
+    const q = SEARCH_QUERY.toLowerCase();
+    entries = entries.filter(([,v])=> v.title.toLowerCase().includes(q) || v.cat.toLowerCase().includes(q));
+  }
+  if(entries.length===0){
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">🎬</div>${SELECTED_CATEGORY==='__favoris__' ? "Tu n'as pas encore de favoris — appuie sur le ❤️ d'une vidéo pour l'ajouter." : "Aucune vidéo trouvée."}</div>`;
+    return;
+  }
+  grid.innerHTML = entries.map(([id,v],i)=>{
+    const isNew = v.createdAt && (Date.now() - v.createdAt) < NEW_BADGE_MS;
+    const isFav = FAVORITES.includes(id);
+    return `
     <div class="reel-card" data-id="${id}">
       <div class="reel-thumb">
         ${placeholderThumb(v.hue, v.emoji)}
         <span class="reel-ep">Ép. ${String(i+1).padStart(2,'0')}</span>
+        ${isNew ? '<span class="reel-badge-new">🆕 Nouveau</span>' : ''}
+        <button class="reel-fav ${isFav?'active':''}" data-fav="${id}" aria-label="Favori">❤</button>
         <div class="reel-play"><span>▶</span></div>
       </div>
       <div class="reel-body">
         <span class="reel-cat">${v.cat}</span>
         <p class="reel-title">${v.title}</p>
         <p class="reel-price">${fcfa(v.price)} <small>/ vidéo</small></p>
+        <p class="hint" style="margin:2px 0 0;">👁️ ${v.views||0} vue${(v.views||0)>1?'s':''}</p>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   grid.querySelectorAll('.reel-card').forEach(card=>{
-    card.onclick = ()=> openProductSheet(card.dataset.id);
+    card.onclick = (e)=>{ if(e.target.closest('.reel-fav')) return; openProductSheet(card.dataset.id); };
+  });
+  grid.querySelectorAll('.reel-fav').forEach(btn=>{
+    btn.onclick = (e)=>{ e.stopPropagation(); toggleFavorite(btn.dataset.fav); };
   });
 }
 
@@ -654,6 +692,10 @@ function renderCatalog(){
 function openProductSheet(id){
   SELECTED_ITEM = id; SELECTED_PAY = null;
   const v = CATALOG[id];
+  // Compteur de vues : incrémenté à chaque ouverture de fiche (affiché dès la prochaine actualisation)
+  v.views = (v.views||0) + 1;
+  DB.update(`catalog/${id}`, { views: v.views }).catch(()=>{});
+  history.replaceState(null, '', '#v=' + id); // lien direct vers cette vidéo précise
   const sheet = document.getElementById('productSheet');
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
@@ -661,6 +703,7 @@ function openProductSheet(id){
     <h2>${v.title}</h2>
     <p class="price-tag">${fcfa(v.price)}</p>
     <p class="sheet-desc">${v.desc}</p>
+    <button class="btn btn-ghost" id="shareBtn" style="margin:0 0 12px;">📤 Partager cette vidéo</button>
 
     ${payMethodsBlock()}
 
@@ -673,15 +716,28 @@ function openProductSheet(id){
     <button class="btn btn-primary" id="submitOrderBtn">Confirmer ma commande</button>
     <button class="btn btn-ghost" id="cancelSheetBtn">Annuler</button>
   `;
+  document.getElementById('shareBtn').onclick = ()=> shareItem(v, id);
   wirePayMethodButtons(sheet, (id)=>{ SELECTED_PAY = id; });
   document.getElementById('cancelSheetBtn').onclick = closeSheet;
   document.getElementById('submitOrderBtn').onclick = submitOrder;
   document.getElementById('sheetOverlay').classList.add('open');
   sheet.classList.add('open');
 }
+/* Partage natif (WhatsApp, Messages, etc.) avec lien direct vers cette vidéo précise.
+   Si le téléphone/navigateur ne propose pas de partage natif, on copie le lien à la place. */
+async function shareItem(v, id){
+  const url = location.origin + location.pathname + '#v=' + id;
+  const text = `${v.title} — ${fcfa(v.price)} sur SHAMAN CHOOZ CHANEL`;
+  if(navigator.share){
+    try{ await navigator.share({ title: v.title, text, url }); } catch(e){ /* annulé par l'utilisateur */ }
+  } else {
+    try{ await navigator.clipboard.writeText(url); toast('Lien copié !', 'ok'); } catch(e){ toast(url, 'ok'); }
+  }
+}
 function closeSheet(){
   document.getElementById('sheetOverlay').classList.remove('open');
   document.getElementById('productSheet').classList.remove('open');
+  if(location.hash.startsWith('#v=')) history.replaceState(null, '', location.pathname);
 }
 async function submitOrder(){
   const name = document.getElementById('buyerName').value.trim();
@@ -711,13 +767,27 @@ async function getOrCreateAccessCode(phone){
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+/* Permet à un client de changer son code d'accès (ex: s'il pense qu'un tiers l'a vu).
+   Met à jour toutes ses commandes existantes (identifiées par téléphone + ancien code)
+   avec un nouveau code. Retourne le nouveau code, ou null si le code actuel était incorrect. */
+async function changeAccessCode(phone, oldCode){
+  const orders = await DB.get('orders', {});
+  const mineIds = Object.entries(orders).filter(([,o]) => o.buyerPhone === phone && o.accessCode === oldCode).map(([id])=>id);
+  if(mineIds.length === 0) return null;
+  const newCode = String(Math.floor(100000 + Math.random() * 900000));
+  for(const id of mineIds){ await DB.update(`orders/${id}`, { accessCode: newCode }); }
+  return newCode;
+}
+
 /* Affiche le code d'accès dans la fiche (persistant, contrairement au toast qui disparaît vite) */
-function showAccessCodeConfirmation(code){
+function showAccessCodeConfirmation(code, context){
   const sheet = document.getElementById('productSheet');
+  const intro = context === 'change'
+    ? `<h2>Code d'accès mis à jour !</h2><p class="sheet-desc">L'ancien code ne fonctionne plus.</p>`
+    : `<h2>Commande envoyée !</h2><p class="sheet-desc">Ta vidéo sera débloquée après vérification de ton paiement.</p>`;
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
-    <h2>Commande envoyée !</h2>
-    <p class="sheet-desc">Ta vidéo sera débloquée après vérification de ton paiement.</p>
+    ${intro}
     <div class="pay-number-box" style="display:block;font-size:14px;">
       🔑 Ton code d'accès personnel : <strong style="font-size:22px;letter-spacing:2px;">${code}</strong><br><br>
       Garde-le précieusement : avec ton numéro de téléphone, il te permet de retrouver et regarder tes vidéos dans "Mes vidéos". Sans ce code, personne d'autre ne peut voir tes vidéos.
@@ -734,9 +804,25 @@ async function lookupClientOrders(){
   const code = document.getElementById('clientCodeInput').value.trim();
   ORDERS = await DB.get('orders', {});
   const list = document.getElementById('clientOrdersList');
-  if(!phone || !code){ list.innerHTML=''; return; }
+  const changeBtn = document.getElementById('changeCodeBtn');
+  if(!phone || !code){ list.innerHTML=''; changeBtn.style.display='none'; return; }
   const mine = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone === phone && o.accessCode === code);
-  if(mine.length===0){ list.innerHTML = `<div class="empty-state"><div class="big">📭</div>Aucune commande trouvée pour ce numéro et ce code. Vérifie les deux informations (le code t'a été communiqué après ta commande).</div>`; return; }
+  if(mine.length===0){
+    list.innerHTML = `<div class="empty-state"><div class="big">📭</div>Aucune commande trouvée pour ce numéro et ce code. Vérifie les deux informations (le code t'a été communiqué après ta commande).</div>`;
+    changeBtn.style.display='none';
+    return;
+  }
+  changeBtn.style.display='block';
+  // Notifie le client si une de ses commandes vient d'être validée (statut passé à "paid")
+  // depuis la dernière vérification — utile pendant qu'il garde l'onglet ouvert en arrière-plan.
+  if('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  mine.forEach(([id,o])=>{
+    const prev = LAST_KNOWN_STATUSES[id];
+    if(prev && prev !== 'paid' && o.status === 'paid' && 'Notification' in window && Notification.permission === 'granted'){
+      new Notification('SHAMAN CHOOZ CHANEL', { body: `Ta commande "${o.title}" est validée — ta vidéo est prête !` });
+    }
+    LAST_KNOWN_STATUSES[id] = o.status;
+  });
   list.innerHTML = mine.sort((a,b)=>b[1].createdAt-a[1].createdAt).map(([id,o])=>`
     <div class="order-card">
       <div class="row"><strong>${o.title}</strong>
@@ -897,7 +983,7 @@ async function addNewVideo(){
   const cat = prompt('Catégorie :', 'Divers') || 'Divers';
   const price = parseInt(prompt('Prix en FCFA :', '1000')) || 1000;
   const id = 'v'+Date.now();
-  CATALOG[id] = {title, cat, price, desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl:''};
+  CATALOG[id] = {title, cat, price, desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl:'', createdAt: Date.now(), views:0};
   await DB.set('catalog', CATALOG);
   renderAdminCatalog(); renderFilters(); renderCatalog();
   toast('Vidéo ajoutée au catalogue.', 'ok');
@@ -981,7 +1067,7 @@ async function adminGenerateAndPublish(){
     statusEl.textContent = 'Vidéo prête ! Ajout au catalogue…';
 
     const id = 'v'+Date.now();
-    CATALOG[id] = { title, cat, price, desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl };
+    CATALOG[id] = { title, cat, price, desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl, createdAt: Date.now(), views:0 };
     await DB.set('catalog', CATALOG);
     renderAdminCatalog(); renderFilters(); renderCatalog();
     statusEl.textContent = '';
@@ -996,6 +1082,7 @@ async function adminGenerateAndPublish(){
 }
 
 /* ---------- Navigation ---------- */
+let CLIENT_REFRESH_TIMER = null;
 function showScreen(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -1004,6 +1091,17 @@ function showScreen(name){
   if(name==='custom'){ document.getElementById('screen-custom').classList.add('active'); document.querySelector('[data-tab="custom"]').classList.add('active'); }
   if(name==='admin-login'){ document.getElementById('screen-admin-login').classList.add('active'); document.querySelector('[data-tab="admin"]').classList.add('active'); }
   if(name==='admin-dash'){ document.getElementById('screen-admin-dash').classList.add('active'); document.querySelector('[data-tab="admin"]').classList.add('active'); }
+
+  // Sur l'écran "Mes vidéos", on réactualise automatiquement toutes les 15s pour que le
+  // client voie sans rien faire quand sa commande passe de "en attente" à "débloquée".
+  clearInterval(CLIENT_REFRESH_TIMER);
+  if(name==='client'){
+    CLIENT_REFRESH_TIMER = setInterval(()=>{
+      if(document.getElementById('clientPhoneInput').value.trim() && document.getElementById('clientCodeInput').value.trim()){
+        lookupClientOrders();
+      }
+    }, 15000);
+  }
 }
 
 function bindEvents(){
@@ -1016,11 +1114,32 @@ function bindEvents(){
   });
   document.getElementById('ordersShortcut').onclick = ()=> showScreen('client');
 
+  document.getElementById('catalogSearchInput').addEventListener('input', e=>{
+    SEARCH_QUERY = e.target.value.trim();
+    renderCatalog();
+  });
+
+  // Bouton flottant "remonter en haut" : apparaît après un peu de défilement
+  const backToTop = document.getElementById('backToTopBtn');
+  window.addEventListener('scroll', ()=>{
+    backToTop.classList.toggle('show', window.scrollY > 400);
+  });
+  backToTop.onclick = ()=> window.scrollTo({ top:0, behavior:'smooth' });
+
   document.getElementById('avatarBtn').onclick = ()=> document.getElementById('lightbox').classList.add('open');
   document.getElementById('closeLightbox').onclick = ()=> document.getElementById('lightbox').classList.remove('open');
   document.getElementById('sheetOverlay').onclick = closeSheet;
 
   document.getElementById('clientLookupBtn').onclick = lookupClientOrders;
+  document.getElementById('changeCodeBtn').onclick = async ()=>{
+    const phone = document.getElementById('clientPhoneInput').value.trim();
+    const code = document.getElementById('clientCodeInput').value.trim();
+    const newCode = await changeAccessCode(phone, code);
+    if(!newCode) return toast('Erreur : reconnecte-toi avec ton code actuel avant de le changer.', 'err');
+    document.getElementById('clientCodeInput').value = newCode;
+    showAccessCodeConfirmation(newCode, 'change');
+    lookupClientOrders();
+  };
 
   document.getElementById('goCustomBtn').onclick = ()=> showScreen('custom');
   loadCustomVoices();
@@ -1171,6 +1290,34 @@ function bindEvents(){
       toast("Erreur : déconnecte-toi puis reconnecte-toi avant de changer le mot de passe.", 'err');
     }
   };
+}
+
+/* ---------- Détection automatique des mises à jour du site ----------
+   Compare version.json au fil du temps : si l'admin a mis à jour ce fichier
+   (à faire à chaque mise à jour du site, voir version.json), un bandeau propose
+   au client de recharger la page pour recevoir la nouvelle version. */
+let SITE_VERSION_SEEN = null;
+async function checkForUpdates(){
+  try{
+    const res = await fetch('version.json?t=' + Date.now(), { cache:'no-store' });
+    const data = await res.json();
+    if(SITE_VERSION_SEEN === null){ SITE_VERSION_SEEN = data.v; return; }
+    if(data.v !== SITE_VERSION_SEEN) showUpdateBanner();
+  } catch(e){ /* pas grave, on réessaiera au prochain cycle */ }
+}
+function showUpdateBanner(){
+  if(document.getElementById('updateBanner')) return;
+  const b = document.createElement('div');
+  b.id = 'updateBanner';
+  b.className = 'update-banner';
+  b.innerHTML = `✨ Une nouvelle version du site est disponible. <button id="updateReloadBtn">Actualiser</button>`;
+  document.body.appendChild(b);
+  document.getElementById('updateReloadBtn').onclick = ()=> location.reload();
+}
+function startUpdateChecks(){
+  checkForUpdates(); // fixe la version de référence au chargement
+  setInterval(checkForUpdates, 5 * 60 * 1000); // revérifie toutes les 5 minutes
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkForUpdates(); });
 }
 
 function registerSW(){
