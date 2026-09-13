@@ -632,6 +632,7 @@ async function init(){
 
   renderFilters();
   renderCatalog();
+  renderFreeVideos();
   bindEvents();
   registerSW();
   startUpdateChecks();
@@ -657,6 +658,70 @@ function toggleFavorite(id){
   localStorage.setItem('scc_favorites', JSON.stringify(FAVORITES));
   renderCatalog();
 }
+/* ---------- Vidéos gratuites (vitrine) : sélection qui change automatiquement chaque jour ---------- */
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h<<5)-h+s.charCodeAt(i); h|=0; } return h; }
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function seededShuffle(arr, seed){
+  const rand = mulberry32(seed);
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(rand()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; }
+  return a;
+}
+const FREE_VIDEOS_MAX = 30; // nombre maximum affiché — le système en montre autant que possible, jusqu'à cette limite
+function renderFreeVideos(){
+  const wrap = document.getElementById('freeVideosSection');
+  if(!wrap) return;
+  const freeItems = Object.entries(CATALOG).filter(([,v])=> v.free && v.videoUrl);
+  if(freeItems.length===0){ wrap.innerHTML=''; return; }
+  const today = new Date();
+  const seed = hashStr(`${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`);
+  // On mélange TOUJOURS l'ensemble des vidéos gratuites (pas seulement les 30 affichées) avec la graine du jour,
+  // puis on prend les 30 premières : ainsi, s'il y a plus de 30 vidéos gratuites, la sélection ET leur ordre
+  // changent chaque jour tout seuls, sans aucune action de l'admin.
+  const picked = seededShuffle(freeItems, seed).slice(0, FREE_VIDEOS_MAX);
+  wrap.innerHTML = `
+    <p class="field-label" style="margin:0 0 8px;">🎁 Vidéos gratuites du jour (${picked.length}) — offertes par SHAMAN CHOOZ CHANEL</p>
+    <div class="free-videos-row">
+      ${picked.map(([id,v])=>`
+        <div class="reel-card free-video-card" data-freeid="${id}">
+          <div class="reel-thumb">
+            ${placeholderThumb(v.hue, v.emoji)}
+            <span class="free-badge" style="position:absolute;top:8px;left:8px;">🎁 Gratuit</span>
+            <div class="reel-play"><span>▶</span></div>
+          </div>
+          <div class="reel-body"><p class="reel-title">${v.title}</p></div>
+        </div>`).join('')}
+    </div>
+    <button class="btn btn-ghost" id="freeVideosCta" style="margin-top:10px;">✨ Envie de la même chose ? Commande la tienne !</button>
+  `;
+  wrap.querySelectorAll('[data-freeid]').forEach(card=>{ card.onclick = ()=> playFreeVideo(card.dataset.freeid); });
+  document.getElementById('freeVideosCta').onclick = ()=> showScreen('custom');
+}
+function playFreeVideo(id){
+  const v = CATALOG[id];
+  const sheet = document.getElementById('productSheet');
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <span class="free-badge">🎁 Gratuit</span>
+    <h2>${v.title}</h2>
+    <video src="${v.videoUrl}" controls autoplay style="width:100%;border-radius:12px;margin:10px 0;"></video>
+    <p class="sheet-desc">Cette vidéo est offerte à titre d'exemple. Toi aussi, crée la tienne !</p>
+    <button class="btn btn-primary" id="freeCtaBtn">🎨 Créer ma vidéo</button>
+    <button class="btn btn-ghost" id="cancelSheetBtn">Fermer</button>
+  `;
+  document.getElementById('freeCtaBtn').onclick = ()=>{ closeSheet(); showScreen('custom'); };
+  document.getElementById('cancelSheetBtn').onclick = closeSheet;
+  document.getElementById('sheetOverlay').classList.add('open');
+  sheet.classList.add('open');
+}
+
 function renderCatalog(){
   const grid = document.getElementById('catalogGrid');
   let entries = Object.entries(CATALOG).filter(([,v])=>
@@ -999,13 +1064,14 @@ function renderAdminStats(){
     ? topViewed.map(([,v],i)=>`<p class="hint" style="margin:4px 0;">${i+1}. ${v.title} — ${v.views||0} vue${(v.views||0)>1?'s':''}</p>`).join('')
     : `<p class="hint">Pas encore de données.</p>`;
 
-  const types = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0 };
-  const typeRevenue = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0 };
+  const types = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0, 'Pass chaîne':0 };
+  const typeRevenue = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0, 'Pass chaîne':0 };
   paid.forEach(o=>{
     let key = 'Catalogue';
     if(o.type==='custom') key = 'Vidéo sur mesure';
     else if(o.type==='ai' && o.aiMode==='realiste') key = 'Vidéo IA réaliste';
     else if(o.type==='ai' && o.aiMode==='template') key = 'Vidéo IA pub/diaporama';
+    else if(o.type==='live-pass') key = 'Pass chaîne';
     types[key]++; typeRevenue[key]+=(o.price||0);
   });
   document.getElementById('statsByType').innerHTML = Object.keys(types).map(k=>
@@ -1131,7 +1197,14 @@ function exportOrdersCsv(){
 }
 async function validateOrder(id){
   const o = ORDERS[id];
-  if(o.type === 'custom'){ await updateOrderStatus(id, 'paid'); return; }
+  if(o.type === 'live-pass'){
+    const days = o.pass==='day' ? 1 : o.pass==='week' ? 7 : 30;
+    await DB.update(`orders/${id}`, { status:'paid', liveExpiresAt: Date.now() + days*24*3600*1000 });
+    toast('Pass chaîne validé !', 'ok');
+    renderAdminOrders();
+    return;
+  }
+  if(o.type === 'custom' || o.type === 'ai'){ await updateOrderStatus(id, 'paid'); return; }
   const item = CATALOG[o.itemId];
   if(!item.videoUrl){
     const url = prompt(`Aucun lien vidéo n'est encore associé à "${item.title}".\nColle le lien de la vidéo (YouTube non-listé, Google Drive, Firebase Storage...) pour cette vidéo :`);
@@ -1157,15 +1230,25 @@ function renderAdminCatalog(){
   el.innerHTML = entries.map(([id,v])=>`
     <div class="order-card">
       <div class="row"><strong>${v.title}</strong><span class="hint" style="margin:0;">${fcfa(v.price)}</span></div>
-      <p class="hint" style="margin:2px 0 8px;">${v.cat} • 👁️ ${v.views||0} vue${(v.views||0)>1?'s':''}</p>
+      <p class="hint" style="margin:2px 0 8px;">${v.cat} • 👁️ ${v.views||0} vue${(v.views||0)>1?'s':''}${v.free ? ' • 🎁 Gratuite' : ''}</p>
       <input class="input" style="margin-bottom:8px;" placeholder="Lien de la vidéo (YouTube non-listé, Drive, etc.)" value="${v.videoUrl||''}" data-videourl="${id}">
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-savevideo="${id}">💾 Enregistrer le lien</button>
         <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-editvideo="${id}">✏️ Modifier</button>
         <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-duplicatevideo="${id}">📋 Dupliquer</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-togglefree="${id}">${v.free ? '🚫 Retirer des gratuites' : '🎁 Marquer gratuite'}</button>
         <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-deletevideo="${id}">🗑️ Supprimer</button>
       </div>
     </div>`).join('');
+  el.querySelectorAll('[data-togglefree]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.dataset.togglefree;
+      CATALOG[id].free = !CATALOG[id].free;
+      await DB.set('catalog', CATALOG);
+      renderAdminCatalog(); renderFreeVideos();
+      toast(CATALOG[id].free ? 'Vidéo marquée gratuite.' : 'Vidéo retirée des gratuites.', 'ok');
+    };
+  });
   el.querySelectorAll('[data-savevideo]').forEach(btn=>{
     btn.onclick = async ()=>{
       const id = btn.dataset.savevideo;
@@ -1184,7 +1267,7 @@ function renderAdminCatalog(){
       const price = parseInt(prompt('Prix en FCFA :', v.price)); if(isNaN(price)) return;
       CATALOG[id] = {...v, title, cat, price};
       await DB.set('catalog', CATALOG);
-      renderAdminCatalog(); renderFilters(); renderCatalog();
+      renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos();
       toast('Vidéo mise à jour.', 'ok');
     };
   });
@@ -1194,7 +1277,7 @@ function renderAdminCatalog(){
       const id = 'v'+Date.now();
       CATALOG[id] = {...src, title: src.title + ' (copie)', createdAt: Date.now(), views:0};
       await DB.set('catalog', CATALOG);
-      renderAdminCatalog(); renderFilters(); renderCatalog();
+      renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos();
       toast('Vidéo dupliquée — modifie-la si besoin.', 'ok');
     };
   });
@@ -1203,7 +1286,7 @@ function renderAdminCatalog(){
       if(!confirm('Supprimer définitivement cette vidéo du catalogue ?')) return;
       delete CATALOG[btn.dataset.deletevideo];
       await DB.set('catalog', CATALOG);
-      renderAdminCatalog(); renderFilters(); renderCatalog();
+      renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos();
       toast('Vidéo supprimée.', 'ok');
     };
   });
@@ -1212,10 +1295,11 @@ async function addNewVideo(){
   const title = prompt('Titre de la vidéo (lien externe déjà hébergé ailleurs) :'); if(!title) return;
   const cat = prompt('Catégorie :', 'Divers') || 'Divers';
   const price = parseInt(prompt('Prix en FCFA :', '1000')) || 1000;
+  const free = confirm('Marquer cette vidéo comme gratuite (vitrine, pour attirer les visiteurs) ?');
   const id = 'v'+Date.now();
-  CATALOG[id] = {title, cat, price, desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl:'', createdAt: Date.now(), views:0};
+  CATALOG[id] = {title, cat, price, desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl:'', createdAt: Date.now(), views:0, free};
   await DB.set('catalog', CATALOG);
-  renderAdminCatalog(); renderFilters(); renderCatalog();
+  renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos();
   toast('Vidéo ajoutée au catalogue.', 'ok');
 }
 
@@ -1297,12 +1381,13 @@ async function adminGenerateAndPublish(){
     statusEl.textContent = 'Vidéo prête ! Ajout au catalogue…';
 
     const id = 'v'+Date.now();
-    CATALOG[id] = { title, cat, price, desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl, createdAt: Date.now(), views:0 };
+    CATALOG[id] = { title, cat, price, desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl, createdAt: Date.now(), views:0, free: document.getElementById('adminNewFree').checked };
     await DB.set('catalog', CATALOG);
-    renderAdminCatalog(); renderFilters(); renderCatalog();
+    renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos();
     statusEl.textContent = '';
     document.getElementById('adminNewTitle').value = '';
     document.getElementById('adminNewCat').value = '';
+    document.getElementById('adminNewFree').checked = false;
     toast('Vidéo générée et ajoutée au catalogue ! Prix : ' + fcfa(price), 'ok');
   } catch(e){
     statusEl.textContent = "Erreur : " + (e.message || 'la génération a échoué.');
@@ -1313,6 +1398,122 @@ async function adminGenerateAndPublish(){
 
 /* ---------- Navigation ---------- */
 let CLIENT_REFRESH_TIMER = null;
+let LIVE_STATUS_TIMER = null;
+let SELECTED_LIVE_PASS = 'day';
+let LIVE_SESSION = null; // { phone, code, expiresAt } une fois l'accès vérifié
+
+function livePassPrice(pass){
+  if(pass==='day') return LIVE_CONFIG.priceDayFCFA;
+  if(pass==='week') return LIVE_CONFIG.priceWeekFCFA;
+  return LIVE_CONFIG.priceMonthFCFA;
+}
+function livePassLabel(pass){ return pass==='day' ? '1 jour' : pass==='week' ? '1 semaine' : '1 mois'; }
+function updateLivePriceTag(){
+  const tag = document.getElementById('livePricetag');
+  if(tag) tag.textContent = fcfa(livePassPrice(SELECTED_LIVE_PASS)) + ' / ' + livePassLabel(SELECTED_LIVE_PASS);
+}
+function liveAccessGranted(){ return !!LIVE_SESSION && LIVE_SESSION.expiresAt > Date.now(); }
+
+function openLivePassOrderSheet(){
+  const price = livePassPrice(SELECTED_LIVE_PASS);
+  const sheet = document.getElementById('productSheet');
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <span class="reel-cat">Pass chaîne — ${livePassLabel(SELECTED_LIVE_PASS)}</span>
+    <h2>Accès à la chaîne en direct</h2>
+    <p class="price-tag">${fcfa(price)}</p>
+    <p class="sheet-desc">Ton accès sera activé dès que ton paiement sera vérifié — avec un code que tu pourras réutiliser (comme pour "Mes vidéos").</p>
+    ${payMethodsBlock()}
+    <p class="field-label">Tes informations</p>
+    <input class="input" id="buyerName" placeholder="Ton nom">
+    <input class="input" id="buyerPhone" placeholder="Numéro de téléphone / WhatsApp" inputmode="tel">
+    <input class="input" id="buyerRef" placeholder="Référence de la transaction">
+    <button class="btn btn-primary" id="submitLiveOrderBtn">Confirmer mon achat</button>
+    <button class="btn btn-ghost" id="cancelSheetBtn">Annuler</button>
+  `;
+  let selectedPay = null;
+  wirePayMethodButtons(sheet, (id)=>{ selectedPay = id; });
+  document.getElementById('cancelSheetBtn').onclick = closeSheet;
+  document.getElementById('submitLiveOrderBtn').onclick = async ()=>{
+    const name = document.getElementById('buyerName').value.trim();
+    const phone = document.getElementById('buyerPhone').value.trim();
+    const ref = document.getElementById('buyerRef').value.trim();
+    if(!selectedPay) return toast('Choisis un moyen de paiement', 'err');
+    if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
+    const accessCode = await getOrCreateAccessCode(phone);
+    await DB.push('orders', {
+      type:'live-pass', pass: SELECTED_LIVE_PASS, title:`Pass chaîne (${livePassLabel(SELECTED_LIVE_PASS)})`, price,
+      payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref, accessCode,
+      status:'pending', createdAt: Date.now()
+    });
+    showAccessCodeConfirmation(accessCode);
+  };
+  document.getElementById('sheetOverlay').classList.add('open');
+  sheet.classList.add('open');
+}
+
+async function liveLogin(){
+  const phone = document.getElementById('livePhoneInput').value.trim();
+  const code = document.getElementById('liveCodeInput').value.trim();
+  const errEl = document.getElementById('liveLoginError');
+  errEl.textContent = '';
+  ORDERS = await DB.get('orders', {});
+  const validPass = Object.values(ORDERS).find(o =>
+    o.type==='live-pass' && o.buyerPhone===phone && o.accessCode===code && o.status==='paid' && o.liveExpiresAt > Date.now()
+  );
+  if(!validPass){
+    errEl.textContent = "Aucun pass actif trouvé pour ce numéro et ce code. Vérifie les informations, ou achète un pass ci-dessous.";
+    return;
+  }
+  LIVE_SESSION = { phone, code, expiresAt: validPass.liveExpiresAt };
+  document.getElementById('liveAccessWrap').style.display = 'none';
+  document.getElementById('livePlayerWrap').style.display = 'block';
+  checkLiveStatus();
+  clearInterval(LIVE_STATUS_TIMER);
+  LIVE_STATUS_TIMER = setInterval(checkLiveStatus, 20000);
+}
+
+let hlsInstance = null;
+async function checkLiveStatus(){
+  const statusText = document.getElementById('liveStatusText');
+  const indicator = document.getElementById('liveIndicator');
+  const video = document.getElementById('livePlayer');
+  if(!aiConfigured()){
+    if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée (voir README, étape 14).";
+    return;
+  }
+  try{
+    const data = await workerGet('/live/status');
+    if(!data.configured){
+      if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée côté serveur relais.";
+      return;
+    }
+    if(data.live){
+      indicator.style.display = 'inline-block';
+      statusText.textContent = `🔴 En direct — expire le ${new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR')}`;
+      if(video.dataset.src !== data.hlsUrl){
+        video.dataset.src = data.hlsUrl;
+        if(window.Hls && Hls.isSupported()){
+          if(hlsInstance) hlsInstance.destroy();
+          hlsInstance = new Hls();
+          hlsInstance.loadSource(data.hlsUrl);
+          hlsInstance.attachMedia(video);
+        } else if(video.canPlayType('application/vnd.apple.mpegurl')){
+          video.src = data.hlsUrl;
+        }
+        video.play().catch(()=>{});
+      }
+    } else {
+      indicator.style.display = 'none';
+      statusText.textContent = `⏸️ Hors antenne pour le moment — reviens plus tard ! (accès valable jusqu'au ${new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR')})`;
+      if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
+      video.removeAttribute('src'); video.dataset.src = '';
+    }
+  } catch(e){
+    if(statusText) statusText.textContent = "Impossible de vérifier l'état de la chaîne pour le moment.";
+  }
+}
+
 function showScreen(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -1321,6 +1522,7 @@ function showScreen(name){
   if(name==='custom'){ document.getElementById('screen-custom').classList.add('active'); document.querySelector('[data-tab="custom"]').classList.add('active'); }
   if(name==='admin-login'){ document.getElementById('screen-admin-login').classList.add('active'); document.querySelector('[data-tab="admin"]').classList.add('active'); }
   if(name==='admin-dash'){ document.getElementById('screen-admin-dash').classList.add('active'); document.querySelector('[data-tab="admin"]').classList.add('active'); }
+  if(name==='live'){ document.getElementById('screen-live').classList.add('active'); document.querySelector('[data-tab="live"]').classList.add('active'); }
 
   // Sur l'écran "Mes vidéos", on réactualise automatiquement toutes les 15s pour que le
   // client voie sans rien faire quand sa commande passe de "en attente" à "débloquée".
@@ -1331,6 +1533,14 @@ function showScreen(name){
         lookupClientOrders();
       }
     }, 15000);
+  }
+
+  // Sur l'écran "Chaîne", on vérifie toutes les 20s si la diffusion est en direct ou non
+  clearInterval(LIVE_STATUS_TIMER);
+  if(name==='live'){
+    updateLivePriceTag();
+    if(liveAccessGranted()) checkLiveStatus();
+    LIVE_STATUS_TIMER = setInterval(()=>{ if(liveAccessGranted()) checkLiveStatus(); }, 20000);
   }
 }
 
@@ -1370,6 +1580,17 @@ function bindEvents(){
     showAccessCodeConfirmation(newCode, 'change');
     lookupClientOrders();
   };
+
+  document.getElementById('liveLoginBtn').onclick = liveLogin;
+  document.getElementById('liveBuyBtn').onclick = openLivePassOrderSheet;
+  document.querySelectorAll('#livePassSwatches .pay-option').forEach(btn=>{
+    btn.onclick = ()=>{
+      document.querySelectorAll('#livePassSwatches .pay-option').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      SELECTED_LIVE_PASS = btn.dataset.pass;
+      updateLivePriceTag();
+    };
+  });
 
   document.getElementById('goCustomBtn').onclick = ()=> showScreen('custom');
   loadCustomVoices();

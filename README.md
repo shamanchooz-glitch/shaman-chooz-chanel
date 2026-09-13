@@ -202,6 +202,48 @@ Cette fois, l'accent est mis sur une gestion plus approfondie de ton activité, 
 
 ⚠️ Republie bien `database.rules.json` (mis à jour, une nouvelle entrée `lastAdminLogin` a été ajoutée) dans Firebase > Realtime Database > Règles > Publier.
 
+## Étape 14 — Vidéos gratuites (vitrine) et chaîne en direct
+
+### 🎁 Vidéos gratuites — pour donner envie
+Dans ton espace admin (Catalogue), chaque vidéo a maintenant un bouton **"🎁 Marquer gratuite"**. Elles apparaissent dans une section **"Vidéos gratuites du jour"** en haut du catalogue (en défilement horizontal, comme sur les grandes plateformes vidéo), avec un bouton "Envie de la même chose ?" qui pousse le visiteur à commander.
+
+**La sélection change automatiquement chaque jour, toute seule** : le site affiche **jusqu'à 30 vidéos gratuites**, choisies et mélangées au hasard parmi toutes celles que tu as marquées "gratuite" — cette sélection (et leur ordre) se renouvelle chaque nouvelle journée, sans que tu aies quoi que ce soit à faire.
+
+⚠️ **Point important à bien comprendre** : le système peut afficher jusqu'à 30 vidéos, mais il ne peut montrer que des vidéos qui existent réellement dans ton catalogue et que tu as marquées gratuites — il ne peut pas en inventer. Pour profiter pleinement de cette rotation sur 30 vidéos, il te faut donc marquer **au moins 30 vidéos comme gratuites** (si tu en as moins, le site en affiche autant qu'il en existe, ce qui reste très bien).
+
+**Comment obtenir facilement beaucoup de vidéos gratuites, pour un public du monde entier :**
+- Utilise le constructeur de vidéo admin ("🎬 Générer et ajouter au catalogue") pour créer rapidement des vidéos courtes et variées (styles différents, langues différentes — le site prend en charge 23 langues, voir plus haut), et coche "🎁 Vidéo gratuite" à la création
+- Varie les catégories (anniversaire, entreprise, pub, témoignage...) et les langues pour attirer des visiteurs de différents pays
+- Chaque vidéo IA générée a un coût réel chez toi (JSON2Video/fal.ai) — pense à des vidéos courtes (10-20 secondes) pour que ta vitrine gratuite reste peu coûteuse à produire
+
+### 🔴 Chaîne en direct — diffuser comme une chaîne de télé
+Ta chaîne fonctionne avec **Cloudflare Stream** (le service utilisé par de nombreux sites professionnels pour la vidéo en direct). Le principe : tu diffuses depuis ton téléphone (avec une application gratuite), et le site retransmet en direct à tous tes visiteurs dans le monde, contre un petit pass payant.
+
+**Mise en place (une seule fois) :**
+1. Sur https://dash.cloudflare.com, ouvre **Stream** dans le menu de gauche (active-le si demandé — Cloudflare demande une carte, la carte virtuelle Wave fonctionne comme pour JSON2Video/fal.ai)
+2. Va dans **Live Inputs** → **"Create Live Input"** → donne-lui un nom (ex: "Chaîne SHAMAN CHOOZ")
+3. Cloudflare t'affiche : une **URL RTMPS** (le serveur d'envoi) et une **clé de stream** (Stream Key) — note-les précieusement, c'est comme un mot de passe de diffusion
+4. Repère aussi le **Live Input ID** (affiché sur cette même page) et ton **"customer code"** (visible dans l'URL de lecture, ex: `customer-XXXXXXXX.cloudflarestream.com` — la partie XXXXXXXX)
+5. Sur https://dash.cloudflare.com → **Mon profil** → **API Tokens** → crée un token avec la permission **"Stream: Edit"**, note-le
+
+**Sur Cloudflare Workers** (ton serveur relais existant), ajoute 4 nouvelles variables (Settings > Variables) :
+- `CF_API_TOKEN` = le token créé à l'instant (coche "Encrypt")
+- `CF_ACCOUNT_ID` = l'identifiant de ton compte Cloudflare (visible dans l'URL du tableau de bord ou dans la barre latérale)
+- `CF_LIVE_INPUT_ID` = le Live Input ID de l'étape 4
+- `CF_CUSTOMER_CODE` = le code de l'étape 4
+
+**Pour diffuser en direct depuis ton téléphone :**
+1. Installe une application gratuite de streaming RTMP, par exemple **"Larix Broadcaster"** (gratuite, Android/iPhone)
+2. Dans l'application, entre l'**URL RTMPS** et la **clé de stream** obtenues à l'étape 3
+3. Appuie sur "Démarrer la diffusion" — ton flux arrive sur Cloudflare, qui le retransmet aussitôt à tous les clients ayant un pass actif
+4. Dès que tu arrêtes, le site affiche automatiquement "Hors antenne" (vérification toutes les 20 secondes)
+
+**Pour tes visiteurs :** ils choisissent un pass (1 jour / 1 semaine / 1 mois — prix modifiables dans `live-config.js`), paient comme pour une vidéo classique, tu valides leur paiement dans l'espace admin (comme d'habitude), et ils accèdent à la chaîne avec leur numéro + code d'accès personnel (le même système que pour "Mes vidéos").
+
+⚠️ **Honnêteté sur la sécurité** : l'accès est protégé par le couple téléphone + code (comme le reste du site), mais l'adresse technique du flux vidéo n'est pas chiffrée avec un système de "jetons signés" avancé (une amélioration possible mais plus complexe, disponible plus tard si besoin — dis-le-moi). En clair : c'est une protection raisonnable contre l'accès casual, pas un verrou à toute épreuve contre quelqu'un de très déterminé à partager le lien.
+
+⚠️ **Coût** : Cloudflare Stream facture à la minute diffusée + à la minute regardée (environ 1$ pour 1000 minutes regardées, très abordable). Le prix des pass dans `live-config.js` a été fixé bas exprès (voir le fichier) pour rester rentable tout en étant accessible partout.
+
 ## Pour aller plus loin (Phase 3)
 - **Paiement 100% automatique** (sans validation manuelle) : ouvrir un compte marchand CinetPay ou PayDunya
 - **Sous-titres automatiques et voix supplémentaires** : JSON2Video prend en charge d'autres langues et voix (voir sa documentation) si tu veux élargir l'offre

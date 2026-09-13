@@ -137,6 +137,25 @@ export default {
       return json({ translations: results });
     }
 
-    return json({ ok: true, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction)." });
+    /* ---------- 4) Chaîne en direct (Cloudflare Stream Live) ---------- */
+    /* Vérifie si la diffusion est actuellement en direct, et donne l'adresse HLS à lire.
+       Voir README, étape 14, pour créer le "Live Input" Cloudflare Stream et récupérer
+       les 4 informations nécessaires (CF_API_TOKEN, CF_ACCOUNT_ID, CF_LIVE_INPUT_ID, CF_CUSTOMER_CODE). */
+    if (url.pathname === "/live/status" && request.method === "GET") {
+      if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID || !env.CF_LIVE_INPUT_ID || !env.CF_CUSTOMER_CODE) {
+        return json({ configured: false, live: false });
+      }
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/live_inputs/${env.CF_LIVE_INPUT_ID}/videos`,
+        { headers: { "Authorization": `Bearer ${env.CF_API_TOKEN}` } }
+      );
+      const data = await res.json();
+      const current = data?.result?.[0];
+      const live = current?.status?.state === "live-inprogress";
+      const hlsUrl = `https://customer-${env.CF_CUSTOMER_CODE}.cloudflarestream.com/${env.CF_LIVE_INPUT_ID}/manifest/video.m3u8`;
+      return json({ configured: true, live, hlsUrl });
+    }
+
+    return json({ ok: true, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
   }
 };

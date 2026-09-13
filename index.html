@@ -57,6 +57,9 @@
     </div>
     <button class="btn" style="width:auto;margin:0;padding:9px 14px;background:#fff;color:#9c5c33;font-size:12.5px;" id="goCustomBtn">Créer</button>
   </div>
+
+  <div id="freeVideosSection" style="margin:16px 16px 0;"></div>
+
   <input class="input" id="catalogSearchInput" placeholder="🔎 Rechercher une vidéo..." style="margin:12px 16px 0;width:calc(100% - 32px);">
   <div class="filters" id="filters"></div>
   <div class="catalog" id="catalogGrid">
@@ -177,6 +180,39 @@
   <button class="btn btn-ghost" id="changeCodeBtn" style="display:none;margin-top:10px;">🔑 Changer mon code d'accès</button>
 </section>
 
+<!-- ===== ECRAN CHAÎNE EN DIRECT ===== -->
+<section class="screen" id="screen-live">
+  <h2 class="section-title">🔴 Ma chaîne en direct</h2>
+  <p class="section-sub">Regarde SHAMAN CHOOZ CHANEL en direct, comme à la télé — accessible à petit prix, partout dans le monde.</p>
+
+  <div id="livePlayerWrap" style="display:none;">
+    <div class="live-player-box">
+      <video id="livePlayer" controls playsinline muted style="width:100%;border-radius:14px;background:#000;"></video>
+      <span class="live-indicator" id="liveIndicator">🔴 EN DIRECT</span>
+    </div>
+    <p class="hint" id="liveStatusText" style="margin-top:8px;"></p>
+  </div>
+
+  <div id="liveAccessWrap">
+    <p class="field-label" style="margin-top:0;">Tu as déjà un pass ? Connecte-toi</p>
+    <input class="input" id="livePhoneInput" placeholder="Ton numéro de téléphone" inputmode="tel">
+    <input class="input" id="liveCodeInput" placeholder="Ton code d'accès" inputmode="numeric" maxlength="6">
+    <button class="btn btn-primary" id="liveLoginBtn">Regarder la chaîne</button>
+    <p class="hint" id="liveLoginError" style="color:var(--danger);"></p>
+
+    <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
+
+    <p class="field-label" style="margin-top:0;">Pas encore de pass ? Choisis ta formule</p>
+    <div class="pay-grid" id="livePassSwatches">
+      <button class="pay-option selected" data-pass="day">1 jour</button>
+      <button class="pay-option" data-pass="week">1 semaine</button>
+      <button class="pay-option" data-pass="month">1 mois</button>
+    </div>
+    <p class="price-tag" id="livePricetag" style="margin-top:14px;">—</p>
+    <button class="btn btn-primary" id="liveBuyBtn">Acheter ce pass</button>
+  </div>
+</section>
+
 <!-- ===== ECRAN ADMIN : LOGIN ===== -->
 <section class="screen" id="screen-admin-login">
   <div class="lock-wrap">
@@ -243,6 +279,9 @@
     <p class="field-label" style="margin-top:0;">Créer une nouvelle vidéo pour le catalogue</p>
     <input class="input" id="adminNewTitle" placeholder="Titre de la vidéo">
     <input class="input" id="adminNewCat" placeholder="Catégorie (ex: Publicité, Anniversaire, Entreprise...)">
+    <label class="hint" style="display:flex;align-items:center;gap:8px;margin:8px 0 0;">
+      <input type="checkbox" id="adminNewFree"> 🎁 Vidéo gratuite (vitrine) — mise en avant pour attirer les visiteurs
+    </label>
 
     <p class="field-label">Style de la vidéo</p>
     <div class="filters" style="padding-left:0;">
@@ -331,6 +370,7 @@
 <nav class="tabbar">
   <button class="tab active" data-tab="catalog"><span>🎞️</span>Catalogue</button>
   <button class="tab" data-tab="custom"><span>🎨</span>Créer</button>
+  <button class="tab" data-tab="live"><span>🔴</span>Chaîne</button>
   <button class="tab" data-tab="client"><span>📺</span>Mes vidéos</button>
   <button class="tab" data-tab="admin"><span>🔒</span>Admin<span class="dot" id="adminDot"></span></button>
 </nav>
@@ -346,7 +386,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <script src="ai-config.js"></script>
+<script src="live-config.js"></script>
 <script src="app.js"></script>
 
 <!-- ===== Traduction du site dans toutes les langues (widget Google Traduction, gratuit) =====
