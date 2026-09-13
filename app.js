@@ -630,6 +630,22 @@ async function init(){
   ORDERS = await DB.get('orders', {});
   updateAdminDot();
 
+  LIVE_PASSES = await DB.get('livePasses', null);
+  if(!LIVE_PASSES){
+    LIVE_PASSES = {
+      p1: { name:'1 jour', days:1, price:150, createdAt: Date.now() },
+      p2: { name:'1 semaine', days:7, price:700, createdAt: Date.now() },
+      p3: { name:'1 mois', days:30, price:2000, createdAt: Date.now() }
+    };
+    await DB.set('livePasses', LIVE_PASSES);
+  }
+  LIVE_SETTINGS = await DB.get('liveSettings', null);
+  if(!LIVE_SETTINGS){
+    LIVE_SETTINGS = { offlineMessage:'Hors antenne pour le moment — reviens plus tard !', currentProgram:'', maintenanceMode:false, maintenanceMessage:'' };
+    await DB.set('liveSettings', LIVE_SETTINGS);
+  }
+  LAST_SEEN_ANNOUNCEMENT_TS = LIVE_SETTINGS.announcement?.ts || 0;
+
   renderFilters();
   renderCatalog();
   renderFreeVideos();
@@ -1122,6 +1138,189 @@ function drawStatsChart(){
   });
 }
 
+/* ---------- Admin : gestion de la chaîne en direct (pass, abonnés, réglages, replays) ---------- */
+function activeLivePassOrders(){
+  return Object.entries(ORDERS).filter(([,o])=> o.type==='live-pass' && o.status==='paid');
+}
+async function renderAdminLiveTab(){
+  ORDERS = await DB.get('orders', {});
+  renderAdminLiveStats();
+  renderAdminLivePasses();
+  renderLiveSubscribers();
+  document.getElementById('currentProgramInput').value = LIVE_SETTINGS.currentProgram || '';
+  document.getElementById('offlineMessageInput').value = LIVE_SETTINGS.offlineMessage || '';
+  document.getElementById('maintenanceModeCheckbox').checked = !!LIVE_SETTINGS.maintenanceMode;
+  document.getElementById('maintenanceMessageInput').value = LIVE_SETTINGS.maintenanceMessage || '';
+}
+function renderAdminLiveStats(){
+  const all = activeLivePassOrders();
+  const now = Date.now();
+  const activeNow = all.filter(([,o])=> o.liveExpiresAt > now);
+  const revenue = all.reduce((s,[,o])=>s+(o.price||0),0);
+  const byPass = {};
+  all.forEach(([,o])=>{ byPass[o.passName] = (byPass[o.passName]||0)+1; });
+  const topPass = Object.entries(byPass).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('liveStatsCards').innerHTML = `
+    <div class="stat-card"><span class="stat-value">${fcfa(revenue)}</span><span class="stat-label">Revenu total chaîne</span></div>
+    <div class="stat-card"><span class="stat-value">${activeNow.length}</span><span class="stat-label">Abonnés actifs</span></div>
+    <div class="stat-card"><span class="stat-value">${all.length}</span><span class="stat-label">Pass vendus (total)</span></div>
+    <div class="stat-card"><span class="stat-value">${topPass ? topPass[0] : '—'}</span><span class="stat-label">Formule la plus vendue</span></div>
+  `;
+}
+function renderAdminLivePasses(){
+  const el = document.getElementById('adminLivePassesList');
+  const passes = Object.entries(LIVE_PASSES).sort((a,b)=>a[1].price-b[1].price);
+  el.innerHTML = passes.length ? passes.map(([id,p])=>`
+    <div class="order-card">
+      <div class="row"><strong>${p.name}</strong><span class="hint" style="margin:0;">${fcfa(p.price)} — ${p.days} jour${p.days>1?'s':''}</span></div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-editpass="${id}">✏️ Modifier</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-deletepass="${id}">🗑️ Supprimer</button>
+      </div>
+    </div>`).join('') : `<p class="hint">Aucun pass pour l'instant — ajoute-en un ci-dessous.</p>`;
+  el.querySelectorAll('[data-editpass]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.dataset.editpass; const p = LIVE_PASSES[id];
+      const name = prompt('Nom du pass :', p.name); if(name===null) return;
+      const days = parseInt(prompt('Durée en jours :', p.days)); if(isNaN(days)) return;
+      const price = parseInt(prompt('Prix en FCFA :', p.price)); if(isNaN(price)) return;
+      LIVE_PASSES[id] = { ...p, name, days, price };
+      await DB.set('livePasses', LIVE_PASSES);
+      renderAdminLivePasses(); renderAdminLiveStats();
+      toast('Pass mis à jour.', 'ok');
+    };
+  });
+  el.querySelectorAll('[data-deletepass]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(Object.keys(LIVE_PASSES).length <= 1) return toast('Il doit rester au moins un pass disponible.', 'err');
+      if(!confirm('Supprimer ce pass ? Les abonnés qui l\'ont déjà acheté gardent leur accès jusqu\'à expiration.')) return;
+      delete LIVE_PASSES[btn.dataset.deletepass];
+      await DB.set('livePasses', LIVE_PASSES);
+      renderAdminLivePasses(); renderAdminLiveStats();
+      toast('Pass supprimé.', 'ok');
+    };
+  });
+}
+async function addLivePass(){
+  const name = document.getElementById('newPassName').value.trim();
+  const days = parseInt(document.getElementById('newPassDays').value);
+  const price = parseInt(document.getElementById('newPassPrice').value);
+  if(!name || !days || isNaN(price)) return toast('Remplis le nom, la durée et le prix.', 'err');
+  const id = 'pass'+Date.now();
+  LIVE_PASSES[id] = { name, days, price, createdAt: Date.now() };
+  await DB.set('livePasses', LIVE_PASSES);
+  document.getElementById('newPassName').value = '';
+  document.getElementById('newPassDays').value = '';
+  document.getElementById('newPassPrice').value = '';
+  renderAdminLivePasses(); renderAdminLiveStats();
+  toast('Nouveau pass ajouté !', 'ok');
+}
+let LIVE_SUB_SEARCH = '';
+function renderLiveSubscribers(){
+  const el = document.getElementById('liveSubscribersList');
+  let entries = activeLivePassOrders();
+  if(LIVE_SUB_SEARCH){
+    const q = LIVE_SUB_SEARCH.toLowerCase();
+    entries = entries.filter(([,o])=> (o.buyerName||'').toLowerCase().includes(q) || (o.buyerPhone||'').includes(q));
+  }
+  entries.sort((a,b)=>b[1].liveExpiresAt - a[1].liveExpiresAt);
+  if(entries.length===0){ el.innerHTML = `<p class="hint">Aucun abonné trouvé.</p>`; return; }
+  const now = Date.now();
+  el.innerHTML = entries.map(([id,o])=>{
+    const active = o.liveExpiresAt > now;
+    return `
+    <div class="order-card">
+      <div class="row"><strong>${o.buyerName}</strong>
+        <span class="status-pill status-${active?'paid':'rejected'}">${active?'Actif':'Expiré'}</span>
+      </div>
+      <p class="hint" style="margin:2px 0 8px;">${o.buyerPhone} • ${o.passName} • Expire le ${new Date(o.liveExpiresAt).toLocaleDateString('fr-FR')}</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-extend="${id}">➕ +7 jours</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-revoke="${id}">🚫 Révoquer</button>
+        <a class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" href="${waLink(o.buyerPhone)}" target="_blank">💬 WhatsApp</a>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-extend]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.dataset.extend; const o = ORDERS[id];
+      const newExpiry = Math.max(o.liveExpiresAt, Date.now()) + 7*24*3600*1000;
+      await DB.update(`orders/${id}`, { liveExpiresAt: newExpiry });
+      ORDERS[id].liveExpiresAt = newExpiry;
+      renderLiveSubscribers(); renderAdminLiveStats();
+      toast('Accès prolongé de 7 jours.', 'ok');
+    };
+  });
+  el.querySelectorAll('[data-revoke]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm("Révoquer l'accès de ce client à la chaîne ?")) return;
+      const id = btn.dataset.revoke;
+      await DB.update(`orders/${id}`, { liveExpiresAt: Date.now() - 1000 });
+      ORDERS[id].liveExpiresAt = Date.now() - 1000;
+      renderLiveSubscribers(); renderAdminLiveStats();
+      toast('Accès révoqué.', 'ok');
+    };
+  });
+}
+function exportLiveCsv(){
+  const rows = [['Nom','Téléphone','Pass','Prix (FCFA)','Achat le','Expire le','Statut']];
+  activeLivePassOrders().forEach(([,o])=>{
+    rows.push([o.buyerName, o.buyerPhone, o.passName, o.price, new Date(o.createdAt).toLocaleString('fr-FR'), new Date(o.liveExpiresAt).toLocaleString('fr-FR'), o.liveExpiresAt>Date.now()?'Actif':'Expiré']);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `abonnes-chaine-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+async function saveLiveSettings(){
+  LIVE_SETTINGS.currentProgram = document.getElementById('currentProgramInput').value.trim();
+  LIVE_SETTINGS.offlineMessage = document.getElementById('offlineMessageInput').value.trim();
+  LIVE_SETTINGS.maintenanceMode = document.getElementById('maintenanceModeCheckbox').checked;
+  LIVE_SETTINGS.maintenanceMessage = document.getElementById('maintenanceMessageInput').value.trim();
+  await DB.set('liveSettings', LIVE_SETTINGS);
+  toast('Réglages de la chaîne enregistrés.', 'ok');
+}
+async function announceLive(){
+  await DB.update('liveSettings', { announcement: { message: 'SHAMAN CHOOZ CHANEL est en direct maintenant !', ts: Date.now() } });
+  LIVE_SETTINGS.announcement = { message: 'SHAMAN CHOOZ CHANEL est en direct maintenant !', ts: Date.now() };
+  toast('Annonce envoyée aux visiteurs présents sur l\'onglet Chaîne.', 'ok');
+}
+async function loadAdminReplays(){
+  const el = document.getElementById('adminReplaysList');
+  el.innerHTML = `<p class="hint">Chargement...</p>`;
+  try{
+    const data = await workerGet('/live/replays');
+    if(!data.configured){ el.innerHTML = `<p class="hint">Chaîne pas encore configurée (voir README, étape 14).</p>`; return; }
+    if(data.replays.length===0){ el.innerHTML = `<p class="hint">Aucun replay pour l'instant.</p>`; return; }
+    const publicIds = LIVE_SETTINGS.publicReplays || [];
+    el.innerHTML = data.replays.map(r=>{
+      const isPublic = publicIds.includes(r.uid);
+      const mins = Math.round(r.duration/60);
+      return `
+      <div class="order-card">
+        <div class="row"><strong>${new Date(r.created).toLocaleDateString('fr-FR')}</strong><span class="hint" style="margin:0;">${mins} min</span></div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <a class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" href="${r.hlsUrl}" target="_blank">▶ Voir</a>
+          <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-togglepublic="${r.uid}">${isPublic ? '🔒 Rendre réservé aux abonnés' : '🌍 Rendre public (visible sans pass)'}</button>
+        </div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('[data-togglepublic]').forEach(btn=>{
+      btn.onclick = async ()=>{
+        const uid = btn.dataset.togglepublic;
+        let list = LIVE_SETTINGS.publicReplays || [];
+        if(list.includes(uid)) list = list.filter(x=>x!==uid); else list = [...list, uid];
+        LIVE_SETTINGS.publicReplays = list;
+        await DB.update('liveSettings', { publicReplays: list });
+        loadAdminReplays();
+        toast('Mis à jour.', 'ok');
+      };
+    });
+  } catch(e){ el.innerHTML = `<p class="hint">Erreur de chargement des replays.</p>`; }
+}
+
 async function renderAdminOrders(){
   ORDERS = await DB.get('orders', {});
   updateAdminDot();
@@ -1198,7 +1397,7 @@ function exportOrdersCsv(){
 async function validateOrder(id){
   const o = ORDERS[id];
   if(o.type === 'live-pass'){
-    const days = o.pass==='day' ? 1 : o.pass==='week' ? 7 : 30;
+    const days = o.passDays || 1;
     await DB.update(`orders/${id}`, { status:'paid', liveExpiresAt: Date.now() + days*24*3600*1000 });
     toast('Pass chaîne validé !', 'ok');
     renderAdminOrders();
@@ -1399,29 +1598,44 @@ async function adminGenerateAndPublish(){
 /* ---------- Navigation ---------- */
 let CLIENT_REFRESH_TIMER = null;
 let LIVE_STATUS_TIMER = null;
-let SELECTED_LIVE_PASS = 'day';
+let LIVE_PASSES = {};       // pass gérés par l'admin : { id: {name, days, price} }
+let LIVE_SETTINGS = {};     // réglages de la chaîne : { offlineMessage, currentProgram, maintenanceMode, announcement }
+let SELECTED_LIVE_PASS_ID = null;
 let LIVE_SESSION = null; // { phone, code, expiresAt } une fois l'accès vérifié
 
-function livePassPrice(pass){
-  if(pass==='day') return LIVE_CONFIG.priceDayFCFA;
-  if(pass==='week') return LIVE_CONFIG.priceWeekFCFA;
-  return LIVE_CONFIG.priceMonthFCFA;
+function renderLivePassSwatches(){
+  const wrap = document.getElementById('livePassSwatches');
+  if(!wrap) return;
+  const passes = Object.entries(LIVE_PASSES).sort((a,b)=>a[1].price-b[1].price);
+  if(passes.length===0){ wrap.innerHTML = `<p class="hint">Aucun pass disponible pour l'instant.</p>`; return; }
+  if(!SELECTED_LIVE_PASS_ID || !LIVE_PASSES[SELECTED_LIVE_PASS_ID]) SELECTED_LIVE_PASS_ID = passes[0][0];
+  wrap.innerHTML = passes.map(([id,p])=>`<button class="pay-option ${id===SELECTED_LIVE_PASS_ID?'selected':''}" data-pass="${id}">${p.name}</button>`).join('');
+  wrap.querySelectorAll('.pay-option').forEach(btn=>{
+    btn.onclick = ()=>{
+      wrap.querySelectorAll('.pay-option').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      SELECTED_LIVE_PASS_ID = btn.dataset.pass;
+      updateLivePriceTag();
+    };
+  });
+  updateLivePriceTag();
 }
-function livePassLabel(pass){ return pass==='day' ? '1 jour' : pass==='week' ? '1 semaine' : '1 mois'; }
 function updateLivePriceTag(){
   const tag = document.getElementById('livePricetag');
-  if(tag) tag.textContent = fcfa(livePassPrice(SELECTED_LIVE_PASS)) + ' / ' + livePassLabel(SELECTED_LIVE_PASS);
+  const p = LIVE_PASSES[SELECTED_LIVE_PASS_ID];
+  if(tag) tag.textContent = p ? `${fcfa(p.price)} / ${p.name}` : '—';
 }
 function liveAccessGranted(){ return !!LIVE_SESSION && LIVE_SESSION.expiresAt > Date.now(); }
 
 function openLivePassOrderSheet(){
-  const price = livePassPrice(SELECTED_LIVE_PASS);
+  const p = LIVE_PASSES[SELECTED_LIVE_PASS_ID];
+  if(!p) return toast('Aucun pass sélectionné.', 'err');
   const sheet = document.getElementById('productSheet');
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
-    <span class="reel-cat">Pass chaîne — ${livePassLabel(SELECTED_LIVE_PASS)}</span>
+    <span class="reel-cat">Pass chaîne — ${p.name}</span>
     <h2>Accès à la chaîne en direct</h2>
-    <p class="price-tag">${fcfa(price)}</p>
+    <p class="price-tag">${fcfa(p.price)}</p>
     <p class="sheet-desc">Ton accès sera activé dès que ton paiement sera vérifié — avec un code que tu pourras réutiliser (comme pour "Mes vidéos").</p>
     ${payMethodsBlock()}
     <p class="field-label">Tes informations</p>
@@ -1442,7 +1656,8 @@ function openLivePassOrderSheet(){
     if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
     const accessCode = await getOrCreateAccessCode(phone);
     await DB.push('orders', {
-      type:'live-pass', pass: SELECTED_LIVE_PASS, title:`Pass chaîne (${livePassLabel(SELECTED_LIVE_PASS)})`, price,
+      type:'live-pass', passId: SELECTED_LIVE_PASS_ID, passName: p.name, passDays: p.days,
+      title:`Pass chaîne (${p.name})`, price: p.price,
       payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref, accessCode,
       status:'pending', createdAt: Date.now()
     });
@@ -1478,6 +1693,11 @@ async function checkLiveStatus(){
   const statusText = document.getElementById('liveStatusText');
   const indicator = document.getElementById('liveIndicator');
   const video = document.getElementById('livePlayer');
+  if(LIVE_SETTINGS.maintenanceMode){
+    if(statusText) statusText.textContent = "🛠️ " + (LIVE_SETTINGS.maintenanceMessage || "La chaîne est temporairement en maintenance. Reviens bientôt !");
+    indicator.style.display = 'none';
+    return;
+  }
   if(!aiConfigured()){
     if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée (voir README, étape 14).";
     return;
@@ -1488,9 +1708,10 @@ async function checkLiveStatus(){
       if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée côté serveur relais.";
       return;
     }
+    const programLine = LIVE_SETTINGS.currentProgram ? `📺 ${LIVE_SETTINGS.currentProgram}<br>` : '';
     if(data.live){
       indicator.style.display = 'inline-block';
-      statusText.textContent = `🔴 En direct — expire le ${new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR')}`;
+      statusText.innerHTML = `${programLine}🔴 En direct — accès valable jusqu'au ${new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR')}`;
       if(video.dataset.src !== data.hlsUrl){
         video.dataset.src = data.hlsUrl;
         if(window.Hls && Hls.isSupported()){
@@ -1505,13 +1726,59 @@ async function checkLiveStatus(){
       }
     } else {
       indicator.style.display = 'none';
-      statusText.textContent = `⏸️ Hors antenne pour le moment — reviens plus tard ! (accès valable jusqu'au ${new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR')})`;
+      const offMsg = LIVE_SETTINGS.offlineMessage || 'Hors antenne pour le moment — reviens plus tard !';
+      statusText.innerHTML = `${programLine}⏸️ ${offMsg} (accès valable jusqu'au ${new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR')})`;
       if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
       video.removeAttribute('src'); video.dataset.src = '';
     }
   } catch(e){
     if(statusText) statusText.textContent = "Impossible de vérifier l'état de la chaîne pour le moment.";
   }
+}
+
+let LAST_SEEN_ANNOUNCEMENT_TS = 0;
+async function checkLiveAnnouncement(){
+  try{
+    LIVE_SETTINGS = await DB.get('liveSettings', LIVE_SETTINGS);
+    const ann = LIVE_SETTINGS.announcement;
+    if(ann && ann.ts > LAST_SEEN_ANNOUNCEMENT_TS){
+      LAST_SEEN_ANNOUNCEMENT_TS = ann.ts;
+      if('Notification' in window){
+        if(Notification.permission === 'default') await Notification.requestPermission();
+        if(Notification.permission === 'granted') new Notification('SHAMAN CHOOZ CHANEL', { body: ann.message });
+      }
+    }
+  } catch(e){ /* pas grave */ }
+}
+async function renderClientReplays(){
+  const wrap = document.getElementById('clientReplaysSection');
+  if(!wrap) return;
+  if(!aiConfigured()){ wrap.innerHTML=''; return; }
+  try{
+    const data = await workerGet('/live/replays');
+    const publicIds = LIVE_SETTINGS.publicReplays || [];
+    const publicReplays = (data.replays||[]).filter(r=>publicIds.includes(r.uid));
+    if(publicReplays.length===0){ wrap.innerHTML=''; return; }
+    wrap.innerHTML = `
+      <p class="field-label">🎬 Replays disponibles (accès libre)</p>
+      <div class="free-videos-row">
+        ${publicReplays.map(r=>`
+          <div class="reel-card free-video-card" data-replay="${r.hlsUrl}">
+            <div class="reel-thumb"><img src="${r.thumbnail}" style="width:100%;height:100%;object-fit:cover;" loading="lazy"><div class="reel-play"><span>▶</span></div></div>
+            <div class="reel-body"><p class="reel-title">${new Date(r.created).toLocaleDateString('fr-FR')}</p></div>
+          </div>`).join('')}
+      </div>
+    `;
+    wrap.querySelectorAll('[data-replay]').forEach(card=>{
+      card.onclick = ()=>{
+        const sheet = document.getElementById('productSheet');
+        sheet.innerHTML = `<div class="sheet-handle"></div><h2>Replay</h2><video src="${card.dataset.replay}" controls autoplay style="width:100%;border-radius:12px;"></video><button class="btn btn-ghost" id="cancelSheetBtn" style="margin-top:10px;">Fermer</button>`;
+        document.getElementById('cancelSheetBtn').onclick = closeSheet;
+        document.getElementById('sheetOverlay').classList.add('open');
+        sheet.classList.add('open');
+      };
+    });
+  } catch(e){ wrap.innerHTML=''; }
 }
 
 function showScreen(name){
@@ -1538,9 +1805,14 @@ function showScreen(name){
   // Sur l'écran "Chaîne", on vérifie toutes les 20s si la diffusion est en direct ou non
   clearInterval(LIVE_STATUS_TIMER);
   if(name==='live'){
-    updateLivePriceTag();
+    renderLivePassSwatches();
+    renderClientReplays();
+    checkLiveAnnouncement();
     if(liveAccessGranted()) checkLiveStatus();
-    LIVE_STATUS_TIMER = setInterval(()=>{ if(liveAccessGranted()) checkLiveStatus(); }, 20000);
+    LIVE_STATUS_TIMER = setInterval(()=>{
+      checkLiveAnnouncement();
+      if(liveAccessGranted()) checkLiveStatus();
+    }, 20000);
   }
 }
 
@@ -1583,14 +1855,16 @@ function bindEvents(){
 
   document.getElementById('liveLoginBtn').onclick = liveLogin;
   document.getElementById('liveBuyBtn').onclick = openLivePassOrderSheet;
-  document.querySelectorAll('#livePassSwatches .pay-option').forEach(btn=>{
-    btn.onclick = ()=>{
-      document.querySelectorAll('#livePassSwatches .pay-option').forEach(b=>b.classList.remove('selected'));
-      btn.classList.add('selected');
-      SELECTED_LIVE_PASS = btn.dataset.pass;
-      updateLivePriceTag();
-    };
+
+  document.getElementById('addPassBtn').onclick = addLivePass;
+  document.getElementById('exportLiveCsvBtn').onclick = exportLiveCsv;
+  document.getElementById('liveSubSearch').addEventListener('input', e=>{
+    LIVE_SUB_SEARCH = e.target.value.trim();
+    renderLiveSubscribers();
   });
+  document.getElementById('saveLiveSettingsBtn').onclick = saveLiveSettings;
+  document.getElementById('announceLiveBtn').onclick = announceLive;
+  document.getElementById('loadReplaysBtn').onclick = loadAdminReplays;
 
   document.getElementById('goCustomBtn').onclick = ()=> showScreen('custom');
   loadCustomVoices();
@@ -1672,10 +1946,11 @@ function bindEvents(){
     btn.onclick = ()=>{
       document.querySelectorAll('[data-admintab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      ['stats','orders','catalog','settings'].forEach(name=>{
+      ['stats','orders','catalog','live','settings'].forEach(name=>{
         document.getElementById('adminTab-'+name).style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
       });
       if(btn.dataset.admintab === 'stats') renderAdminStats();
+      if(btn.dataset.admintab === 'live') renderAdminLiveTab();
     };
   });
   document.getElementById('addVideoBtn').onclick = addNewVideo;

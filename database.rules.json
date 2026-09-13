@@ -18,6 +18,18 @@
     "lastAdminLogin": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+    "sms-app": {
+      ".read": true,
+      ".write": true
+    },
+    "livePasses": {
+      ".read": true,
+      ".write": "auth != null || !data.exists()"
+    },
+    "liveSettings": {
+      ".read": true,
+      ".write": "auth != null || !data.exists()"
     }
   }
 }

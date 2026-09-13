@@ -244,6 +244,43 @@ Ta chaîne fonctionne avec **Cloudflare Stream** (le service utilisé par de nom
 
 ⚠️ **Coût** : Cloudflare Stream facture à la minute diffusée + à la minute regardée (environ 1$ pour 1000 minutes regardées, très abordable). Le prix des pass dans `live-config.js` a été fixé bas exprès (voir le fichier) pour rester rentable tout en étant accessible partout.
 
+## Étape 15 — Gérer ta chaîne comme un vrai producteur, depuis l'espace admin
+Ton espace admin a maintenant un onglet **"🔴 Chaîne"**, avec tout ce qu'il faut pour piloter ta chaîne sans jamais toucher au code :
+
+**Gestion des pass (illimités)**
+1. Prix, durée et nom **entièrement libres** — crée autant de pass que tu veux (ex: "3 jours", "Week-end VIP", "2 semaines"...), modifie-les ou supprime-les à tout moment
+2. Un client qui a déjà acheté un pass garde son accès même si tu supprimes ce pass ensuite
+
+**Suivi et gestion des abonnés**
+3. Statistiques dédiées : revenu total de la chaîne, nombre d'abonnés actuellement actifs, nombre total de pass vendus, formule la plus populaire
+4. Liste complète des abonnés, avec recherche par nom ou téléphone
+5. Prolonger l'accès d'un client de 7 jours en un clic (ex: geste commercial, souci technique de son côté)
+6. Révoquer l'accès d'un client immédiatement (ex: paiement frauduleux)
+7. Contacter un abonné directement sur WhatsApp depuis sa fiche
+8. Export CSV de tous les abonnés (pour ta comptabilité)
+
+**Contrôle de la diffusion**
+9. Champ "Programme actuel" — affiché aux spectateurs (ex: "Ce soir : présentation de nos nouveautés")
+10. Message "hors antenne" personnalisable (au lieu d'un texte figé)
+11. Mode maintenance — coupe temporairement l'accès à la chaîne avec un message de ton choix
+12. Bouton "📢 Annoncer que je suis en direct" — notifie les visiteurs qui ont l'onglet Chaîne ouvert au moment où tu commences à diffuser
+13. Indicateur "🔴 EN DIRECT" avec pastille clignotante, visible dès que Cloudflare détecte ta diffusion
+
+**Replays (rediffusions)**
+14. Cloudflare Stream enregistre automatiquement chaque direct — retrouve-les dans l'onglet Chaîne de l'admin
+15. Rendre un replay **public** (regardable sans pass, pour attirer de nouveaux abonnés) ou le garder réservé aux abonnés payants
+16. Les replays publics apparaissent automatiquement pour tous les visiteurs sur l'écran "Chaîne", en défilement horizontal
+
+**Autres**
+17. Répartition des ventes par formule de pass (dans les statistiques générales de l'onglet 📊 Stats)
+18. Le chiffre d'affaires de la chaîne est intégré à tes statistiques globales du site
+19. Système de code d'accès réutilisé (le même téléphone + code que "Mes vidéos") — pas de système de compte supplémentaire à gérer
+20. Tri automatique des pass par prix côté visiteur, pour une présentation toujours claire
+
+⚠️ **Fichier `live-config.js` devenu inutile** : les prix sont maintenant gérés entièrement depuis l'admin et stockés dans Firebase. Tu peux le supprimer de GitHub si tu veux (le site fonctionne sans lui) — je l'ai laissé avec un simple mot expliquant pourquoi, au cas où.
+
+⚠️ **Republie `database.rules.json`** (mis à jour, deux nouvelles entrées `livePasses` et `liveSettings`) dans Firebase > Realtime Database > Règles > Publier — sinon la gestion des pass ne fonctionnera pas.
+
 ## Pour aller plus loin (Phase 3)
 - **Paiement 100% automatique** (sans validation manuelle) : ouvrir un compte marchand CinetPay ou PayDunya
 - **Sous-titres automatiques et voix supplémentaires** : JSON2Video prend en charge d'autres langues et voix (voir sa documentation) si tu veux élargir l'offre

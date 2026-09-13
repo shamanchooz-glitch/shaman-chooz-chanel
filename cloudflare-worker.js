@@ -156,6 +156,30 @@ export default {
       return json({ configured: true, live, hlsUrl });
     }
 
+    /* Historique des directs précédents (replays) — Cloudflare Stream enregistre automatiquement
+       chaque diffusion en direct ; on renvoie la liste pour que l'admin puisse les gérer et que les
+       spectateurs puissent les revoir. */
+    if (url.pathname === "/live/replays" && request.method === "GET") {
+      if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID || !env.CF_LIVE_INPUT_ID || !env.CF_CUSTOMER_CODE) {
+        return json({ configured: false, replays: [] });
+      }
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/live_inputs/${env.CF_LIVE_INPUT_ID}/videos`,
+        { headers: { "Authorization": `Bearer ${env.CF_API_TOKEN}` } }
+      );
+      const data = await res.json();
+      const replays = (data?.result || [])
+        .filter(v => v.status?.state === "ready" && v.duration > 0)
+        .map(v => ({
+          uid: v.uid,
+          created: v.created,
+          duration: v.duration,
+          hlsUrl: `https://customer-${env.CF_CUSTOMER_CODE}.cloudflarestream.com/${v.uid}/manifest/video.m3u8`,
+          thumbnail: `https://customer-${env.CF_CUSTOMER_CODE}.cloudflarestream.com/${v.uid}/thumbnails/thumbnail.jpg`
+        }));
+      return json({ configured: true, replays });
+    }
+
     return json({ ok: true, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
   }
 };

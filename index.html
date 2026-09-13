@@ -191,6 +191,7 @@
       <span class="live-indicator" id="liveIndicator">🔴 EN DIRECT</span>
     </div>
     <p class="hint" id="liveStatusText" style="margin-top:8px;"></p>
+    <div id="clientReplaysSection" style="margin-top:18px;"></div>
   </div>
 
   <div id="liveAccessWrap">
@@ -203,11 +204,7 @@
     <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
 
     <p class="field-label" style="margin-top:0;">Pas encore de pass ? Choisis ta formule</p>
-    <div class="pay-grid" id="livePassSwatches">
-      <button class="pay-option selected" data-pass="day">1 jour</button>
-      <button class="pay-option" data-pass="week">1 semaine</button>
-      <button class="pay-option" data-pass="month">1 mois</button>
-    </div>
+    <div class="pay-grid" id="livePassSwatches"></div>
     <p class="price-tag" id="livePricetag" style="margin-top:14px;">—</p>
     <button class="btn btn-primary" id="liveBuyBtn">Acheter ce pass</button>
   </div>
@@ -240,6 +237,7 @@
     <button class="chip active" data-admintab="stats">📊 Stats</button>
     <button class="chip" data-admintab="orders">Commandes</button>
     <button class="chip" data-admintab="catalog">Catalogue</button>
+    <button class="chip" data-admintab="live">🔴 Chaîne</button>
     <button class="chip" data-admintab="settings">Réglages</button>
   </div>
 
@@ -345,6 +343,48 @@
     <div id="adminCatalogList" style="margin-top:14px;"></div>
   </div>
 
+  <div id="adminTab-live" style="display:none;">
+    <p class="field-label" style="margin-top:0;">📊 Statistiques de la chaîne</p>
+    <div class="stats-grid" id="liveStatsCards"></div>
+
+    <div style="border-top:1px solid var(--line); margin:18px 0 16px;"></div>
+    <p class="field-label" style="margin-top:0;">💳 Gérer les pass (autant que tu veux)</p>
+    <div id="adminLivePassesList"></div>
+    <input class="input" id="newPassName" placeholder="Nom du pass (ex: 3 jours, Week-end VIP...)">
+    <div style="display:flex; gap:8px;">
+      <input class="input" id="newPassDays" type="number" min="1" placeholder="Durée (jours)" style="flex:1;">
+      <input class="input" id="newPassPrice" type="number" min="0" placeholder="Prix (FCFA)" style="flex:1;">
+    </div>
+    <button class="btn btn-primary" id="addPassBtn">+ Ajouter ce pass</button>
+
+    <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
+    <p class="field-label" style="margin-top:0;">👥 Abonnés à la chaîne</p>
+    <input class="input" id="liveSubSearch" placeholder="🔎 Rechercher un abonné (nom, téléphone)">
+    <button class="btn btn-ghost" id="exportLiveCsvBtn">📤 Exporter en CSV</button>
+    <div id="liveSubscribersList" style="margin-top:10px;"></div>
+
+    <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
+    <p class="field-label" style="margin-top:0;">⚙️ Réglages de la chaîne</p>
+    <p class="hint">Programme actuel (affiché aux spectateurs)</p>
+    <input class="input" id="currentProgramInput" placeholder="Ex: Ce soir, présentation de nos nouveautés">
+    <p class="hint">Message affiché quand la chaîne est hors antenne</p>
+    <input class="input" id="offlineMessageInput" placeholder="Hors antenne pour le moment — reviens plus tard !">
+    <button class="btn btn-ghost" id="saveLiveSettingsBtn">💾 Enregistrer ces réglages</button>
+
+    <label class="hint" style="display:flex;align-items:center;gap:8px;margin:14px 0 0;">
+      <input type="checkbox" id="maintenanceModeCheckbox"> 🛠️ Mettre la chaîne en maintenance (accès bloqué pour tous)
+    </label>
+    <input class="input" id="maintenanceMessageInput" placeholder="Message affiché pendant la maintenance" style="margin-top:8px;">
+
+    <button class="btn btn-primary" id="announceLiveBtn" style="margin-top:16px;">📢 Annoncer que je suis en direct maintenant</button>
+    <p class="hint">Envoie une notification aux visiteurs qui ont actuellement l'onglet "Chaîne" ouvert.</p>
+
+    <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
+    <p class="field-label" style="margin-top:0;">🎬 Replays (directs précédents)</p>
+    <button class="btn btn-ghost" id="loadReplaysBtn">🔄 Actualiser les replays</button>
+    <div id="adminReplaysList" style="margin-top:10px;"></div>
+  </div>
+
   <div id="adminTab-settings" style="display:none;">
     <p class="hint" id="lastLoginInfo" style="margin-top:0;"></p>
     <p class="field-label">Changer le mot de passe admin</p>
@@ -388,7 +428,6 @@
 <script src="firebase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <script src="ai-config.js"></script>
-<script src="live-config.js"></script>
 <script src="app.js"></script>
 
 <!-- ===== Traduction du site dans toutes les langues (widget Google Traduction, gratuit) =====

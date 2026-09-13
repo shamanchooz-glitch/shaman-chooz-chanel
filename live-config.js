@@ -1,19 +1,8 @@
 // ============================================================
-// CONFIGURATION CHAÎNE EN DIRECT — à remplir par toi (voir README, étape 14)
+// CE FICHIER N'EST PLUS UTILISÉ — tu peux le supprimer de GitHub si tu veux.
 // ============================================================
-// Ta chaîne fonctionne avec Cloudflare Stream (le même genre de service que
-// Twitch/YouTube Live en coulisses : tu diffuses depuis ton téléphone, le
-// site retransmet en direct à tous tes visiteurs, partout dans le monde).
-//
-// Tant que ces informations ne sont pas configurées côté serveur relais
-// (cloudflare-worker.js), l'onglet "Chaîne" reste visible mais affiche
-// "Chaîne pas encore configurée".
+// Les prix des pass de la chaîne en direct sont maintenant gérés directement
+// depuis ton espace admin (onglet "Chaîne" > "Gérer les pass"), et stockés
+// dans Firebase — tu peux créer, modifier et supprimer autant de pass que tu
+// veux, sans jamais toucher à un fichier de code.
 // ============================================================
-
-const LIVE_CONFIG = {
-  // Prix des pass d'accès à la chaîne en direct — volontairement bas pour
-  // rester accessible à tous, dans tous les pays.
-  priceDayFCFA: 150,
-  priceWeekFCFA: 700,
-  priceMonthFCFA: 2000
-};
