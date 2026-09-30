@@ -367,20 +367,73 @@
     <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
     <p class="field-label" style="margin-top:0;">⚙️ Réglages de la chaîne</p>
     <p class="field-label" style="margin-top:0;">📡 Source de la diffusion</p>
-    <p class="hint">Choisis d'où vient ton direct. Tu peux basculer à tout moment.</p>
+    <p class="hint">Choisis ce qui passe à l'antenne. Tu peux changer à tout moment.</p>
     <select class="input" id="liveProviderSelect">
+      <option value="auto">⭐ Programmation automatique (recommandé 24h/24)</option>
+      <option value="playlist">🎞️ Boucle de films & séries seulement</option>
       <option value="youtube">YouTube Live (gratuit)</option>
+      <option value="facebook">Facebook Live (gratuit)</option>
+      <option value="twitch">Twitch (gratuit)</option>
+      <option value="dailymotion">Dailymotion</option>
+      <option value="kick">Kick (gratuit)</option>
+      <option value="hls">Lien HLS (.m3u8)</option>
+      <option value="embed">Lien d'intégration personnalisé (iframe)</option>
       <option value="cloudflare">Cloudflare Stream (payant)</option>
     </select>
-    <div id="youtubeSettingsBox">
-      <p class="hint">Lien de ton direct YouTube (ou l'identifiant de ta chaîne qui commence par UC...)</p>
-      <input class="input" id="youtubeLinkInput" placeholder="https://www.youtube.com/watch?v=... ou /live/... ou ID de chaîne UC...">
+    <div id="manualLiveBox">
       <label class="hint" style="display:flex;align-items:center;gap:8px;margin:10px 0 0;">
-        <input type="checkbox" id="youtubeLiveCheckbox"> 🔴 Je suis en direct sur YouTube maintenant (affiche le direct aux abonnés)
+        <input type="checkbox" id="liveOnCheckbox"> 🔴 Je suis en direct maintenant (affiche le direct aux abonnés)
       </label>
-      <p class="hint">Coche cette case quand tu démarres ton direct YouTube, décoche-la quand tu termines. Mets ton direct YouTube en mode « Non répertorié ».</p>
+      <label class="hint" style="display:flex;align-items:center;gap:8px;margin:8px 0 0;">
+        <input type="checkbox" id="fallbackPlaylistCheckbox"> 🔁 Quand je ne suis pas en direct, passer la boucle de films & séries
+      </label>
     </div>
-    <p class="hint" id="cloudflareSettingsHint" style="display:none;">Cloudflare Stream : le statut « en direct » est détecté automatiquement. Les 4 variables CF_* doivent être configurées dans ton Worker (README, étape 14).</p>
+
+    <p class="field-label">🔗 Mes liens de direct</p>
+    <p class="hint">Remplis seulement ceux que tu utilises. Ils sont gardés en mémoire pour basculer en un clic.</p>
+    <input class="input" id="src-youtube" placeholder="YouTube : lien du direct ou ID de chaîne (UC...)">
+    <input class="input" id="src-facebook" placeholder="Facebook : lien public de ton direct / vidéo">
+    <input class="input" id="src-twitch" placeholder="Twitch : nom de ta chaîne">
+    <input class="input" id="src-dailymotion" placeholder="Dailymotion : lien de ton direct">
+    <input class="input" id="src-kick" placeholder="Kick : nom de ta chaîne">
+    <input class="input" id="src-hls" placeholder="Lien HLS : https://.../live.m3u8">
+    <input class="input" id="src-embed" placeholder="Lien d'intégration : https://... (lien « embed »)">
+    <button class="btn btn-ghost" id="saveSourcesBtn">💾 Enregistrer mes liens et ma source</button>
+    <p class="hint" id="cloudflareSettingsHint">Cloudflare Stream : le statut « en direct » est détecté automatiquement (variables CF_* du Worker, README étape 14).</p>
+
+    <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
+    <p class="field-label" style="margin-top:0;">🗓️ Programmation automatique</p>
+    <p class="hint">Heure de Côte d'Ivoire (GMT). Utilisée quand la source est « Programmation automatique » : pendant un créneau, le direct choisi passe ; en dehors, la boucle de films & séries tourne.</p>
+    <div id="adminScheduleList"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:8px;" id="slotDays">
+      <label class="hint" style="margin:0;"><input type="checkbox" value="1"> Lun</label>
+      <label class="hint" style="margin:0;"><input type="checkbox" value="2"> Mar</label>
+      <label class="hint" style="margin:0;"><input type="checkbox" value="3"> Mer</label>
+      <label class="hint" style="margin:0;"><input type="checkbox" value="4"> Jeu</label>
+      <label class="hint" style="margin:0;"><input type="checkbox" value="5"> Ven</label>
+      <label class="hint" style="margin:0;"><input type="checkbox" value="6"> Sam</label>
+      <label class="hint" style="margin:0;"><input type="checkbox" value="0"> Dim</label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <input class="input" id="slotStart" type="time" style="flex:1;">
+      <input class="input" id="slotEnd" type="time" style="flex:1;">
+    </div>
+    <select class="input" id="slotProvider"></select>
+    <input class="input" id="slotLabel" placeholder="Nom de l'émission (optionnel)">
+    <button class="btn btn-primary" id="addSlotBtn">+ Ajouter ce créneau</button>
+
+    <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
+    <p class="field-label" style="margin-top:0;">🎞️ Films & séries en boucle (24h/24, 7j/7)</p>
+    <p class="hint" id="playlistTotal"></p>
+    <div id="adminPlaylistList"></div>
+    <input class="input" id="plTitle" placeholder="Titre (ex: Film 1, Série - Épisode 3)">
+    <input class="input" id="plUrl" placeholder="Lien YouTube ou lien direct .mp4 / .m3u8 (https)">
+    <input class="input" id="plMinutes" type="number" min="1" placeholder="Durée en minutes (auto pour .mp4/.m3u8)">
+    <button class="btn btn-primary" id="addPlaylistItemBtn">+ Ajouter à la boucle</button>
+    <p class="hint">Ajouter plusieurs d'un coup : une ligne par programme, au format <b>Titre | lien | minutes</b></p>
+    <textarea class="input" id="plBulk" rows="4" placeholder="Film 1 | https://youtu.be/xxxxxxxxxxx | 95&#10;Épisode 1 | https://exemple.com/ep1.mp4"></textarea>
+    <button class="btn btn-ghost" id="addPlaylistBulkBtn">+ Ajouter toutes ces lignes</button>
+    <button class="btn btn-ghost" id="restartPlaylistBtn">↻ Redémarrer la boucle depuis le début maintenant</button>
 
 
     <p class="hint">Programme actuel (affiché aux spectateurs)</p>

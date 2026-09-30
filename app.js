@@ -1148,9 +1148,13 @@ async function renderAdminLiveTab(){
   renderAdminLivePasses();
   renderLiveSubscribers();
   document.getElementById('liveProviderSelect').value = liveProvider();
-  document.getElementById('youtubeLinkInput').value = LIVE_SETTINGS.youtubeId || '';
-  document.getElementById('youtubeLiveCheckbox').checked = !!LIVE_SETTINGS.youtubeLive;
+  Object.keys(LIVE_PROVIDERS).forEach(k=>{ document.getElementById('src-'+k).value = getSourceValue(k); });
+  document.getElementById('liveOnCheckbox').checked = isLiveOn();
+  document.getElementById('fallbackPlaylistCheckbox').checked = LIVE_SETTINGS.fallbackPlaylist !== false;
   updateLiveProviderUI();
+  fillSlotProviderSelect();
+  renderAdminSchedule();
+  renderAdminPlaylist();
   document.getElementById('currentProgramInput').value = LIVE_SETTINGS.currentProgram || '';
   document.getElementById('offlineMessageInput').value = LIVE_SETTINGS.offlineMessage || '';
   document.getElementById('maintenanceModeCheckbox').checked = !!LIVE_SETTINGS.maintenanceMode;
@@ -1278,7 +1282,12 @@ function exportLiveCsv(){
   a.download = `abonnes-chaine-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
-/* ---------- YouTube Live : lecture du lien collé par l'admin ---------- */
+/* ---------- Sources de direct (YouTube, Facebook, Twitch...) ---------- */
+function escH(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const LIVE_PROVIDERS = {
+  youtube:'YouTube Live', facebook:'Facebook Live', twitch:'Twitch', dailymotion:'Dailymotion',
+  kick:'Kick', hls:'Lien HLS (.m3u8)', embed:"Lien d'intégration (iframe)"
+};
 function parseYoutubeInput(s){
   s = (s||'').trim();
   if(!s) return '';
@@ -1289,29 +1298,76 @@ function parseYoutubeInput(s){
   if(/^[\w-]{11}$/.test(s)) return s;
   return '';
 }
-function youtubeEmbedUrl(id){
+function youtubeEmbedUrl(id, startSec){
   const base = (id.length===24 && id.startsWith('UC'))
     ? `https://www.youtube-nocookie.com/embed/live_stream?channel=${id}&`
     : `https://www.youtube-nocookie.com/embed/${id}?`;
-  return base + 'autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1';
+  return base + (startSec>0 ? `start=${Math.floor(startSec)}&` : '') + 'autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1';
 }
-function liveProvider(){ return LIVE_SETTINGS.provider === 'cloudflare' ? 'cloudflare' : 'youtube'; }
+function parseSourceValue(provider, raw){
+  raw = (raw||'').trim();
+  if(!raw) return '';
+  let m;
+  switch(provider){
+    case 'youtube': return parseYoutubeInput(raw);
+    case 'facebook': return /^https:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.watch)\//i.test(raw) ? raw : '';
+    case 'twitch':
+      if((m = raw.match(/twitch\.tv\/(\w{3,25})/i))) return m[1].toLowerCase();
+      return /^\w{3,25}$/.test(raw) ? raw.toLowerCase() : '';
+    case 'dailymotion':
+      if((m = raw.match(/(?:dailymotion\.com\/(?:embed\/)?video\/|dai\.ly\/)([a-zA-Z0-9]+)/))) return m[1];
+      return /^[a-zA-Z0-9]{5,12}$/.test(raw) ? raw : '';
+    case 'kick':
+      if((m = raw.match(/kick\.com\/([\w-]{3,25})/i))) return m[1];
+      return /^[\w-]{3,25}$/.test(raw) ? raw : '';
+    case 'hls': return /^https:\/\/\S+\.m3u8(\?\S*)?$/i.test(raw) ? raw : '';
+    case 'embed': return /^https:\/\/\S+$/i.test(raw) ? raw : '';
+  }
+  return '';
+}
+function embedUrlFor(provider, v){
+  switch(provider){
+    case 'youtube': return youtubeEmbedUrl(v);
+    case 'facebook': return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(v)}&show_text=false&autoplay=true&mute=1`;
+    case 'twitch': return `https://player.twitch.tv/?channel=${encodeURIComponent(v)}&parent=${encodeURIComponent(location.hostname)}&muted=true&autoplay=true`;
+    case 'dailymotion': return `https://www.dailymotion.com/embed/video/${v}?autoplay=1&mute=1`;
+    case 'kick': return `https://player.kick.com/${encodeURIComponent(v)}?autoplay=true&muted=true`;
+    case 'embed': return v;
+  }
+  return '';
+}
+function getSourceValue(p){
+  const v = (LIVE_SETTINGS.sources||{})[p];
+  if(v) return v;
+  return (p==='youtube' && LIVE_SETTINGS.youtubeId) ? LIVE_SETTINGS.youtubeId : '';
+}
+function liveProvider(){
+  const p = LIVE_SETTINGS.provider;
+  return (p==='cloudflare' || p==='playlist' || p==='auto' || LIVE_PROVIDERS[p]) ? p : 'youtube';
+}
+function isLiveOn(){
+  return LIVE_SETTINGS.liveOn !== undefined ? !!LIVE_SETTINGS.liveOn : !!LIVE_SETTINGS.youtubeLive;
+}
 function updateLiveProviderUI(){
   const p = document.getElementById('liveProviderSelect').value;
-  document.getElementById('youtubeSettingsBox').style.display = p==='youtube' ? 'block' : 'none';
+  const manual = !!LIVE_PROVIDERS[p] || p==='cloudflare';
+  document.getElementById('manualLiveBox').style.display = manual ? 'block' : 'none';
   document.getElementById('cloudflareSettingsHint').style.display = p==='cloudflare' ? 'block' : 'none';
 }
 async function saveLiveSettings(){
   const provider = document.getElementById('liveProviderSelect').value;
-  const ytRaw = document.getElementById('youtubeLinkInput').value.trim();
-  const ytId = parseYoutubeInput(ytRaw);
-  if(provider==='youtube' && ytRaw && !ytId){
-    toast("Lien YouTube non reconnu. Colle le lien de ton direct ou l'ID de ta chaîne (UC...).", 'err');
-    return;
+  const sources = {};
+  for(const key of Object.keys(LIVE_PROVIDERS)){
+    const raw = document.getElementById('src-'+key).value.trim();
+    if(!raw){ sources[key] = ''; continue; }
+    const val = parseSourceValue(key, raw);
+    if(!val){ toast(`Lien non reconnu pour « ${LIVE_PROVIDERS[key]} ». Vérifie-le (les liens doivent commencer par https://).`, 'err'); return; }
+    sources[key] = val;
   }
   LIVE_SETTINGS.provider = provider;
-  LIVE_SETTINGS.youtubeId = ytId;
-  LIVE_SETTINGS.youtubeLive = document.getElementById('youtubeLiveCheckbox').checked;
+  LIVE_SETTINGS.sources = sources;
+  LIVE_SETTINGS.liveOn = document.getElementById('liveOnCheckbox').checked;
+  LIVE_SETTINGS.fallbackPlaylist = document.getElementById('fallbackPlaylistCheckbox').checked;
   LIVE_SETTINGS.currentProgram = document.getElementById('currentProgramInput').value.trim();
   LIVE_SETTINGS.offlineMessage = document.getElementById('offlineMessageInput').value.trim();
   LIVE_SETTINGS.maintenanceMode = document.getElementById('maintenanceModeCheckbox').checked;
@@ -1319,6 +1375,155 @@ async function saveLiveSettings(){
   await DB.set('liveSettings', LIVE_SETTINGS);
   toast('Réglages de la chaîne enregistrés.', 'ok');
 }
+
+/* ---------- Admin : programmation automatique ---------- */
+const DAY_NAMES = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+function fillSlotProviderSelect(){
+  const sel = document.getElementById('slotProvider');
+  const opts = Object.entries(LIVE_PROVIDERS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') + '<option value="cloudflare">Cloudflare Stream</option>';
+  sel.innerHTML = opts;
+}
+function renderAdminSchedule(){
+  const el = document.getElementById('adminScheduleList');
+  const list = LIVE_SETTINGS.schedule || [];
+  el.innerHTML = list.length ? list.map((s,i)=>`
+    <div class="order-card">
+      <div class="row"><strong>${escH(s.label || (LIVE_PROVIDERS[s.provider] || 'Cloudflare Stream'))}</strong><span class="hint" style="margin:0;">${escH(s.start)} → ${escH(s.end)}</span></div>
+      <p class="hint" style="margin:0 0 6px;">${(s.days||[]).slice().sort((x,y)=>((x+6)%7)-((y+6)%7)).map(d=>DAY_NAMES[d]).join(', ')} • ${escH(LIVE_PROVIDERS[s.provider] || 'Cloudflare Stream')}</p>
+      <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-delslot="${i}">🗑️ Supprimer</button>
+    </div>`).join('') : `<p class="hint">Aucun créneau pour l'instant.</p>`;
+  el.querySelectorAll('[data-delslot]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Supprimer ce créneau ?')) return;
+      const list2 = (LIVE_SETTINGS.schedule || []).slice();
+      list2.splice(parseInt(btn.dataset.delslot), 1);
+      LIVE_SETTINGS.schedule = list2;
+      await DB.update('liveSettings', { schedule: list2 });
+      renderAdminSchedule();
+    };
+  });
+}
+async function addScheduleSlot(){
+  const days = [...document.querySelectorAll('#slotDays input:checked')].map(i=>parseInt(i.value));
+  const start = document.getElementById('slotStart').value;
+  const end = document.getElementById('slotEnd').value;
+  const provider = document.getElementById('slotProvider').value;
+  const label = document.getElementById('slotLabel').value.trim();
+  if(!days.length) return toast('Coche au moins un jour.', 'err');
+  if(!start || !end) return toast("Indique l'heure de début et de fin.", 'err');
+  const list = (LIVE_SETTINGS.schedule || []).slice();
+  list.push({ id:'s'+Date.now(), days, start, end, provider, label });
+  LIVE_SETTINGS.schedule = list;
+  await DB.update('liveSettings', { schedule: list });
+  document.querySelectorAll('#slotDays input').forEach(i=>i.checked=false);
+  document.getElementById('slotLabel').value = '';
+  renderAdminSchedule();
+  toast('Créneau ajouté.', 'ok');
+}
+
+/* ---------- Admin : boucle de films & séries ---------- */
+function fmtDur(sec){
+  const h = Math.floor(sec/3600), m = Math.round((sec%3600)/60);
+  return h ? `${h} h ${String(m).padStart(2,'0')}` : `${m} min`;
+}
+function detectDuration(url){
+  return new Promise(resolve=>{
+    const v = document.createElement('video');
+    v.preload = 'metadata'; v.muted = true;
+    let h = null, tm = null;
+    const done = d => { clearTimeout(tm); try{ if(h) h.destroy(); v.removeAttribute('src'); v.load(); }catch(e){} resolve(d); };
+    tm = setTimeout(()=>done(0), 12000);
+    v.onloadedmetadata = ()=>done(isFinite(v.duration) ? Math.round(v.duration) : 0);
+    v.onerror = ()=>done(0);
+    if(/\.m3u8(\?|$)/i.test(url) && window.Hls && Hls.isSupported()){ h = new Hls(); h.loadSource(url); h.attachMedia(v); }
+    else v.src = url;
+  });
+}
+async function buildPlaylistItem(title, url, minutes){
+  url = (url||'').trim(); title = (title||'').trim();
+  if(!/^https:\/\//i.test(url)) return { error:'Le lien doit commencer par https://' };
+  let type, ref;
+  const yt = /(youtube\.com|youtu\.be)/i.test(url) ? parseYoutubeInput(url) : '';
+  if(yt && yt.length === 11){ type = 'youtube'; ref = yt; }
+  else if(/(youtube\.com|youtu\.be)/i.test(url)) return { error:'Lien YouTube non reconnu (mets le lien d\'une vidéo).' };
+  else { type = 'file'; ref = url; }
+  let sec = Math.round((parseFloat(minutes)||0) * 60);
+  if(!sec && type === 'file') sec = await detectDuration(url);
+  if(!sec) return { error: type==='youtube' ? 'Indique la durée en minutes pour une vidéo YouTube.' : "Durée non détectée : indique-la en minutes." };
+  return { item: { id:'p'+Date.now()+Math.floor(Math.random()*999), title: title || 'Programme', type, ref, sec } };
+}
+async function savePlaylist(list){
+  LIVE_SETTINGS.playlist = list;
+  if(!LIVE_SETTINGS.playlistEpoch) LIVE_SETTINGS.playlistEpoch = Date.now();
+  await DB.update('liveSettings', { playlist: list, playlistEpoch: LIVE_SETTINGS.playlistEpoch });
+}
+function renderAdminPlaylist(){
+  const el = document.getElementById('adminPlaylistList');
+  const list = LIVE_SETTINGS.playlist || [];
+  const total = list.reduce((t,i)=>t+(i.sec||0), 0);
+  document.getElementById('playlistTotal').textContent = list.length
+    ? `${list.length} programme${list.length>1?'s':''} • boucle complète de ${fmtDur(total)} (elle recommence automatiquement).`
+    : "Aucun programme pour l'instant — ajoute des films ou des séries ci-dessous.";
+  el.innerHTML = list.map((it,i)=>`
+    <div class="order-card">
+      <div class="row"><strong>${i+1}. ${escH(it.title)}</strong><span class="hint" style="margin:0;">${fmtDur(it.sec)}</span></div>
+      <p class="hint" style="margin:0 0 6px;word-break:break-all;">${it.type==='youtube' ? 'YouTube' : 'Lien direct'}</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 12px;" data-plup="${i}">⬆️</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 12px;" data-pldown="${i}">⬇️</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 12px;" data-pldel="${i}">🗑️ Supprimer</button>
+      </div>
+    </div>`).join('');
+  const move = async (i, dir)=>{
+    const l = list.slice(); const j = i + dir;
+    if(j < 0 || j >= l.length) return;
+    [l[i], l[j]] = [l[j], l[i]];
+    await savePlaylist(l); renderAdminPlaylist();
+  };
+  el.querySelectorAll('[data-plup]').forEach(b=> b.onclick = ()=>move(parseInt(b.dataset.plup), -1));
+  el.querySelectorAll('[data-pldown]').forEach(b=> b.onclick = ()=>move(parseInt(b.dataset.pldown), 1));
+  el.querySelectorAll('[data-pldel]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Retirer ce programme de la boucle ?')) return;
+    const l = list.slice(); l.splice(parseInt(b.dataset.pldel), 1);
+    await savePlaylist(l); renderAdminPlaylist();
+  });
+}
+async function addPlaylistItemFromForm(){
+  const btn = document.getElementById('addPlaylistItemBtn');
+  btn.disabled = true; btn.textContent = 'Ajout en cours...';
+  const r = await buildPlaylistItem(document.getElementById('plTitle').value, document.getElementById('plUrl').value, document.getElementById('plMinutes').value);
+  btn.disabled = false; btn.textContent = '+ Ajouter à la boucle';
+  if(r.error) return toast(r.error, 'err');
+  await savePlaylist([...(LIVE_SETTINGS.playlist || []), r.item]);
+  ['plTitle','plUrl','plMinutes'].forEach(id=> document.getElementById(id).value = '');
+  renderAdminPlaylist();
+  toast('Ajouté à la boucle.', 'ok');
+}
+async function addPlaylistBulk(){
+  const lines = document.getElementById('plBulk').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return toast('Colle au moins une ligne.', 'err');
+  const btn = document.getElementById('addPlaylistBulkBtn');
+  btn.disabled = true; btn.textContent = 'Ajout en cours...';
+  const list = (LIVE_SETTINGS.playlist || []).slice();
+  const errors = [];
+  for(let n=0; n<lines.length; n++){
+    const [title, url, minutes] = lines[n].split('|').map(x=>(x||'').trim());
+    const r = await buildPlaylistItem(title, url, minutes);
+    if(r.error) errors.push(`Ligne ${n+1} : ${r.error}`); else list.push(r.item);
+  }
+  btn.disabled = false; btn.textContent = '+ Ajouter toutes ces lignes';
+  if(list.length !== (LIVE_SETTINGS.playlist || []).length){ await savePlaylist(list); renderAdminPlaylist(); }
+  const added = list.length - (LIVE_SETTINGS.playlist || []).length;
+  if(errors.length){ alert(errors.join('\n')); }
+  else { document.getElementById('plBulk').value = ''; toast('Programmes ajoutés à la boucle.', 'ok'); }
+}
+async function restartPlaylist(){
+  if(!confirm('Redémarrer la boucle depuis le premier programme, pour tout le monde ?')) return;
+  LIVE_SETTINGS.playlistEpoch = Date.now();
+  await DB.update('liveSettings', { playlistEpoch: LIVE_SETTINGS.playlistEpoch });
+  toast('Boucle redémarrée.', 'ok');
+}
+
 async function announceLive(){
   await DB.update('liveSettings', { announcement: { message: 'SHAMAN CHOOZ CHANEL est en direct maintenant !', ts: Date.now() } });
   LIVE_SETTINGS.announcement = { message: 'SHAMAN CHOOZ CHANEL est en direct maintenant !', ts: Date.now() };
@@ -1326,8 +1531,8 @@ async function announceLive(){
 }
 async function loadAdminReplays(){
   const el = document.getElementById('adminReplaysList');
-  if(liveProvider()==='youtube'){
-    el.innerHTML = `<p class="hint">Avec YouTube Live, tes replays sont gérés directement dans YouTube Studio (les replays automatiques du site fonctionnent seulement avec Cloudflare Stream).</p>`;
+  if(liveProvider()!=='cloudflare'){
+    el.innerHTML = `<p class="hint">Les replays automatiques du site fonctionnent seulement avec Cloudflare Stream. Avec les autres sources, gère tes replays sur la plateforme utilisée (ex: YouTube Studio) ou ajoute-les à la boucle de films & séries.</p>`;
     return;
   }
   el.innerHTML = `<p class="hint">Chargement...</p>`;
@@ -1729,83 +1934,160 @@ async function liveLogin(){
   LIVE_STATUS_TIMER = setInterval(checkLiveStatus, 20000);
 }
 
+let PLAYLIST_TIMER = null;
+let CURRENT_PLAY_KEY = '';
+
+function slotActive(s, now){
+  const toMin = t => { const [hh,mm] = String(t||'0:0').split(':'); return (parseInt(hh)||0)*60 + (parseInt(mm)||0); };
+  const days = s.days || [];
+  const d = now.getUTCDay(), prev = (d+6)%7;
+  const m = now.getUTCHours()*60 + now.getUTCMinutes();
+  const a1 = toMin(s.start), b1 = toMin(s.end);
+  if(a1 === b1) return days.includes(d);
+  if(a1 < b1) return days.includes(d) && m >= a1 && m < b1;
+  return (days.includes(d) && m >= a1) || (days.includes(prev) && m < b1);
+}
+function currentPlaylistState(){
+  const items = LIVE_SETTINGS.playlist || [];
+  const total = items.reduce((t,i)=>t+(i.sec||0), 0);
+  if(!items.length || total <= 0) return null;
+  const t = Math.max(0, (Date.now() - (LIVE_SETTINGS.playlistEpoch || 0)) / 1000);
+  const cycle = Math.floor(t / total);
+  let pos = t - cycle * total;
+  for(let idx=0; idx<items.length; idx++){
+    if(pos < items[idx].sec){
+      return { item: items[idx], idx, cycle, offset: pos, remaining: items[idx].sec - pos, next: items[(idx+1)%items.length], count: items.length };
+    }
+    pos -= items[idx].sec;
+  }
+  return null;
+}
+function fallbackSource(){
+  return currentPlaylistState() ? { kind:'playlist' } : { kind:'offline' };
+}
+function liveKindFor(prov, label){
+  if(prov === 'cloudflare') return { kind:'cloudflare', label };
+  const v = getSourceValue(prov);
+  if(!v) return { kind:'offline', msg:"Cette source n'est pas encore configurée.", label };
+  if(prov === 'hls') return { kind:'hls', url:v, label };
+  return { kind:'embed', url: embedUrlFor(prov, v), label };
+}
+function resolveLiveSource(){
+  const prov = liveProvider();
+  if(prov === 'playlist') return currentPlaylistState() ? { kind:'playlist' } : { kind:'offline', msg:'Aucun programme dans la boucle pour le moment.' };
+  if(prov === 'auto'){
+    const slot = (LIVE_SETTINGS.schedule || []).find(s => slotActive(s, new Date()));
+    return slot ? liveKindFor(slot.provider, slot.label) : fallbackSource();
+  }
+  if(!isLiveOn()) return LIVE_SETTINGS.fallbackPlaylist !== false ? fallbackSource() : { kind:'offline' };
+  return liveKindFor(prov);
+}
+
 let hlsInstance = null;
+function stopPlayback(){
+  CURRENT_PLAY_KEY = '';
+  const video = document.getElementById('livePlayer');
+  const frame = document.getElementById('liveYoutubeFrame');
+  if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
+  if(video){ video.pause(); video.removeAttribute('src'); video.load(); video.style.display = 'none'; }
+  if(frame){ frame.removeAttribute('src'); frame.style.display = 'none'; }
+}
+function playEmbed(url){
+  const video = document.getElementById('livePlayer');
+  const frame = document.getElementById('liveYoutubeFrame');
+  if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
+  video.pause(); video.removeAttribute('src'); video.style.display = 'none';
+  frame.style.display = 'block';
+  frame.src = url;
+}
+function playVideoUrl(url, offset){
+  const video = document.getElementById('livePlayer');
+  const frame = document.getElementById('liveYoutubeFrame');
+  frame.removeAttribute('src'); frame.style.display = 'none';
+  if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
+  video.style.display = 'block';
+  if(offset > 1) video.addEventListener('loadedmetadata', ()=>{ try{ video.currentTime = offset; }catch(e){} }, { once:true });
+  if(/\.m3u8(\?|$)/i.test(url) && window.Hls && Hls.isSupported()){
+    hlsInstance = new Hls();
+    hlsInstance.loadSource(url);
+    hlsInstance.attachMedia(video);
+  } else {
+    video.src = url;
+  }
+  video.play().catch(()=>{});
+}
+
 async function checkLiveStatus(){
   const statusText = document.getElementById('liveStatusText');
   const indicator = document.getElementById('liveIndicator');
-  const video = document.getElementById('livePlayer');
-  const frame = document.getElementById('liveYoutubeFrame');
-  const stopFrame = ()=>{ frame.style.display = 'none'; frame.removeAttribute('src'); frame.dataset.src = ''; };
-  const stopVideo = ()=>{ if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; } video.removeAttribute('src'); video.dataset.src = ''; };
+  clearTimeout(PLAYLIST_TIMER);
   if(LIVE_SETTINGS.maintenanceMode){
     if(statusText) statusText.textContent = "🛠️ " + (LIVE_SETTINGS.maintenanceMessage || "La chaîne est temporairement en maintenance. Reviens bientôt !");
     indicator.style.display = 'none';
-    stopFrame(); stopVideo();
+    stopPlayback();
     return;
   }
-  const programLine0 = LIVE_SETTINGS.currentProgram ? `📺 ${LIVE_SETTINGS.currentProgram}<br>` : '';
   const expiry = new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR');
-  /* ----- Source YouTube Live ----- */
-  if(liveProvider()==='youtube'){
-    stopVideo(); video.style.display = 'none';
-    const id = LIVE_SETTINGS.youtubeId;
-    if(!id){
-      indicator.style.display = 'none'; stopFrame();
-      if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée.";
-      return;
-    }
-    if(LIVE_SETTINGS.youtubeLive){
-      indicator.style.display = 'inline-block';
-      statusText.innerHTML = `${programLine0}🔴 En direct — accès valable jusqu'au ${expiry}`;
-      const src = youtubeEmbedUrl(id);
-      frame.style.display = 'block';
-      if(frame.dataset.src !== src){ frame.dataset.src = src; frame.src = src; }
+  const offMsg = LIVE_SETTINGS.offlineMessage || 'Hors antenne pour le moment — reviens plus tard !';
+  let res = resolveLiveSource();
+  let cfError = '';
+
+  if(res.kind === 'cloudflare'){
+    const label = res.label;
+    if(!aiConfigured()){
+      res = { kind:'offline', msg:"La chaîne Cloudflare n'est pas encore configurée (voir README, étape 14).", label };
     } else {
-      indicator.style.display = 'none'; stopFrame();
-      const offMsg = LIVE_SETTINGS.offlineMessage || 'Hors antenne pour le moment — reviens plus tard !';
-      statusText.innerHTML = `${programLine0}⏸️ ${offMsg} (accès valable jusqu'au ${expiry})`;
-    }
-    return;
-  }
-  /* ----- Source Cloudflare Stream ----- */
-  stopFrame(); video.style.display = 'block';
-  if(!aiConfigured()){
-    if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée (voir README, étape 14).";
-    return;
-  }
-  try{
-    const data = await workerGet('/live/status');
-    if(!data.configured){
-      if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée côté serveur relais.";
-      return;
-    }
-    const programLine = LIVE_SETTINGS.currentProgram ? `📺 ${LIVE_SETTINGS.currentProgram}<br>` : '';
-    if(data.live){
-      indicator.style.display = 'inline-block';
-      statusText.innerHTML = `${programLine}🔴 En direct — accès valable jusqu'au ${new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR')}`;
-      if(video.dataset.src !== data.hlsUrl){
-        video.dataset.src = data.hlsUrl;
-        if(window.Hls && Hls.isSupported()){
-          if(hlsInstance) hlsInstance.destroy();
-          hlsInstance = new Hls();
-          hlsInstance.loadSource(data.hlsUrl);
-          hlsInstance.attachMedia(video);
-        } else if(video.canPlayType('application/vnd.apple.mpegurl')){
-          video.src = data.hlsUrl;
-        }
-        video.play().catch(()=>{});
+      try{
+        const data = await workerGet('/live/status');
+        if(!data.configured) res = { kind:'offline', msg:"La chaîne Cloudflare n'est pas encore configurée côté serveur relais.", label };
+        else if(data.live) res = { kind:'hls', url:data.hlsUrl, label };
+        else res = (LIVE_SETTINGS.fallbackPlaylist !== false || liveProvider()==='auto') ? fallbackSource() : { kind:'offline' };
+      } catch(e){
+        cfError = "Impossible de vérifier l'état de la chaîne pour le moment.";
+        res = { kind:'offline', msg:cfError, label };
       }
-    } else {
-      indicator.style.display = 'none';
-      const offMsg = LIVE_SETTINGS.offlineMessage || 'Hors antenne pour le moment — reviens plus tard !';
-      statusText.innerHTML = `${programLine}⏸️ ${offMsg} (accès valable jusqu'au ${new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR')})`;
-      if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
-      video.removeAttribute('src'); video.dataset.src = '';
     }
-  } catch(e){
-    if(statusText) statusText.textContent = "Impossible de vérifier l'état de la chaîne pour le moment.";
   }
+
+  const customProgram = res.label || LIVE_SETTINGS.currentProgram;
+  const programLine = customProgram ? `📺 ${escH(customProgram)}<br>` : '';
+
+  if(res.kind === 'embed' || res.kind === 'hls'){
+    indicator.style.display = 'inline-block';
+    statusText.innerHTML = `${programLine}🔴 En direct — accès valable jusqu'au ${expiry}`;
+    const key = res.kind + ':' + res.url;
+    if(CURRENT_PLAY_KEY !== key){
+      stopPlayback(); CURRENT_PLAY_KEY = key;
+      if(res.kind === 'embed') playEmbed(res.url); else playVideoUrl(res.url, 0);
+    }
+    return;
+  }
+
+  if(res.kind === 'playlist'){
+    const st = currentPlaylistState();
+    if(st){
+      indicator.style.display = 'none';
+      const nextLine = st.count > 1 ? `<br>⏭️ À suivre : ${escH(st.next.title)}` : '';
+      statusText.innerHTML = `${programLine}🎞️ Maintenant : ${escH(st.item.title)}${nextLine}<br>(accès valable jusqu'au ${expiry})`;
+      const key = `pl:${st.cycle}:${st.idx}`;
+      if(CURRENT_PLAY_KEY !== key){
+        stopPlayback(); CURRENT_PLAY_KEY = key;
+        if(st.item.type === 'youtube') playEmbed(youtubeEmbedUrl(st.item.ref, st.offset));
+        else playVideoUrl(st.item.ref, st.offset);
+      }
+      PLAYLIST_TIMER = setTimeout(()=>{ if(liveAccessGranted()) checkLiveStatus(); }, Math.max(1000, st.remaining * 1000 + 300));
+      return;
+    }
+    res = { kind:'offline' };
+  }
+
+  indicator.style.display = 'none';
+  stopPlayback();
+  statusText.innerHTML = res.msg
+    ? `${programLine}⚠️ ${escH(res.msg)}`
+    : `${programLine}⏸️ ${escH(offMsg)} (accès valable jusqu'au ${expiry})`;
 }
+
 
 let LAST_SEEN_ANNOUNCEMENT_TS = 0;
 async function checkLiveAnnouncement(){
@@ -1824,7 +2106,7 @@ async function checkLiveAnnouncement(){
 async function renderClientReplays(){
   const wrap = document.getElementById('clientReplaysSection');
   if(!wrap) return;
-  if(liveProvider()==='youtube' || !aiConfigured()){ wrap.innerHTML=''; return; }
+  if(liveProvider()!=='cloudflare' || !aiConfigured()){ wrap.innerHTML=''; return; }
   try{
     const data = await workerGet('/live/replays');
     const publicIds = LIVE_SETTINGS.publicReplays || [];
@@ -1875,6 +2157,7 @@ function showScreen(name){
 
   // Sur l'écran "Chaîne", on vérifie toutes les 20s si la diffusion est en direct ou non
   clearInterval(LIVE_STATUS_TIMER);
+  if(name!=='live'){ clearTimeout(PLAYLIST_TIMER); stopPlayback(); }
   if(name==='live'){
     renderLivePassSwatches();
     renderClientReplays();
@@ -1928,7 +2211,13 @@ function bindEvents(){
   document.getElementById('liveBuyBtn').onclick = openLivePassOrderSheet;
 
   document.getElementById('liveProviderSelect').addEventListener('change', updateLiveProviderUI);
-  document.getElementById('youtubeLiveCheckbox').addEventListener('change', saveLiveSettings);
+  document.getElementById('liveOnCheckbox').addEventListener('change', saveLiveSettings);
+  document.getElementById('fallbackPlaylistCheckbox').addEventListener('change', saveLiveSettings);
+  document.getElementById('saveSourcesBtn').onclick = saveLiveSettings;
+  document.getElementById('addSlotBtn').onclick = addScheduleSlot;
+  document.getElementById('addPlaylistItemBtn').onclick = addPlaylistItemFromForm;
+  document.getElementById('addPlaylistBulkBtn').onclick = addPlaylistBulk;
+  document.getElementById('restartPlaylistBtn').onclick = restartPlaylist;
   document.getElementById('addPassBtn').onclick = addLivePass;
   document.getElementById('exportLiveCsvBtn').onclick = exportLiveCsv;
   document.getElementById('liveSubSearch').addEventListener('input', e=>{

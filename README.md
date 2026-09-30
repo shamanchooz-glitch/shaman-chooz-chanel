@@ -286,36 +286,32 @@ Ton espace admin a maintenant un onglet **"🔴 Chaîne"**, avec tout ce qu'il f
 - **Sous-titres automatiques et voix supplémentaires** : JSON2Video prend en charge d'autres langues et voix (voir sa documentation) si tu veux élargir l'offre
 - **Vidéos de plus de 10 minutes** : passer au plan JSON2Video "Startup" (supprime la limite de durée) puis augmenter `maxDurationSec` dans `ai-config.js`
 
-## Étape 16 — Deux sources pour la chaîne : YouTube Live (gratuit) ou Cloudflare Stream (payant)
-Dans ton espace admin, onglet **🔴 Chaîne > ⚙️ Réglages**, le menu **« Source de la diffusion »** te permet de basculer à tout moment entre :
-- **YouTube Live (gratuit)** — recommandé pour démarrer, aucun frais
-- **Cloudflare Stream (payant)** — à activer plus tard, quand tu auras des clients (étape 14). Rien n'est supprimé : tes variables `CF_*` restent valables.
+## Étape 16 — La chaîne 24h/24 : plusieurs sources, programmation automatique et boucle de films & séries
+Tout se règle dans ton espace admin, onglet **🔴 Chaîne > ⚙️ Réglages**.
 
-Dans les deux cas, les visiteurs paient leur pass chez toi et se connectent avec téléphone + code. Le direct fonctionne sur téléphone, tablette et ordinateur, partout dans le monde.
+### 1. Choisir la source (menu « Source de la diffusion »)
+- **⭐ Programmation automatique** (recommandé) : des directs aux heures que tu choisis, et la boucle de films & séries le reste du temps. La chaîne ne s'arrête jamais.
+- **🎞️ Boucle de films & séries seulement** : uniquement tes programmes enregistrés.
+- **Directs gratuits** : YouTube Live, Facebook Live, Twitch, Kick, Dailymotion.
+- **Lien HLS (.m3u8)** et **lien d'intégration (iframe)** : pour toute autre plateforme ou serveur de diffusion qui te donne un lien.
+- **Cloudflare Stream** (payant) : à activer quand tu auras des clients (étape 14). Tes variables CF_* restent valables.
 
-### Utiliser YouTube Live (gratuit)
-**Préparation (une seule fois) :**
-1. Crée une chaîne YouTube (ou utilise la tienne) et active les **directs** dans YouTube Studio. YouTube demande généralement une vérification de la chaîne et un délai d'environ 24 h avant le premier direct.
-2. Depuis un téléphone, YouTube exige généralement un nombre minimum d'abonnés pour lancer un direct dans son application. Si tu ne l'as pas, diffuse avec une application d'encodage comme **Larix Broadcaster** (ou depuis un ordinateur), en utilisant l'URL et la clé de diffusion fournies par YouTube Studio.
-3. Dans YouTube Studio > **Créer > Diffuser en direct**, mets la visibilité sur **« Non répertoriée »** et vérifie que l'**intégration** (lecture sur d'autres sites) est autorisée.
+Tu remplis une fois tes liens dans **« 🔗 Mes liens de direct »** (seulement ceux que tu utilises), puis tu bascules en un clic. Pour une source choisie à la main, coche **« Je suis en direct maintenant »** au début du direct et décoche à la fin. L'option **« passer la boucle quand je ne suis pas en direct »** garde l'antenne toujours occupée.
 
-**À chaque direct :**
-1. Démarre ton direct sur YouTube.
-2. Copie le lien du direct (partager > copier le lien).
-3. Dans l'admin du site > 🔴 Chaîne > Réglages : choisis **YouTube Live**, colle le lien dans le champ prévu, puis **💾 Enregistrer**.
-4. Coche **« Je suis en direct sur YouTube maintenant »** (l'enregistrement est automatique). Les abonnés voient alors le direct (mise à jour en 20 secondes environ).
-5. Quand tu as fini, **décoche** la case : le site affiche « Hors antenne ».
+### 2. La boucle de films & séries (24h/24, 7j/7)
+- Dans **🎞️ Films & séries en boucle**, ajoute un programme : titre + lien + durée en minutes. Pour un lien direct .mp4 ou .m3u8, la durée peut être détectée automatiquement. Pour YouTube, indique la durée.
+- Pour en ajouter plusieurs d'un coup, colle une ligne par programme : `Titre | lien | minutes`.
+- Tous les spectateurs voient **le même programme au même moment**, comme à la télé. L'écran affiche « Maintenant » et « À suivre ». À la fin de la liste, tout recommence automatiquement.
+- Utilise ⬆️ ⬇️ pour l'ordre. Le bouton **↻ Redémarrer la boucle** remet tout au premier programme.
+- Types de liens acceptés : vidéo YouTube (idéalement non répertoriée), fichier direct .mp4, flux .m3u8. Les liens doivent commencer par https://.
 
-💡 **Astuce pour ne pas recoller un lien à chaque fois** : colle plutôt l'**identifiant de ta chaîne YouTube** (il commence par `UC` et fait 24 caractères ; visible dans YouTube Studio > Paramètres > Chaîne > Paramètres avancés). Le site affichera alors automatiquement le direct en cours de ta chaîne.
+### 3. La programmation automatique
+Dans **🗓️ Programmation automatique**, ajoute des créneaux : jours, heure de début, heure de fin, source du direct, nom de l'émission. L'heure est celle de la Côte d'Ivoire (GMT). Un créneau de nuit (ex : 22:00 → 02:00) fonctionne. Pendant le créneau, le direct passe ; en dehors, la boucle tourne.
 
-**Limites honnêtes avec YouTube :**
-- Le lien du direct est « non répertorié » mais n'est pas chiffré : une personne très déterminée pourrait le retrouver et le partager. C'est une protection raisonnable, pas un verrou à toute épreuve.
-- Les replays automatiques du site (et leur mise en accès libre) ne fonctionnent qu'avec Cloudflare. Avec YouTube, gère tes replays dans YouTube Studio.
-- YouTube peut afficher des publicités ou des suggestions selon les réglages de ta chaîne.
-
-### Passer à Cloudflare Stream plus tard
-1. Active **Stream** dans Cloudflare (formule payante) et termine l'étape 14 (Live Input + 4 variables `CF_*` dans le Worker).
-2. Dans l'admin > 🔴 Chaîne > Réglages : choisis **Cloudflare Stream** puis **💾 Enregistrer**.
-3. Diffuse avec Larix Broadcaster comme indiqué à l'étape 14. Le statut « en direct » est détecté automatiquement.
-
-⚠️ Si tu modifies les fichiers du site, le numéro de version du cache (`sw.js`) est passé à `scc-v3` pour que tes visiteurs reçoivent bien la nouvelle version.
+### Bon à savoir
+- **Droits d'auteur** : ne diffuse que des contenus dont tu as les droits (tes propres vidéos, contenus sous licence ou libres de droits). Diffuser des films ou séries protégés, surtout contre paiement, peut entraîner blocage, suppression de compte, voire poursuites.
+- Les liens « non répertoriés » ne sont pas un verrou absolu : un spectateur déterminé peut retrouver et partager le lien.
+- Facebook, Twitch, Kick, Dailymotion et le lien d'intégration dépendent des règles de chaque plateforme (vidéo publique, intégration autorisée...). Teste chaque source avant de l'annoncer à tes clients.
+- Les replays automatiques du site fonctionnent seulement avec Cloudflare Stream.
+- Pour démarrer un direct YouTube depuis un téléphone, YouTube peut exiger un nombre minimum d'abonnés. Sinon, utilise Larix Broadcaster avec l'URL et la clé fournies par YouTube Studio.
+- Le numéro de version du cache (`sw.js`) est passé à `scc-v4` pour que tes visiteurs reçoivent la nouvelle version.
