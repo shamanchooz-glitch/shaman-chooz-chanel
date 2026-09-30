@@ -19,7 +19,7 @@
 // ============================================================
 
 const AI_CONFIG = {
-  workerUrl: "REMPLACE_MOI",
+  workerUrl: "https://shaman-chooz-video-ia.shaman-wifi.workers.dev",
 
   // Durée min/max proposée au client, pour les deux styles de vidéo IA.
   // 600s (10 minutes) correspond au maximum du plan JSON2Video "Professional"
