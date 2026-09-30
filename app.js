@@ -1147,6 +1147,10 @@ async function renderAdminLiveTab(){
   renderAdminLiveStats();
   renderAdminLivePasses();
   renderLiveSubscribers();
+  document.getElementById('liveProviderSelect').value = liveProvider();
+  document.getElementById('youtubeLinkInput').value = LIVE_SETTINGS.youtubeId || '';
+  document.getElementById('youtubeLiveCheckbox').checked = !!LIVE_SETTINGS.youtubeLive;
+  updateLiveProviderUI();
   document.getElementById('currentProgramInput').value = LIVE_SETTINGS.currentProgram || '';
   document.getElementById('offlineMessageInput').value = LIVE_SETTINGS.offlineMessage || '';
   document.getElementById('maintenanceModeCheckbox').checked = !!LIVE_SETTINGS.maintenanceMode;
@@ -1274,7 +1278,40 @@ function exportLiveCsv(){
   a.download = `abonnes-chaine-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
+/* ---------- YouTube Live : lecture du lien collé par l'admin ---------- */
+function parseYoutubeInput(s){
+  s = (s||'').trim();
+  if(!s) return '';
+  let m;
+  if((m = s.match(/channel\/(UC[\w-]{22})/))) return m[1];
+  if(/^UC[\w-]{22}$/.test(s)) return s;
+  if((m = s.match(/(?:[?&]v=|youtu\.be\/|\/live\/|\/embed\/|\/shorts\/)([\w-]{11})/))) return m[1];
+  if(/^[\w-]{11}$/.test(s)) return s;
+  return '';
+}
+function youtubeEmbedUrl(id){
+  const base = (id.length===24 && id.startsWith('UC'))
+    ? `https://www.youtube-nocookie.com/embed/live_stream?channel=${id}&`
+    : `https://www.youtube-nocookie.com/embed/${id}?`;
+  return base + 'autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1';
+}
+function liveProvider(){ return LIVE_SETTINGS.provider === 'cloudflare' ? 'cloudflare' : 'youtube'; }
+function updateLiveProviderUI(){
+  const p = document.getElementById('liveProviderSelect').value;
+  document.getElementById('youtubeSettingsBox').style.display = p==='youtube' ? 'block' : 'none';
+  document.getElementById('cloudflareSettingsHint').style.display = p==='cloudflare' ? 'block' : 'none';
+}
 async function saveLiveSettings(){
+  const provider = document.getElementById('liveProviderSelect').value;
+  const ytRaw = document.getElementById('youtubeLinkInput').value.trim();
+  const ytId = parseYoutubeInput(ytRaw);
+  if(provider==='youtube' && ytRaw && !ytId){
+    toast("Lien YouTube non reconnu. Colle le lien de ton direct ou l'ID de ta chaîne (UC...).", 'err');
+    return;
+  }
+  LIVE_SETTINGS.provider = provider;
+  LIVE_SETTINGS.youtubeId = ytId;
+  LIVE_SETTINGS.youtubeLive = document.getElementById('youtubeLiveCheckbox').checked;
   LIVE_SETTINGS.currentProgram = document.getElementById('currentProgramInput').value.trim();
   LIVE_SETTINGS.offlineMessage = document.getElementById('offlineMessageInput').value.trim();
   LIVE_SETTINGS.maintenanceMode = document.getElementById('maintenanceModeCheckbox').checked;
@@ -1289,6 +1326,10 @@ async function announceLive(){
 }
 async function loadAdminReplays(){
   const el = document.getElementById('adminReplaysList');
+  if(liveProvider()==='youtube'){
+    el.innerHTML = `<p class="hint">Avec YouTube Live, tes replays sont gérés directement dans YouTube Studio (les replays automatiques du site fonctionnent seulement avec Cloudflare Stream).</p>`;
+    return;
+  }
   el.innerHTML = `<p class="hint">Chargement...</p>`;
   try{
     const data = await workerGet('/live/replays');
@@ -1693,11 +1734,41 @@ async function checkLiveStatus(){
   const statusText = document.getElementById('liveStatusText');
   const indicator = document.getElementById('liveIndicator');
   const video = document.getElementById('livePlayer');
+  const frame = document.getElementById('liveYoutubeFrame');
+  const stopFrame = ()=>{ frame.style.display = 'none'; frame.removeAttribute('src'); frame.dataset.src = ''; };
+  const stopVideo = ()=>{ if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; } video.removeAttribute('src'); video.dataset.src = ''; };
   if(LIVE_SETTINGS.maintenanceMode){
     if(statusText) statusText.textContent = "🛠️ " + (LIVE_SETTINGS.maintenanceMessage || "La chaîne est temporairement en maintenance. Reviens bientôt !");
     indicator.style.display = 'none';
+    stopFrame(); stopVideo();
     return;
   }
+  const programLine0 = LIVE_SETTINGS.currentProgram ? `📺 ${LIVE_SETTINGS.currentProgram}<br>` : '';
+  const expiry = new Date(LIVE_SESSION.expiresAt).toLocaleDateString('fr-FR');
+  /* ----- Source YouTube Live ----- */
+  if(liveProvider()==='youtube'){
+    stopVideo(); video.style.display = 'none';
+    const id = LIVE_SETTINGS.youtubeId;
+    if(!id){
+      indicator.style.display = 'none'; stopFrame();
+      if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée.";
+      return;
+    }
+    if(LIVE_SETTINGS.youtubeLive){
+      indicator.style.display = 'inline-block';
+      statusText.innerHTML = `${programLine0}🔴 En direct — accès valable jusqu'au ${expiry}`;
+      const src = youtubeEmbedUrl(id);
+      frame.style.display = 'block';
+      if(frame.dataset.src !== src){ frame.dataset.src = src; frame.src = src; }
+    } else {
+      indicator.style.display = 'none'; stopFrame();
+      const offMsg = LIVE_SETTINGS.offlineMessage || 'Hors antenne pour le moment — reviens plus tard !';
+      statusText.innerHTML = `${programLine0}⏸️ ${offMsg} (accès valable jusqu'au ${expiry})`;
+    }
+    return;
+  }
+  /* ----- Source Cloudflare Stream ----- */
+  stopFrame(); video.style.display = 'block';
   if(!aiConfigured()){
     if(statusText) statusText.textContent = "La chaîne n'est pas encore configurée (voir README, étape 14).";
     return;
@@ -1753,7 +1824,7 @@ async function checkLiveAnnouncement(){
 async function renderClientReplays(){
   const wrap = document.getElementById('clientReplaysSection');
   if(!wrap) return;
-  if(!aiConfigured()){ wrap.innerHTML=''; return; }
+  if(liveProvider()==='youtube' || !aiConfigured()){ wrap.innerHTML=''; return; }
   try{
     const data = await workerGet('/live/replays');
     const publicIds = LIVE_SETTINGS.publicReplays || [];
@@ -1856,6 +1927,8 @@ function bindEvents(){
   document.getElementById('liveLoginBtn').onclick = liveLogin;
   document.getElementById('liveBuyBtn').onclick = openLivePassOrderSheet;
 
+  document.getElementById('liveProviderSelect').addEventListener('change', updateLiveProviderUI);
+  document.getElementById('youtubeLiveCheckbox').addEventListener('change', saveLiveSettings);
   document.getElementById('addPassBtn').onclick = addLivePass;
   document.getElementById('exportLiveCsvBtn').onclick = exportLiveCsv;
   document.getElementById('liveSubSearch').addEventListener('input', e=>{

@@ -188,6 +188,7 @@
   <div id="livePlayerWrap" style="display:none;">
     <div class="live-player-box">
       <video id="livePlayer" controls playsinline muted style="width:100%;border-radius:14px;background:#000;"></video>
+      <iframe id="liveYoutubeFrame" title="Chaîne en direct" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen style="display:none;width:100%;aspect-ratio:16/9;border:0;border-radius:14px;background:#000;"></iframe>
       <span class="live-indicator" id="liveIndicator">🔴 EN DIRECT</span>
     </div>
     <p class="hint" id="liveStatusText" style="margin-top:8px;"></p>
@@ -365,6 +366,23 @@
 
     <div style="border-top:1px solid var(--line); margin:22px 0 16px;"></div>
     <p class="field-label" style="margin-top:0;">⚙️ Réglages de la chaîne</p>
+    <p class="field-label" style="margin-top:0;">📡 Source de la diffusion</p>
+    <p class="hint">Choisis d'où vient ton direct. Tu peux basculer à tout moment.</p>
+    <select class="input" id="liveProviderSelect">
+      <option value="youtube">YouTube Live (gratuit)</option>
+      <option value="cloudflare">Cloudflare Stream (payant)</option>
+    </select>
+    <div id="youtubeSettingsBox">
+      <p class="hint">Lien de ton direct YouTube (ou l'identifiant de ta chaîne qui commence par UC...)</p>
+      <input class="input" id="youtubeLinkInput" placeholder="https://www.youtube.com/watch?v=... ou /live/... ou ID de chaîne UC...">
+      <label class="hint" style="display:flex;align-items:center;gap:8px;margin:10px 0 0;">
+        <input type="checkbox" id="youtubeLiveCheckbox"> 🔴 Je suis en direct sur YouTube maintenant (affiche le direct aux abonnés)
+      </label>
+      <p class="hint">Coche cette case quand tu démarres ton direct YouTube, décoche-la quand tu termines. Mets ton direct YouTube en mode « Non répertorié ».</p>
+    </div>
+    <p class="hint" id="cloudflareSettingsHint" style="display:none;">Cloudflare Stream : le statut « en direct » est détecté automatiquement. Les 4 variables CF_* doivent être configurées dans ton Worker (README, étape 14).</p>
+
+
     <p class="hint">Programme actuel (affiché aux spectateurs)</p>
     <input class="input" id="currentProgramInput" placeholder="Ex: Ce soir, présentation de nos nouveautés">
     <p class="hint">Message affiché quand la chaîne est hors antenne</p>
