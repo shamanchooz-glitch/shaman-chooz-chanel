@@ -1376,50 +1376,65 @@ async function saveLiveSettings(){
   toast('Réglages de la chaîne enregistrés.', 'ok');
 }
 
-/* ---------- Studio IA (admin) : générateurs de vidéo IA gratuits ---------- */
+/* ---------- Studio IA (admin) : générateurs de vidéo IA avec crédits gratuits ---------- */
 const STUDIO_TOOLS = [
-  { name:'Kling AI', url:'https://klingai.com', note:'Crédits gratuits renouvelés chaque jour, clips courts d\'environ 5 secondes, très bon réalisme. Filigrane en gratuit.' },
-  { name:'Dreamina (CapCut)', url:'https://dreamina.capcut.com', note:'Crédits gratuits quotidiens (selon ton pays). Accepte texte et images. Vérifie les conditions d\'usage.' },
-  { name:'Hailuo AI (MiniMax)', url:'https://hailuoai.video', note:'Crédits gratuits chaque jour, mouvements réalistes. Clips courts, filigrane possible.' },
-  { name:'PixVerse', url:'https://pixverse.ai', note:'Crédits gratuits chaque jour, simple à utiliser, bon pour des clips rapides.' },
-  { name:'Google Flow / Veo', url:'https://labs.google/flow', note:'Qualité très élevée. Crédits gratuits limités selon ton compte et ton pays, marque invisible ajoutée aux vidéos.' },
-  { name:'Pika', url:'https://pika.art', note:'Crédits gratuits mensuels, qualité plus basse en gratuit.' },
-  { name:'Luma Dream Machine', url:'https://lumalabs.ai/dream-machine', note:'Très bon pour animer une image. En gratuit, filigrane et usage personnel seulement (à vérifier).' },
-  { name:'Vidu', url:'https://www.vidu.com', note:'Crédits gratuits limités, bon pour des petites scènes réalistes.' },
-  { name:'Hugging Face (modèles Wan)', url:'https://huggingface.co/spaces', note:'Gratuit, mais avec files d\'attente. Cherche « Wan video » dans la barre de recherche des Spaces.' }
+  { name:'Kling AI', url:'https://klingai.com', note:'Réalisme très élevé. Environ 66 crédits gratuits par jour (≈ 2 clips de 5 s). Dans le site : choisis « Text to Video », colle ta scène.' },
+  { name:'Dreamina (Seedance)', url:'https://dreamina.capcut.com', note:'Crédits gratuits chaque jour (environ 60 à 120). Dans le site : « AI Video » > « Text to video », colle ta scène.' },
+  { name:'Hailuo AI (MiniMax)', url:'https://hailuoai.video', note:'Plusieurs clips gratuits, mouvements humains naturels, clips de 6 s. Dans le site : « Text to Video », colle ta scène.' },
+  { name:'PixVerse', url:'https://pixverse.ai', note:'Environ 60 crédits gratuits par jour, simple et rapide, clips de 5 à 8 s. Dans le site : « Text to Video ».' },
+  { name:'Google Gemini (Veo)', url:'https://gemini.google.com', note:'Très haute qualité. Quelques générations gratuites selon ton compte et ton pays. Demande-lui « Génère une vidéo : » puis ta scène.' },
+  { name:'Wan 2.2 (gratuit, open source)', url:'https://huggingface.co/spaces?q=wan%20video', note:'Vraiment gratuit mais avec file d\'attente et peu de clips par jour. Ouvre un « Space » Wan, colle ta scène.' }
 ];
 const STUDIO_PROMPTS = [
-  ['Plomberie', 'A friendly plumber in clean blue overalls repairing a kitchen sink in a bright modern home, realistic, natural light, smooth camera movement, no text, no logo'],
-  ['Ménage', 'A professional cleaner in uniform polishing a sunny living room, shiny floors, realistic, warm light, slow camera pan, no text, no logo'],
-  ['Électricité', 'An electrician installing a ceiling light in a modern apartment, safe equipment, realistic, bright daylight, smooth camera, no text, no logo'],
-  ['Coiffure', 'A hairdresser styling braids for a smiling woman in a stylish salon, realistic, soft lighting, close-up then slow zoom out, no text, no logo'],
-  ['Livraison', 'A delivery rider on a motorbike delivering a package to a smiling customer at a front gate in a sunny African city street, realistic, cinematic, no text, no logo'],
-  ['Mécanique', 'A mechanic checking a car engine in a clean garage, realistic, bright lighting, smooth camera movement, no text, no logo'],
-  ['Cuisine', 'A chef preparing a colorful African dish in a clean kitchen, steam rising, realistic, warm light, slow camera push-in, no text, no logo'],
-  ['Jardinage', 'A gardener trimming green hedges in a beautiful sunny garden, realistic, golden hour light, slow camera pan, no text, no logo'],
-  ['Ambiance ville', 'Aerial view of a sunny modern African city at sunset, busy streets, realistic, cinematic, slow drone movement, no text, no logo'],
-  ['Détente', 'A calm sunset over a tropical beach with gentle waves, palm trees, realistic, cinematic, slow camera movement, no text, no logo']
+  ['Plomberie', 'A friendly plumber in clean blue overalls repairing a kitchen sink in a bright modern home'],
+  ['Ménage', 'A professional cleaner in uniform polishing a sunny living room with shiny floors'],
+  ['Électricité', 'An electrician installing a ceiling light in a modern apartment with safe equipment'],
+  ['Coiffure', 'A hairdresser styling braids for a smiling woman in a stylish salon, close-up then slow zoom out'],
+  ['Livraison', 'A delivery rider on a motorbike delivering a package to a smiling customer at a front gate in a sunny African city street'],
+  ['Mécanique', 'A mechanic checking a car engine in a clean garage'],
+  ['Cuisine', 'A chef preparing a colorful African dish in a clean kitchen with steam rising'],
+  ['Jardinage', 'A gardener trimming green hedges in a beautiful sunny garden at golden hour'],
+  ['Ambiance ville', 'Aerial view of a sunny modern African city at sunset with busy streets, slow drone movement'],
+  ['Détente', 'A calm sunset over a tropical beach with gentle waves and palm trees']
 ];
+const STUDIO_REALISM = ', realistic, natural light, smooth camera movement, no text, no logo';
+function studioSceneText(){
+  let t = document.getElementById('studioScene').value.trim();
+  if(!t) return '';
+  if(document.getElementById('studioRealismBox').checked && !/realistic/i.test(t)) t += STUDIO_REALISM;
+  return t;
+}
+async function studioCopyAndOpen(idx){
+  const t = STUDIO_TOOLS[idx];
+  const text = studioSceneText();
+  if(!text){ toast("Écris d'abord ta scène dans la case « Ma scène ».", 'err'); return; }
+  // On ouvre le site tout de suite (le navigateur l'exige au moment du clic), puis on copie le texte.
+  window.open(t.url, '_blank', 'noopener');
+  try{ await navigator.clipboard.writeText(text); toast('Texte copié : colle-le dans la case du site.', 'ok'); }
+  catch(e){ prompt('Copie ce texte puis colle-le dans le site :', text); }
+}
 function renderStudio(){
   const tools = document.getElementById('studioTools');
-  tools.innerHTML = STUDIO_TOOLS.map(t=>`
+  tools.innerHTML = STUDIO_TOOLS.map((t,i)=>`
     <div class="order-card">
       <div class="row"><strong>${escH(t.name)}</strong></div>
       <p class="hint" style="margin:0 0 8px;">${escH(t.note)}</p>
-      <a class="btn btn-ghost" style="margin:0;text-align:center;text-decoration:none;display:block;" href="${t.url}" target="_blank" rel="noopener noreferrer">Ouvrir ${escH(t.name)} ↗</a>
+      <button class="btn btn-primary" style="margin:0;" data-studiotool="${i}">📋 Copier ma scène et ouvrir ${escH(t.name)} ↗</button>
     </div>`).join('');
+  tools.querySelectorAll('[data-studiotool]').forEach(b=> b.onclick = ()=>studioCopyAndOpen(parseInt(b.dataset.studiotool)));
   const prompts = document.getElementById('studioPrompts');
   prompts.innerHTML = STUDIO_PROMPTS.map((p,i)=>`
     <div class="order-card">
       <div class="row"><strong>${escH(p[0])}</strong></div>
       <p class="hint" style="margin:0 0 8px;">${escH(p[1])}</p>
-      <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-copyprompt="${i}">📋 Copier</button>
+      <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-useprompt="${i}">✏️ Utiliser cette scène</button>
     </div>`).join('');
-  prompts.querySelectorAll('[data-copyprompt]').forEach(b=>{
-    b.onclick = async ()=>{
-      const txt = STUDIO_PROMPTS[parseInt(b.dataset.copyprompt)][1];
-      try{ await navigator.clipboard.writeText(txt); toast('Texte copié.', 'ok'); }
-      catch(e){ prompt('Copie ce texte :', txt); }
+  prompts.querySelectorAll('[data-useprompt]').forEach(b=>{
+    b.onclick = ()=>{
+      const box = document.getElementById('studioScene');
+      box.value = STUDIO_PROMPTS[parseInt(b.dataset.useprompt)][1];
+      box.scrollIntoView({ behavior:'smooth', block:'center' });
+      toast('Scène prête : choisis un générateur plus bas.', 'ok');
     };
   });
 }

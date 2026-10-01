@@ -28,12 +28,12 @@
  * 10. Colle cette URL dans "workerUrl" du fichier ai-config.js de ton site
  */
 
-// Modèle par défaut (qualité élevée, plus cher). Pour un modèle moins cher SANS modifier
-// ce code : dans Cloudflare > ton Worker > Paramètres > Variables et secrets, ajoute une
-// variable (type Texte) nommée FAL_MODEL_ENDPOINT avec, par exemple :
-//   https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video
+// Modèle par défaut : Kling 2.5 Turbo Pro (moins cher, clips de 5 ou 10 secondes).
+// Pour utiliser un autre modèle SANS modifier ce code : dans Cloudflare > ton Worker >
+// Paramètres > Variables et secrets, ajoute une variable (type Texte) FAL_MODEL_ENDPOINT, par ex. :
+//   https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video   (qualité supérieure, plus cher)
 // Pour revenir au modèle par défaut, supprime simplement cette variable.
-const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video";
+const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video";
 const JSON2VIDEO_API = "https://api.json2video.com/v2/movies";
 
 function corsHeaders(){

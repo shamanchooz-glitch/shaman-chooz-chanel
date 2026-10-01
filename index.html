@@ -347,20 +347,24 @@
   <div id="adminTab-live" style="display:none;">
     <button class="btn btn-teal" id="studioToggleBtn">🎬 Studio IA — créer mes vidéos gratuitement</button>
     <div id="studioPanel" style="display:none;margin-top:12px;">
-      <p class="hint">Ces sites créent des vidéos réalistes à partir d'un texte. La plupart offrent des crédits gratuits chaque jour ou chaque mois. Les offres changent souvent : vérifie toujours sur place.</p>
+      <p class="hint"><b>Comment ça marche :</b> 1) écris ta scène ci-dessous, 2) appuie sur le bouton d'un générateur : ton texte est copié et le site s'ouvre, 3) colle le texte dans la case « prompt / description » du site, 4) télécharge la vidéo.</p>
+      <p class="field-label" style="margin-top:0;">✍️ Ma scène</p>
+      <textarea class="input" id="studioScene" rows="4" placeholder="Décris UNE scène simple (de préférence en anglais). Exemple : A friendly plumber repairing a kitchen sink in a bright modern home"></textarea>
+      <label class="hint" style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;">
+        <input type="checkbox" id="studioRealismBox" checked> Ajouter automatiquement les mots « réalisme » (lumière naturelle, caméra fluide, sans texte)
+      </label>
       <div id="studioTools"></div>
       <div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0;">
-        <p class="field-label" style="margin-top:0;">⚠️ Avant de les mettre dans la chaîne</p>
-        <p class="hint">• Beaucoup d'offres gratuites ajoutent un filigrane, et certaines interdisent l'usage commercial. Comme tes clients paient un pass, lis les conditions d'utilisation de chaque site avant de diffuser.<br>• Les sources ne sont pas d'accord entre elles sur ce point : ne te fie pas à moi, lis les conditions du site.<br>• Ne mets pas de vrais visages de personnes connues ni de marques dans tes scènes.</p>
+        <p class="field-label" style="margin-top:0;">ℹ️ À savoir, en toute honnêteté</p>
+        <p class="hint">• Aucun générateur n'est gratuit sans limite : ils donnent des crédits gratuits chaque jour (environ 2 à 6 clips par jour par site). Utilise plusieurs sites et reviens chaque jour.<br>• Un clip dure 5 à 10 secondes. Pour avoir plus long, fais plusieurs clips et ajoute-les dans la boucle : ils s'enchaînent.<br>• Certains sites ajoutent un filigrane, et les sources se contredisent sur l'usage commercial. Lis les conditions du site avant de diffuser sur une chaîne payante.<br>• Évite les vrais visages de personnes connues et les marques.</p>
       </div>
-      <p class="field-label">💡 Idées de scènes (copie et colle dans le générateur)</p>
-      <p class="hint">Les générateurs comprennent mieux l'anglais. Décris une seule scène simple par vidéo.</p>
+      <p class="field-label">💡 Idées de scènes (appuie pour l'utiliser)</p>
       <div id="studioPrompts"></div>
       <div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0;">
         <p class="field-label" style="margin-top:0;">📥 Mettre tes vidéos dans la chaîne</p>
-        <p class="hint"><b>Option A — YouTube (le plus simple).</b><br>1. Télécharge ta vidéo depuis le générateur.<br>2. Publie-la sur ta chaîne YouTube en « Non répertoriée ».<br>3. Copie le lien.<br>4. Ici, plus bas dans <b>🎞️ Films & séries en boucle</b>, mets le titre, le lien et la durée en minutes, puis « + Ajouter à la boucle ».</p>
-        <p class="hint"><b>Option B — Sur ton propre site (GitHub).</b><br>1. Dans ton dépôt GitHub, crée un dossier <b>videos</b> (Add file > Create new file, tape <code>videos/lisez-moi.txt</code>).<br>2. Envoie tes fichiers .mp4 dans ce dossier (25 Mo maximum par fichier avec le téléphone).<br>3. Dans le champ « lien », écris simplement <code>videos/nom-du-fichier.mp4</code>. La durée est détectée toute seule.</p>
-        <p class="hint">Pour plusieurs vidéos d'un coup, utilise la zone « Ajouter plusieurs d'un coup » avec une ligne par vidéo : <code>Titre | videos/clip1.mp4</code></p>
+        <p class="hint"><b>Option A — YouTube (le plus simple).</b><br>1. Télécharge ta vidéo depuis le générateur.<br>2. Publie-la sur ta chaîne YouTube en « Non répertoriée ».<br>3. Copie le lien.<br>4. Plus bas dans <b>🎞️ Films & séries en boucle</b> : titre, lien, durée en minutes, puis « + Ajouter à la boucle ».</p>
+        <p class="hint"><b>Option B — Sur ton propre site (GitHub).</b><br>1. Dans ton dépôt GitHub, crée un dossier <b>videos</b> (Add file > Create new file, tape <code>videos/lisez-moi.txt</code>).<br>2. Envoie tes .mp4 dans ce dossier (25 Mo maximum par fichier avec le téléphone).<br>3. Dans le champ « lien », écris <code>videos/nom-du-fichier.mp4</code>. La durée est détectée toute seule.</p>
+        <p class="hint">Plusieurs vidéos d'un coup : une ligne par vidéo dans « Ajouter plusieurs d'un coup » : <code>Titre | videos/clip1.mp4</code></p>
       </div>
     </div>
     <div style="border-top:1px solid var(--line); margin:18px 0 16px;"></div>

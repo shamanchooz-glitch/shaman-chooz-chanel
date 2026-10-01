@@ -318,13 +318,15 @@ Dans **🗓️ Programmation automatique**, ajoute des créneaux : jours, heure 
 
 ## Étape 17 — Studio IA (vidéos gratuites pour remplir la chaîne) et coût des vidéos du site
 ### Studio IA dans l'admin
-Dans l'admin, onglet **🔴 Chaîne**, le bouton **🎬 Studio IA** ouvre une page avec : des liens vers des générateurs de vidéo IA gratuits (Kling, Dreamina, Hailuo, PixVerse, Google Flow, Pika, Luma, Vidu, Hugging Face), des idées de scènes à copier, et les deux façons d'ajouter tes vidéos à la boucle.
-- Les offres gratuites changent souvent, et beaucoup ajoutent un filigrane ou limitent l'usage commercial : lis les conditions de chaque site avant de diffuser sur une chaîne payante.
-- **Option A (YouTube non répertorié)** : colle le lien dans « Films & séries en boucle » avec la durée en minutes.
-- **Option B (ton site)** : crée un dossier `videos` dans GitHub, envoie tes .mp4 (25 Mo max par fichier avec le téléphone), puis écris `videos/nom.mp4` dans le champ lien. La durée est détectée toute seule.
+Admin > onglet **🔴 Chaîne** > bouton **🎬 Studio IA**. Écris ta scène (ou appuie sur une idée de scène), puis appuie sur le bouton d'un générateur (Kling, Dreamina, Hailuo, PixVerse, Gemini/Veo, Wan) : ton texte est copié et le site s'ouvre. Colle le texte dans la case de description du site, génère et télécharge.
+- Aucun générateur n'est gratuit sans limite : ce sont des crédits gratuits quotidiens (≈ 2 à 6 clips par jour et par site, 5 à 10 secondes). Utilise plusieurs sites chaque jour.
+- Les offres changent souvent, certains sites ajoutent un filigrane et l'usage commercial dépend des conditions de chaque site : lis-les avant de diffuser sur une chaîne payante.
+- Ajouter à la boucle : **Option A** lien YouTube non répertorié + durée ; **Option B** dossier `videos` sur GitHub (.mp4, 25 Mo max par fichier avec le téléphone) puis `videos/nom.mp4` dans le champ lien (durée détectée toute seule).
 
-### Réduire le coût des vidéos « réalistes » vendues aux clients
-Le Worker utilise par défaut Kling v3 standard (qualité élevée, plus cher). Pour un modèle moins cher sans modifier le code : dans Cloudflare > ton Worker > Paramètres > Variables et secrets, ajoute une variable (type Texte) `FAL_MODEL_ENDPOINT` = `https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video`, puis fais un test de 5 secondes. Pour revenir au modèle par défaut, supprime la variable. Adapte ensuite `pricePerSecondRealisteFCFA` dans `ai-config.js`.
-Les générateurs gratuits des sites publics ne peuvent pas être branchés automatiquement sur ton site (ils n'ont pas d'accès gratuit pour les applications) : ils servent à créer TES vidéos pour la chaîne.
+### Moteur et prix des vidéos « réalistes » vendues aux clients
+- Le Worker utilise maintenant **Kling 2.5 Turbo Pro** par défaut (environ 0,07 $ la seconde). Pour revenir à Kling v3 (plus cher, qualité supérieure) : variable `FAL_MODEL_ENDPOINT` = `https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video` dans les variables du Worker.
+- **Fais un test de 5 secondes** après avoir remplacé le code du Worker.
+- Prix réaliste dans `ai-config.js` : 100 FCFA/s (avant : 150). Tu peux le modifier à tout moment.
+- Les générateurs gratuits des sites publics ne peuvent pas être branchés automatiquement sur ton site (pas d'accès gratuit pour les applications) : ils servent à créer TES vidéos pour la chaîne.
 
 Le cache de `sw.js` passe à `scc-v5`, et les vidéos ne sont plus mises en cache par le service worker.

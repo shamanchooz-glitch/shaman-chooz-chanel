@@ -30,9 +30,11 @@ const AI_CONFIG = {
   maxDurationSec: 600,
   stepDurationSec: 5,
 
-  // Style "réaliste" (mouvement IA via Kling, assemblé par JSON2Video)
-  // — plus cher car chaque seconde de mouvement généré par IA coûte plus cher
-  pricePerSecondRealisteFCFA: 150,
+  // Style "réaliste" (mouvement IA via Kling 2.5 Turbo, assemblé par JSON2Video)
+  // Coût du moteur : environ 0,07 $ la seconde (≈ 42 FCFA). À 100 FCFA/s, tu gardes une marge
+  // pour les essais ratés, les frais de paiement, JSON2Video et tes futurs moteurs.
+  // Tu peux modifier ce prix à tout moment.
+  pricePerSecondRealisteFCFA: 100,
 
   // Style "pub / diaporama" (JSON2Video seul : images + voix off + musique)
   // — moins cher, pas de génération de mouvement IA
