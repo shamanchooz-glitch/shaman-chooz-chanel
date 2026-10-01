@@ -345,6 +345,25 @@
   </div>
 
   <div id="adminTab-live" style="display:none;">
+    <button class="btn btn-teal" id="studioToggleBtn">🎬 Studio IA — créer mes vidéos gratuitement</button>
+    <div id="studioPanel" style="display:none;margin-top:12px;">
+      <p class="hint">Ces sites créent des vidéos réalistes à partir d'un texte. La plupart offrent des crédits gratuits chaque jour ou chaque mois. Les offres changent souvent : vérifie toujours sur place.</p>
+      <div id="studioTools"></div>
+      <div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0;">
+        <p class="field-label" style="margin-top:0;">⚠️ Avant de les mettre dans la chaîne</p>
+        <p class="hint">• Beaucoup d'offres gratuites ajoutent un filigrane, et certaines interdisent l'usage commercial. Comme tes clients paient un pass, lis les conditions d'utilisation de chaque site avant de diffuser.<br>• Les sources ne sont pas d'accord entre elles sur ce point : ne te fie pas à moi, lis les conditions du site.<br>• Ne mets pas de vrais visages de personnes connues ni de marques dans tes scènes.</p>
+      </div>
+      <p class="field-label">💡 Idées de scènes (copie et colle dans le générateur)</p>
+      <p class="hint">Les générateurs comprennent mieux l'anglais. Décris une seule scène simple par vidéo.</p>
+      <div id="studioPrompts"></div>
+      <div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0;">
+        <p class="field-label" style="margin-top:0;">📥 Mettre tes vidéos dans la chaîne</p>
+        <p class="hint"><b>Option A — YouTube (le plus simple).</b><br>1. Télécharge ta vidéo depuis le générateur.<br>2. Publie-la sur ta chaîne YouTube en « Non répertoriée ».<br>3. Copie le lien.<br>4. Ici, plus bas dans <b>🎞️ Films & séries en boucle</b>, mets le titre, le lien et la durée en minutes, puis « + Ajouter à la boucle ».</p>
+        <p class="hint"><b>Option B — Sur ton propre site (GitHub).</b><br>1. Dans ton dépôt GitHub, crée un dossier <b>videos</b> (Add file > Create new file, tape <code>videos/lisez-moi.txt</code>).<br>2. Envoie tes fichiers .mp4 dans ce dossier (25 Mo maximum par fichier avec le téléphone).<br>3. Dans le champ « lien », écris simplement <code>videos/nom-du-fichier.mp4</code>. La durée est détectée toute seule.</p>
+        <p class="hint">Pour plusieurs vidéos d'un coup, utilise la zone « Ajouter plusieurs d'un coup » avec une ligne par vidéo : <code>Titre | videos/clip1.mp4</code></p>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--line); margin:18px 0 16px;"></div>
     <p class="field-label" style="margin-top:0;">📊 Statistiques de la chaîne</p>
     <div class="stats-grid" id="liveStatsCards"></div>
 
@@ -427,7 +446,7 @@
     <p class="hint" id="playlistTotal"></p>
     <div id="adminPlaylistList"></div>
     <input class="input" id="plTitle" placeholder="Titre (ex: Film 1, Série - Épisode 3)">
-    <input class="input" id="plUrl" placeholder="Lien YouTube ou lien direct .mp4 / .m3u8 (https)">
+    <input class="input" id="plUrl" placeholder="Lien YouTube, .mp4 / .m3u8 (https) ou videos/nom.mp4">
     <input class="input" id="plMinutes" type="number" min="1" placeholder="Durée en minutes (auto pour .mp4/.m3u8)">
     <button class="btn btn-primary" id="addPlaylistItemBtn">+ Ajouter à la boucle</button>
     <p class="hint">Ajouter plusieurs d'un coup : une ligne par programme, au format <b>Titre | lien | minutes</b></p>

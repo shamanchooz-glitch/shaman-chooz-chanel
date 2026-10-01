@@ -28,6 +28,11 @@
  * 10. Colle cette URL dans "workerUrl" du fichier ai-config.js de ton site
  */
 
+// Modèle par défaut (qualité élevée, plus cher). Pour un modèle moins cher SANS modifier
+// ce code : dans Cloudflare > ton Worker > Paramètres > Variables et secrets, ajoute une
+// variable (type Texte) nommée FAL_MODEL_ENDPOINT avec, par exemple :
+//   https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video
+// Pour revenir au modèle par défaut, supprime simplement cette variable.
 const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video";
 const JSON2VIDEO_API = "https://api.json2video.com/v2/movies";
 
@@ -58,7 +63,7 @@ export default {
     if (url.pathname === "/kling/submit" && request.method === "POST") {
       if (!env.FAL_KEY) return json({ error: "Le style vidéo réaliste n'est pas activé (clé FAL_KEY manquante)." }, 400);
       const { prompt, duration } = await request.json();
-      const falRes = await fetch(FAL_MODEL_ENDPOINT, {
+      const falRes = await fetch(env.FAL_MODEL_ENDPOINT || FAL_MODEL_ENDPOINT, {
         method: "POST",
         headers: { "Authorization": `Key ${env.FAL_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: prompt, duration: String(duration || 5) })

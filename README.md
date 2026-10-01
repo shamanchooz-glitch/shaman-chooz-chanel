@@ -315,3 +315,16 @@ Dans **🗓️ Programmation automatique**, ajoute des créneaux : jours, heure 
 - Les replays automatiques du site fonctionnent seulement avec Cloudflare Stream.
 - Pour démarrer un direct YouTube depuis un téléphone, YouTube peut exiger un nombre minimum d'abonnés. Sinon, utilise Larix Broadcaster avec l'URL et la clé fournies par YouTube Studio.
 - Le numéro de version du cache (`sw.js`) est passé à `scc-v4` pour que tes visiteurs reçoivent la nouvelle version.
+
+## Étape 17 — Studio IA (vidéos gratuites pour remplir la chaîne) et coût des vidéos du site
+### Studio IA dans l'admin
+Dans l'admin, onglet **🔴 Chaîne**, le bouton **🎬 Studio IA** ouvre une page avec : des liens vers des générateurs de vidéo IA gratuits (Kling, Dreamina, Hailuo, PixVerse, Google Flow, Pika, Luma, Vidu, Hugging Face), des idées de scènes à copier, et les deux façons d'ajouter tes vidéos à la boucle.
+- Les offres gratuites changent souvent, et beaucoup ajoutent un filigrane ou limitent l'usage commercial : lis les conditions de chaque site avant de diffuser sur une chaîne payante.
+- **Option A (YouTube non répertorié)** : colle le lien dans « Films & séries en boucle » avec la durée en minutes.
+- **Option B (ton site)** : crée un dossier `videos` dans GitHub, envoie tes .mp4 (25 Mo max par fichier avec le téléphone), puis écris `videos/nom.mp4` dans le champ lien. La durée est détectée toute seule.
+
+### Réduire le coût des vidéos « réalistes » vendues aux clients
+Le Worker utilise par défaut Kling v3 standard (qualité élevée, plus cher). Pour un modèle moins cher sans modifier le code : dans Cloudflare > ton Worker > Paramètres > Variables et secrets, ajoute une variable (type Texte) `FAL_MODEL_ENDPOINT` = `https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video`, puis fais un test de 5 secondes. Pour revenir au modèle par défaut, supprime la variable. Adapte ensuite `pricePerSecondRealisteFCFA` dans `ai-config.js`.
+Les générateurs gratuits des sites publics ne peuvent pas être branchés automatiquement sur ton site (ils n'ont pas d'accès gratuit pour les applications) : ils servent à créer TES vidéos pour la chaîne.
+
+Le cache de `sw.js` passe à `scc-v5`, et les vidéos ne sont plus mises en cache par le service worker.

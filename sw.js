@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v4';
+const CACHE_NAME = 'scc-v5';
 
 const APP_SHELL = [
   './',
@@ -62,6 +62,10 @@ self.addEventListener('fetch', (event) => {
   // Ne jamais intercepter les appels vers Firebase, Google, les CDN externes
   // ou le relais IA : ils doivent toujours passer par le réseau en direct.
   if (url.origin !== self.location.origin) return;
+
+  // Les vidéos (dossier videos/, .mp4, .webm, .m3u8) et les lectures partielles
+  // (Range) passent toujours directement par le réseau, sans mise en cache.
+  if (url.pathname.includes('/videos/') || /\.(mp4|webm|m3u8|ts)$/i.test(url.pathname) || req.headers.has('range')) return;
 
   event.respondWith(
     fetch(req)

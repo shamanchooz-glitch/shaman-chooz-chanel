@@ -1376,6 +1376,61 @@ async function saveLiveSettings(){
   toast('Réglages de la chaîne enregistrés.', 'ok');
 }
 
+/* ---------- Studio IA (admin) : générateurs de vidéo IA gratuits ---------- */
+const STUDIO_TOOLS = [
+  { name:'Kling AI', url:'https://klingai.com', note:'Crédits gratuits renouvelés chaque jour, clips courts d\'environ 5 secondes, très bon réalisme. Filigrane en gratuit.' },
+  { name:'Dreamina (CapCut)', url:'https://dreamina.capcut.com', note:'Crédits gratuits quotidiens (selon ton pays). Accepte texte et images. Vérifie les conditions d\'usage.' },
+  { name:'Hailuo AI (MiniMax)', url:'https://hailuoai.video', note:'Crédits gratuits chaque jour, mouvements réalistes. Clips courts, filigrane possible.' },
+  { name:'PixVerse', url:'https://pixverse.ai', note:'Crédits gratuits chaque jour, simple à utiliser, bon pour des clips rapides.' },
+  { name:'Google Flow / Veo', url:'https://labs.google/flow', note:'Qualité très élevée. Crédits gratuits limités selon ton compte et ton pays, marque invisible ajoutée aux vidéos.' },
+  { name:'Pika', url:'https://pika.art', note:'Crédits gratuits mensuels, qualité plus basse en gratuit.' },
+  { name:'Luma Dream Machine', url:'https://lumalabs.ai/dream-machine', note:'Très bon pour animer une image. En gratuit, filigrane et usage personnel seulement (à vérifier).' },
+  { name:'Vidu', url:'https://www.vidu.com', note:'Crédits gratuits limités, bon pour des petites scènes réalistes.' },
+  { name:'Hugging Face (modèles Wan)', url:'https://huggingface.co/spaces', note:'Gratuit, mais avec files d\'attente. Cherche « Wan video » dans la barre de recherche des Spaces.' }
+];
+const STUDIO_PROMPTS = [
+  ['Plomberie', 'A friendly plumber in clean blue overalls repairing a kitchen sink in a bright modern home, realistic, natural light, smooth camera movement, no text, no logo'],
+  ['Ménage', 'A professional cleaner in uniform polishing a sunny living room, shiny floors, realistic, warm light, slow camera pan, no text, no logo'],
+  ['Électricité', 'An electrician installing a ceiling light in a modern apartment, safe equipment, realistic, bright daylight, smooth camera, no text, no logo'],
+  ['Coiffure', 'A hairdresser styling braids for a smiling woman in a stylish salon, realistic, soft lighting, close-up then slow zoom out, no text, no logo'],
+  ['Livraison', 'A delivery rider on a motorbike delivering a package to a smiling customer at a front gate in a sunny African city street, realistic, cinematic, no text, no logo'],
+  ['Mécanique', 'A mechanic checking a car engine in a clean garage, realistic, bright lighting, smooth camera movement, no text, no logo'],
+  ['Cuisine', 'A chef preparing a colorful African dish in a clean kitchen, steam rising, realistic, warm light, slow camera push-in, no text, no logo'],
+  ['Jardinage', 'A gardener trimming green hedges in a beautiful sunny garden, realistic, golden hour light, slow camera pan, no text, no logo'],
+  ['Ambiance ville', 'Aerial view of a sunny modern African city at sunset, busy streets, realistic, cinematic, slow drone movement, no text, no logo'],
+  ['Détente', 'A calm sunset over a tropical beach with gentle waves, palm trees, realistic, cinematic, slow camera movement, no text, no logo']
+];
+function renderStudio(){
+  const tools = document.getElementById('studioTools');
+  tools.innerHTML = STUDIO_TOOLS.map(t=>`
+    <div class="order-card">
+      <div class="row"><strong>${escH(t.name)}</strong></div>
+      <p class="hint" style="margin:0 0 8px;">${escH(t.note)}</p>
+      <a class="btn btn-ghost" style="margin:0;text-align:center;text-decoration:none;display:block;" href="${t.url}" target="_blank" rel="noopener noreferrer">Ouvrir ${escH(t.name)} ↗</a>
+    </div>`).join('');
+  const prompts = document.getElementById('studioPrompts');
+  prompts.innerHTML = STUDIO_PROMPTS.map((p,i)=>`
+    <div class="order-card">
+      <div class="row"><strong>${escH(p[0])}</strong></div>
+      <p class="hint" style="margin:0 0 8px;">${escH(p[1])}</p>
+      <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-copyprompt="${i}">📋 Copier</button>
+    </div>`).join('');
+  prompts.querySelectorAll('[data-copyprompt]').forEach(b=>{
+    b.onclick = async ()=>{
+      const txt = STUDIO_PROMPTS[parseInt(b.dataset.copyprompt)][1];
+      try{ await navigator.clipboard.writeText(txt); toast('Texte copié.', 'ok'); }
+      catch(e){ prompt('Copie ce texte :', txt); }
+    };
+  });
+}
+function toggleStudio(){
+  const p = document.getElementById('studioPanel');
+  const open = p.style.display === 'none';
+  p.style.display = open ? 'block' : 'none';
+  document.getElementById('studioToggleBtn').textContent = open ? '✖️ Fermer le Studio IA' : '🎬 Studio IA — créer mes vidéos gratuitement';
+  if(open && !document.getElementById('studioTools').children.length) renderStudio();
+}
+
 /* ---------- Admin : programmation automatique ---------- */
 const DAY_NAMES = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
 function fillSlotProviderSelect(){
@@ -1426,7 +1481,11 @@ function fmtDur(sec){
   const h = Math.floor(sec/3600), m = Math.round((sec%3600)/60);
   return h ? `${h} h ${String(m).padStart(2,'0')}` : `${m} min`;
 }
+function resolveMediaUrl(u){
+  try{ return new URL(u, location.href).href; }catch(e){ return u; }
+}
 function detectDuration(url){
+  url = resolveMediaUrl(url);
   return new Promise(resolve=>{
     const v = document.createElement('video');
     v.preload = 'metadata'; v.muted = true;
@@ -1441,7 +1500,7 @@ function detectDuration(url){
 }
 async function buildPlaylistItem(title, url, minutes){
   url = (url||'').trim(); title = (title||'').trim();
-  if(!/^https:\/\//i.test(url)) return { error:'Le lien doit commencer par https://' };
+  if(!/^https:\/\//i.test(url) && !/^videos\/[^\s]+\.(mp4|webm)$/i.test(url)) return { error:'Le lien doit commencer par https:// (ou être de la forme videos/nom.mp4).' };
   let type, ref;
   const yt = /(youtube\.com|youtu\.be)/i.test(url) ? parseYoutubeInput(url) : '';
   if(yt && yt.length === 11){ type = 'youtube'; ref = yt; }
@@ -2001,6 +2060,7 @@ function playEmbed(url){
   frame.src = url;
 }
 function playVideoUrl(url, offset){
+  url = resolveMediaUrl(url);
   const video = document.getElementById('livePlayer');
   const frame = document.getElementById('liveYoutubeFrame');
   frame.removeAttribute('src'); frame.style.display = 'none';
@@ -2214,6 +2274,7 @@ function bindEvents(){
   document.getElementById('liveOnCheckbox').addEventListener('change', saveLiveSettings);
   document.getElementById('fallbackPlaylistCheckbox').addEventListener('change', saveLiveSettings);
   document.getElementById('saveSourcesBtn').onclick = saveLiveSettings;
+  document.getElementById('studioToggleBtn').onclick = toggleStudio;
   document.getElementById('addSlotBtn').onclick = addScheduleSlot;
   document.getElementById('addPlaylistItemBtn').onclick = addPlaylistItemFromForm;
   document.getElementById('addPlaylistBulkBtn').onclick = addPlaylistBulk;
