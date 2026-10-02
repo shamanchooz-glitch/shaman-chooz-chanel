@@ -185,6 +185,94 @@ export default {
       return json({ configured: true, replays });
     }
 
+
+    /* ---------- 5) Robot assistant de l'admin (Cloudflare Workers AI, gratuit dans la limite du jour) ---------- */
+    /* Installation : voir README, étape 18 (liaison « Workers AI » nommée AI + variable FIREBASE_API_KEY). */
+    if (url.pathname === "/admin/assistant" && request.method === "POST") {
+      if (!env.AI || !env.FIREBASE_API_KEY) {
+        return json({ configured: false });
+      }
+      let body;
+      try { body = await request.json(); } catch (e) { return json({ error: "bad_request" }, 400); }
+
+      // Seul l'administrateur connecté (compte Firebase) peut utiliser le robot.
+      let user = null;
+      try {
+        const v = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FIREBASE_API_KEY}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: String(body.idToken || "") })
+        });
+        const vd = await v.json();
+        user = vd?.users?.[0] || null;
+      } catch (e) { user = null; }
+      if (!user || (env.ADMIN_EMAIL && user.email !== env.ADMIN_EMAIL)) {
+        return json({ configured: true, error: "unauthorized" }, 401);
+      }
+
+      const msgs = (Array.isArray(body.messages) ? body.messages : []).slice(-10)
+        .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        .map(m => ({ role: m.role, content: m.content.slice(0, 2000) }));
+      const instructions = String(body.instructions || "").slice(0, 4000);
+      const snapshot = JSON.stringify(body.snapshot || {}).slice(0, 7000);
+
+      const system = `Tu es le robot assistant du fondateur et directeur du site SHAMAN CHOOZ CHANEL (Côte d'Ivoire). Tu es son deuxième lui : tu gères le site comme il le ferait et tu lui expliques tout très simplement.
+
+RÈGLES DE LANGAGE : réponds en français, avec des phrases courtes et des mots simples, sans jargon. Maximum 8 lignes. Tutoie-le.
+
+RÈGLES DE SÉCURITÉ :
+- Tu ne peux modifier le site QU'avec les actions listées ci-dessous.
+- Tu ne valides JAMAIS un paiement ou une commande : dis-lui de le faire lui-même dans l'onglet Commandes.
+- N'invente JAMAIS de chiffres : utilise uniquement les données ÉTAT DU SITE ci-dessous.
+- Si la demande est floue ou incomplète, pose UNE seule question dans "reply" et mets "actions": [].
+- Les prix sont contrôlés par le site (coût + marge). Propose-les quand même, le site refusera si trop bas.
+
+FORMAT DE RÉPONSE : réponds UNIQUEMENT par un objet JSON valide, sans texte autour :
+{"reply":"ton explication simple","actions":[ ... ]}
+
+ACTIONS POSSIBLES (n'utilise que celles-ci, avec ces champs exacts) :
+{"type":"set_prices","baseFee":0,"realistePerSec":0,"templatePerSec":0,"customBase":0,"customPerScene":0}  (ne mets que les champs à changer, en FCFA)
+{"type":"set_provider","provider":"auto|playlist|youtube|facebook|twitch|dailymotion|kick|hls|embed|cloudflare"}
+{"type":"set_live_on","value":true}
+{"type":"set_maintenance","value":true,"message":"texte optionnel"}
+{"type":"set_offline_message","text":"..."}
+{"type":"set_current_program","text":"..."}
+{"type":"announce","text":"..."}
+{"type":"add_playlist_item","title":"...","url":"https://... ou videos/nom.mp4","minutes":5}
+{"type":"remove_playlist_item","index":1}  (numéro de la liste, à partir de 1)
+{"type":"add_slot","days":[1,2,3],"start":"18:00","end":"20:00","provider":"youtube","label":"..."}  (jours : 0=dimanche, 1=lundi ... 6=samedi ; heure de Côte d'Ivoire)
+{"type":"set_pass_price","name":"1 jour","price":150}
+{"type":"set_catalog_price","title":"titre de la vidéo","price":500}
+
+INSTRUCTIONS PERMANENTES DU FONDATEUR (à respecter toujours) :
+${instructions || "(aucune pour l'instant)"}
+
+ÉTAT DU SITE (données réelles, en ce moment) :
+${snapshot}`;
+
+      try {
+        const model = env.AI_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+        const out = await env.AI.run(model, {
+          messages: [{ role: "system", content: system }, ...msgs],
+          max_tokens: 900,
+          temperature: 0.2
+        });
+        let text = out?.response;
+        if (typeof text !== "string") text = JSON.stringify(text ?? out ?? "");
+        let reply = text, actions = [];
+        const a = text.indexOf("{"), b = text.lastIndexOf("}");
+        if (a >= 0 && b > a) {
+          try {
+            const parsed = JSON.parse(text.slice(a, b + 1));
+            if (typeof parsed.reply === "string") reply = parsed.reply;
+            if (Array.isArray(parsed.actions)) actions = parsed.actions.slice(0, 8);
+          } catch (e) { /* on garde le texte brut */ }
+        }
+        return json({ configured: true, reply, actions });
+      } catch (e) {
+        return json({ configured: true, error: "ai_failed", message: String(e?.message || e) }, 500);
+      }
+    }
+
     return json({ ok: true, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
   }
 };

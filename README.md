@@ -331,3 +331,22 @@ Admin > onglet **🔴 Chaîne** > bouton **🎬 Studio IA**. Écris ta scène (o
 - Les générateurs gratuits des sites publics ne peuvent pas être branchés automatiquement sur ton site (pas d'accès gratuit pour les applications) : ils servent à créer TES vidéos pour la chaîne.
 
 Le cache de `sw.js` passe à `scc-v5`, et les vidéos ne sont plus mises en cache par le service worker.
+
+## Étape 18 — Le robot assistant de l'admin (« 🤖 Robot »)
+Dans l'admin, onglet **🤖 Robot** : une boîte de dialogue où tu écris en français simple ce que tu veux. Le robot t'explique, te propose des actions, et tu les valides d'un clic (« ✅ Faire »).
+- **📋 Fais-moi le point du site** : résumé simple des ventes, commandes en attente, catalogue, chaîne, prix, avec la liste de ce qui est à faire en priorité. Ce bouton marche toujours, sans branchement.
+- **📜 Mes instructions** : ton texte de règles, que tu peux modifier quand tu veux. Le robot les suit à chaque demande.
+- **Ce que le robot sait faire** : changer les prix des vidéos IA (avec le contrôle de marge), choisir la source de la chaîne, marquer « en direct », maintenance, messages « hors antenne », annonces, ajouter ou retirer des programmes de la boucle, ajouter des créneaux de programmation, changer le prix d'un pass ou d'une vidéo du catalogue.
+- **Ce qu'il ne fait jamais** : valider un paiement ou une commande (c'est toi), changer ton mot de passe, effacer des données.
+- La case « Appliquer directement » fait tout sans demander : à utiliser quand tu fais confiance au robot. Les prix restent toujours protégés par le contrôle de marge.
+
+### Branchement (une seule fois, pour que le robot comprenne tes phrases)
+Le robot utilise l'IA gratuite de Cloudflare (Workers AI), dans la limite quotidienne de ton compte.
+1. Cloudflare > ton Worker > **Paramètres > Liaisons > Ajouter une liaison > Workers AI**, nom de la variable : `AI`.
+2. **Paramètres > Variables et secrets** : ajoute `FIREBASE_API_KEY` (la valeur « apiKey » de ton fichier firebase-config.js) et `ADMIN_EMAIL` (la même adresse que dans firebase-config.js).
+3. Remplace le code du Worker par le nouveau `cloudflare-worker.js`, puis **Déployer**.
+Seul toi (connecté à l'admin) peux utiliser le robot.
+
+### Limites honnêtes
+- Ce robot est une IA gratuite : elle peut parfois mal comprendre. C'est pour cela que chaque action t’est montrée avant d'être appliquée.
+- Il ne voit que les données du site (commandes, catalogue, chaîne, prix). Il ne connaît pas tes finances personnelles.

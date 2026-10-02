@@ -1553,6 +1553,296 @@ async function resetPricing(){
   toast('Prix de départ rétablis.', 'ok');
 }
 
+/* ---------- Robot assistant de l'admin ---------- */
+let BOT_HISTORY = [];
+function providerLabel(p){
+  return ({ auto:'Programmation automatique', playlist:'Boucle de films & séries', cloudflare:'Cloudflare Stream' })[p] || LIVE_PROVIDERS[p] || p;
+}
+function botSnapshot(){
+  const orders = Object.values(ORDERS || {});
+  const monthCut = rangeCutoff('month');
+  const pending = orders.filter(o=>o.status==='pending').sort((x,y)=>(x.createdAt||0)-(y.createdAt||0));
+  const paidMonth = orders.filter(o=>o.status==='paid' && (o.createdAt||0) >= monthCut);
+  const items = Object.values(CATALOG || {});
+  const pl = LIVE_SETTINGS.playlist || [];
+  const total = pl.reduce((t,i)=>t+(i.sec||0), 0);
+  const pr = getPricing();
+  return {
+    date: new Date().toLocaleString('fr-FR'),
+    commandes: {
+      enAttente: pending.length,
+      valideesCeMois: paidMonth.length,
+      chiffreAffairesCeMoisFCFA: paidMonth.reduce((s,o)=>s+(o.price||0), 0),
+      refusees: orders.filter(o=>o.status==='rejected').length,
+      plusAnciennesEnAttente: pending.slice(0,5).map(o=>({ titre:o.title, prixFCFA:o.price, joursDepuis: Math.floor((Date.now()-(o.createdAt||Date.now()))/86400000) }))
+    },
+    catalogue: {
+      nombre: items.length,
+      sansFichierVideo: items.filter(v=>!v.videoUrl).length,
+      videos: items.slice(0,30).map(v=>({ titre:v.title, prixFCFA:v.price, vues:v.views||0 }))
+    },
+    chaine: {
+      source: providerLabel(liveProvider()),
+      enDirectManuel: isLiveOn(),
+      maintenance: !!LIVE_SETTINGS.maintenanceMode,
+      messageHorsAntenne: LIVE_SETTINGS.offlineMessage || '',
+      programmeActuel: LIVE_SETTINGS.currentProgram || '',
+      boucle: pl.map((it,i)=>({ numero:i+1, titre:it.title, minutes:Math.round((it.sec||0)/60) })),
+      dureeBoucleMinutes: Math.round(total/60),
+      creneaux: (LIVE_SETTINGS.schedule||[]).length,
+      pass: Object.values(LIVE_PASSES||{}).map(p=>({ nom:p.name, jours:p.days, prixFCFA:p.price }))
+    },
+    prixVideosIA: { fraisBase:pr.baseFee, realisteParSeconde:pr.realistePerSec, pubParSeconde:pr.templatePerSec, surMesureBase:pr.customBase, surMesureParSceneEnPlus:pr.customPerScene },
+    ia: { generationConfiguree: aiConfigured() }
+  };
+}
+function botReportHtml(){
+  const s = botSnapshot();
+  const L = [];
+  L.push(`<b>📋 Le point du site (${escH(s.date)})</b>`);
+  L.push(`<b>💰 Ventes :</b> ce mois, ${s.commandes.valideesCeMois} commande${s.commandes.valideesCeMois>1?'s':''} validée${s.commandes.valideesCeMois>1?'s':''} pour ${fcfa(s.commandes.chiffreAffairesCeMoisFCFA)}.`);
+  L.push(`<b>⏳ En attente :</b> ${s.commandes.enAttente} commande${s.commandes.enAttente>1?'s':''}.` + (s.commandes.plusAnciennesEnAttente[0] ? ` La plus ancienne date de ${s.commandes.plusAnciennesEnAttente[0].joursDepuis} jour(s).` : ''));
+  L.push(`<b>🎞️ Catalogue :</b> ${s.catalogue.nombre} vidéo${s.catalogue.nombre>1?'s':''}` + (s.catalogue.sansFichierVideo ? `, dont ${s.catalogue.sansFichierVideo} sans fichier vidéo ajouté.` : '.'));
+  const etat = s.chaine.maintenance ? '🛠️ en maintenance' : (s.chaine.boucle.length || s.chaine.enDirectManuel ? '✅ active' : '⚠️ presque vide');
+  L.push(`<b>📺 Chaîne :</b> ${etat}. Source choisie : ${escH(s.chaine.source)}. Boucle : ${s.chaine.boucle.length} programme${s.chaine.boucle.length>1?'s':''} (${s.chaine.dureeBoucleMinutes} min en tout). Créneaux programmés : ${s.chaine.creneaux}.`);
+  L.push(`<b>🏷️ Prix des vidéos IA :</b> réaliste ${s.prixVideosIA.realisteParSeconde} FCFA/s (5 s = ${fcfa(aiRealistePrice(5))}), pub ${s.prixVideosIA.pubParSeconde} FCFA/s (5 s = ${fcfa(aiTemplatePrice(5))}), sur mesure à partir de ${fcfa(s.prixVideosIA.surMesureBase)}.`);
+  L.push(`<b>🤖 Génération vidéo IA :</b> ${s.ia.generationConfiguree ? 'branchée ✅' : 'pas encore branchée ⚠️'}.`);
+  const todo = [];
+  if(s.commandes.enAttente) todo.push(`Va dans l'onglet <b>Commandes</b> et vérifie les ${s.commandes.enAttente} paiement(s) en attente.`);
+  if(s.chaine.maintenance) todo.push(`La chaîne est en <b>maintenance</b> : dis-moi « enlève la maintenance » quand tu es prêt.`);
+  if(!s.chaine.boucle.length) todo.push(`La boucle est vide : ajoute des vidéos (Studio IA dans l'onglet Chaîne), sinon rien ne passe quand tu n'es pas en direct.`);
+  if(s.catalogue.sansFichierVideo) todo.push(`Ajoute le fichier vidéo des ${s.catalogue.sansFichierVideo} vidéo(s) du catalogue qui n'en ont pas.`);
+  if(!s.ia.generationConfiguree) todo.push(`Branche la génération vidéo IA (README, étape 5) pour vendre des vidéos IA.`);
+  L.push(`<b>✅ À faire en priorité :</b><br>` + (todo.length ? todo.map((t,i)=>`${i+1}. ${t}`).join('<br>') : `Rien d'urgent. Tout est en ordre.`));
+  return L.join('<br><br>');
+}
+function botBubble(role, html){
+  const chat = document.getElementById('botChat');
+  const div = document.createElement('div');
+  div.style.cssText = `border-radius:14px;padding:10px 12px;margin:8px 0;line-height:1.45;font-size:15px;` +
+    (role==='user' ? 'background:rgba(200,120,60,.15);margin-left:28px;' : 'background:rgba(0,0,0,.05);margin-right:12px;');
+  div.innerHTML = html;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+function renderBotTab(){
+  document.getElementById('botInstructions').value = LIVE_SETTINGS.assistantInstructions || '';
+  const chat = document.getElementById('botChat');
+  if(!chat.children.length){
+    botBubble('bot', "Bonjour ! Je suis ton robot. Je peux te faire le point du site, changer les prix, gérer la chaîne, ajouter des vidéos à la boucle, et plus. Dis-moi ce que tu veux, simplement.");
+  }
+  const quick = ['Fais-moi le point du site', "Qu'est-ce que je dois faire aujourd'hui ?", 'Baisse le prix réaliste à 60 par seconde', 'Mets la chaîne en maintenance', 'Enlève la maintenance'];
+  const q = document.getElementById('botQuick');
+  q.innerHTML = quick.map((t,i)=>`<button class="chip" data-botquick="${i}">${escH(t)}</button>`).join('');
+  q.querySelectorAll('[data-botquick]').forEach(b=> b.onclick = ()=>{
+    const t = quick[parseInt(b.dataset.botquick)];
+    if(parseInt(b.dataset.botquick) === 0){ botBubble('user', escH(t)); botBubble('bot', botReportHtml()); return; }
+    document.getElementById('botInput').value = t; botSend();
+  });
+}
+function botDescribe(a){
+  const n = v => fcfa(Number(v)||0);
+  switch(a.type){
+    case 'set_prices': {
+      const parts = [];
+      if(a.baseFee!=null) parts.push(`frais de base ${n(a.baseFee)}`);
+      if(a.realistePerSec!=null) parts.push(`réaliste ${n(a.realistePerSec)}/s`);
+      if(a.templatePerSec!=null) parts.push(`pub ${n(a.templatePerSec)}/s`);
+      if(a.customBase!=null) parts.push(`sur mesure de base ${n(a.customBase)}`);
+      if(a.customPerScene!=null) parts.push(`${n(a.customPerScene)} par scène en plus`);
+      return `Changer les prix des vidéos IA : ${parts.join(', ')}`;
+    }
+    case 'set_provider': return `Changer la source de la chaîne : ${providerLabel(a.provider)}`;
+    case 'set_live_on': return a.value ? 'Marquer la chaîne « en direct maintenant »' : 'Marquer la chaîne « pas en direct »';
+    case 'set_maintenance': return a.value ? 'Mettre la chaîne en maintenance' : 'Enlever la maintenance';
+    case 'set_offline_message': return `Changer le message « hors antenne » : « ${a.text} »`;
+    case 'set_current_program': return `Changer le programme affiché : « ${a.text} »`;
+    case 'announce': return `Envoyer une annonce aux visiteurs : « ${a.text} »`;
+    case 'add_playlist_item': return `Ajouter à la boucle : « ${a.title} »${a.minutes ? ' ('+a.minutes+' min)' : ''}`;
+    case 'remove_playlist_item': return `Retirer le programme n°${a.index} de la boucle`;
+    case 'add_slot': return `Ajouter un créneau : ${(a.days||[]).map(d=>DAY_NAMES[d]).join(', ')} de ${a.start} à ${a.end} (${providerLabel(a.provider)})`;
+    case 'set_pass_price': return `Changer le prix du pass « ${a.name} » : ${n(a.price)}`;
+    case 'set_catalog_price': return `Changer le prix de « ${a.title} » : ${n(a.price)}`;
+  }
+  return 'Action inconnue';
+}
+async function botExecute(a){
+  const num = x => { const v = Number(x); return (isFinite(v) && v >= 0) ? v : undefined; };
+  const refresh = ()=>{ try{ renderAdminLiveTab(); }catch(e){} try{ renderAdminPlaylist(); renderAdminSchedule(); }catch(e){} };
+  try{
+    switch(a.type){
+      case 'set_prices': {
+        const cur = getPricing();
+        const costs = { ...PR_DEFAULTS, ...((LIVE_SETTINGS.pricing && LIVE_SETTINGS.pricing.costs) || {}) };
+        const nv = {
+          baseFee: num(a.baseFee) ?? cur.baseFee, realistePerSec: num(a.realistePerSec) ?? cur.realistePerSec,
+          templatePerSec: num(a.templatePerSec) ?? cur.templatePerSec, customBase: num(a.customBase) ?? cur.customBase,
+          customPerScene: num(a.customPerScene) ?? cur.customPerScene
+        };
+        const v = { ...costs, base:nv.baseFee, real:nv.realistePerSec, tpl:nv.templatePerSec, cbase:nv.customBase, cscene:nv.customPerScene };
+        const { rows, invalid } = pricingAnalyze(v);
+        if(invalid) return { ok:false, text:'Prix invalides.' };
+        const bad = rows.filter(r=>!r.ok);
+        if(bad.length) return { ok:false, text:`Refusé : ces prix sont trop bas pour ta marge de ${costs.margin} %. Prix minimum : ` + bad.slice(0,4).map(r=>`${r.label} ≥ ${fcfa(r.minPrice)}`).join(' ; ') + '.' };
+        const pricing = { ...nv, costs };
+        LIVE_SETTINGS.pricing = pricing;
+        await DB.update('liveSettings', { pricing });
+        try{ updateCustomPriceTag(); updateAiRealistePriceTag(); updateAiTemplatePriceTag(); updateAdminPriceTag(); }catch(e){}
+        return { ok:true, text:'Prix appliqués.' };
+      }
+      case 'set_provider': {
+        const p = a.provider;
+        if(!(p==='auto' || p==='playlist' || p==='cloudflare' || LIVE_PROVIDERS[p])) return { ok:false, text:'Source inconnue.' };
+        LIVE_SETTINGS.provider = p; await DB.update('liveSettings', { provider:p }); refresh();
+        return { ok:true, text:`Source changée : ${providerLabel(p)}.` };
+      }
+      case 'set_live_on':
+        LIVE_SETTINGS.liveOn = !!a.value; await DB.update('liveSettings', { liveOn: !!a.value }); refresh();
+        return { ok:true, text: a.value ? 'La chaîne est marquée en direct.' : 'La chaîne n\'est plus marquée en direct.' };
+      case 'set_maintenance': {
+        const upd = { maintenanceMode: !!a.value };
+        if(typeof a.message === 'string' && a.message.trim()) upd.maintenanceMessage = a.message.trim();
+        Object.assign(LIVE_SETTINGS, upd); await DB.update('liveSettings', upd); refresh();
+        return { ok:true, text: a.value ? 'Maintenance activée.' : 'Maintenance désactivée.' };
+      }
+      case 'set_offline_message': case 'set_current_program': {
+        const key = a.type === 'set_offline_message' ? 'offlineMessage' : 'currentProgram';
+        const text = String(a.text || '').slice(0, 300);
+        LIVE_SETTINGS[key] = text; await DB.update('liveSettings', { [key]: text }); refresh();
+        return { ok:true, text:'Texte mis à jour.' };
+      }
+      case 'announce': {
+        const ann = { message: String(a.text || '').slice(0, 200) || 'SHAMAN CHOOZ CHANEL est en direct maintenant !', ts: Date.now() };
+        LIVE_SETTINGS.announcement = ann; await DB.update('liveSettings', { announcement: ann });
+        return { ok:true, text:'Annonce envoyée.' };
+      }
+      case 'add_playlist_item': {
+        const r = await buildPlaylistItem(a.title, a.url, a.minutes);
+        if(r.error) return { ok:false, text:'Impossible d\'ajouter : ' + r.error };
+        await savePlaylist([...(LIVE_SETTINGS.playlist || []), r.item]); refresh();
+        return { ok:true, text:'Ajouté à la boucle.' };
+      }
+      case 'remove_playlist_item': {
+        const list = (LIVE_SETTINGS.playlist || []).slice(); const i = parseInt(a.index) - 1;
+        if(!(i >= 0 && i < list.length)) return { ok:false, text:'Ce numéro n\'existe pas dans la boucle.' };
+        const [gone] = list.splice(i, 1); await savePlaylist(list); refresh();
+        return { ok:true, text:`« ${gone.title} » retiré de la boucle.` };
+      }
+      case 'add_slot': {
+        const days = (Array.isArray(a.days) ? a.days : []).map(Number).filter(d=>d>=0 && d<=6);
+        const fixT = t => { const m = String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m ? m[1].padStart(2,'0')+':'+m[2] : ''; };
+        const start = fixT(a.start), end = fixT(a.end);
+        const okProv = a.provider === 'cloudflare' || LIVE_PROVIDERS[a.provider];
+        if(!days.length || !start || !end || !okProv) return { ok:false, text:'Créneau incomplet (jours, heures ou source manquants).' };
+        const list = (LIVE_SETTINGS.schedule || []).slice();
+        list.push({ id:'s'+Date.now(), days, start, end, provider:a.provider, label:String(a.label||'').slice(0,80) });
+        LIVE_SETTINGS.schedule = list; await DB.update('liveSettings', { schedule:list }); refresh();
+        return { ok:true, text:'Créneau ajouté.' };
+      }
+      case 'set_pass_price': {
+        const price = num(a.price); if(price === undefined) return { ok:false, text:'Prix invalide.' };
+        const entry = Object.entries(LIVE_PASSES || {}).find(([,p])=> String(p.name).toLowerCase().includes(String(a.name||'').toLowerCase()));
+        if(!entry) return { ok:false, text:`Aucun pass nommé « ${a.name} ».` };
+        await DB.update(`livePasses/${entry[0]}`, { price }); LIVE_PASSES[entry[0]].price = price;
+        try{ renderLivePassSwatches(); }catch(e){}
+        return { ok:true, text:`Pass « ${entry[1].name} » : ${fcfa(price)}.` };
+      }
+      case 'set_catalog_price': {
+        const price = num(a.price); if(price === undefined) return { ok:false, text:'Prix invalide.' };
+        const q = String(a.title||'').toLowerCase();
+        const found = Object.entries(CATALOG || {}).filter(([,v])=> String(v.title).toLowerCase().includes(q));
+        if(found.length !== 1) return { ok:false, text: found.length ? `Plusieurs vidéos correspondent à « ${a.title} » : précise le titre.` : `Aucune vidéo trouvée pour « ${a.title} ».` };
+        await DB.update(`catalog/${found[0][0]}`, { price }); CATALOG[found[0][0]].price = price;
+        try{ renderCatalog(); renderAdminCatalog(); }catch(e){}
+        return { ok:true, text:`« ${found[0][1].title} » : ${fcfa(price)}.` };
+      }
+    }
+    return { ok:false, text:'Action non reconnue.' };
+  } catch(e){
+    return { ok:false, text:'Erreur : ' + (e.message || e) };
+  }
+}
+function botShowActions(actions){
+  if(!actions.length) return;
+  const wrap = botBubble('bot', `<b>Voici ce que je propose :</b>`);
+  const cards = [];
+  actions.forEach(a=>{
+    const card = document.createElement('div');
+    card.style.cssText = 'border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0;';
+    card.innerHTML = `<div>${escH(botDescribe(a))}</div><div class="botres" style="margin-top:6px;"></div>
+      <div class="botbtns" style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-primary" style="margin:0;width:auto;padding:8px 14px;" data-do>✅ Faire</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-skip>✖️ Ignorer</button></div>`;
+    wrap.appendChild(card);
+    const run = async ()=>{
+      card.querySelector('.botbtns').style.display = 'none';
+      const r = await botExecute(a);
+      card.querySelector('.botres').innerHTML = (r.ok ? '✅ ' : '❌ ') + escH(r.text);
+      card.style.borderColor = r.ok ? '#27ae60' : '#c0392b';
+    };
+    card.querySelector('[data-do]').onclick = run;
+    card.querySelector('[data-skip]').onclick = ()=>{ card.querySelector('.botbtns').style.display = 'none'; card.querySelector('.botres').textContent = 'Ignoré.'; };
+    cards.push(run);
+  });
+  if(actions.length > 1){
+    const all = document.createElement('button');
+    all.className = 'btn btn-primary'; all.style.cssText = 'margin:6px 0 0;width:auto;padding:8px 14px;';
+    all.textContent = '✅ Tout faire';
+    all.onclick = async ()=>{ all.style.display = 'none'; for(const run of cards){ if(run) await run(); } };
+    wrap.appendChild(all);
+  }
+  if(document.getElementById('botAutoApply').checked){
+    (async ()=>{ for(const run of cards){ await run(); } })();
+  }
+}
+async function botSend(){
+  const input = document.getElementById('botInput');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  botBubble('user', escH(text).replace(/\n/g, '<br>'));
+  BOT_HISTORY.push({ role:'user', content:text });
+  if(/^\s*(fais[- ]moi\s+)?le point/i.test(text)){
+    botBubble('bot', botReportHtml());
+    return;
+  }
+  const thinking = botBubble('bot', '🤖 Je réfléchis...');
+  const btn = document.getElementById('botSendBtn'); btn.disabled = true;
+  try{
+    if(!DB.ready || !firebase.auth().currentUser) throw new Error('NOAUTH');
+    if(!aiConfigured()) throw new Error('NOWORKER');
+    const idToken = await firebase.auth().currentUser.getIdToken();
+    const res = await fetch(AI_CONFIG.workerUrl + '/admin/assistant', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ idToken, messages: BOT_HISTORY.slice(-10), snapshot: botSnapshot(), instructions: LIVE_SETTINGS.assistantInstructions || '' })
+    });
+    const data = await res.json();
+    if(data.configured === false) throw new Error('NOTCONFIG');
+    if(res.status === 401) throw new Error('UNAUTH');
+    if(data.error) throw new Error('AIFAIL');
+    thinking.innerHTML = escH(data.reply || 'Voilà.').replace(/\n/g, '<br>');
+    BOT_HISTORY.push({ role:'assistant', content: data.reply || '' });
+    const valid = (Array.isArray(data.actions) ? data.actions : []).filter(a=>a && typeof a.type === 'string').slice(0, 8);
+    botShowActions(valid);
+  } catch(e){
+    const msgs = {
+      NOAUTH: "Le robot a besoin que tu sois connecté à l'admin avec Firebase.",
+      NOWORKER: "Le relais vidéo (Worker Cloudflare) n'est pas branché : voir l'étape 5 du README.",
+      NOTCONFIG: "Le robot n'est pas encore branché. Ouvre « ⚙️ Branchement du robot » plus bas et suis les 3 étapes (liaison Workers AI nommée AI, variable FIREBASE_API_KEY, nouveau code du Worker). En attendant, je peux déjà te faire le point du site : appuie sur « Fais-moi le point du site ».",
+      UNAUTH: "Accès refusé : vérifie que ADMIN_EMAIL et FIREBASE_API_KEY du Worker correspondent à ton firebase-config.js.",
+      AIFAIL: "L'IA du robot n'a pas répondu (limite du jour atteinte ou panne). Réessaie un peu plus tard. Le bouton « Fais-moi le point du site » marche toujours."
+    };
+    thinking.innerHTML = escH(msgs[e.message] || ("Petit problème : " + (e.message || e)));
+  } finally { btn.disabled = false; }
+}
+async function botSaveInstructions(){
+  const text = document.getElementById('botInstructions').value.trim().slice(0, 4000);
+  LIVE_SETTINGS.assistantInstructions = text;
+  await DB.update('liveSettings', { assistantInstructions: text });
+  toast('Instructions enregistrées.', 'ok');
+}
+
 /* ---------- Admin : programmation automatique ---------- */
 const DAY_NAMES = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
 function fillSlotProviderSelect(){
@@ -2399,6 +2689,10 @@ function bindEvents(){
   document.getElementById('studioToggleBtn').onclick = toggleStudio;
   Object.values(PR_FIELDS).forEach(id=> document.getElementById(id).addEventListener('input', renderPricingAnalysis));
   document.getElementById('prApplyBtn').onclick = applyPricing;
+  document.getElementById('botSendBtn').onclick = botSend;
+  document.getElementById('botSaveInstrBtn').onclick = botSaveInstructions;
+  document.getElementById('botReportBtn').onclick = ()=>{ botBubble('user', 'Fais-moi le point du site'); botBubble('bot', botReportHtml()); };
+  document.getElementById('botInput').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && e.ctrlKey){ e.preventDefault(); botSend(); } });
   document.getElementById('prResetBtn').onclick = resetPricing;
   document.getElementById('addSlotBtn').onclick = addScheduleSlot;
   document.getElementById('addPlaylistItemBtn').onclick = addPlaylistItemFromForm;
@@ -2494,12 +2788,13 @@ function bindEvents(){
     btn.onclick = ()=>{
       document.querySelectorAll('[data-admintab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      ['stats','orders','catalog','live','pricing','settings'].forEach(name=>{
+      ['stats','orders','catalog','live','pricing','assistant','settings'].forEach(name=>{
         document.getElementById('adminTab-'+name).style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
       });
       if(btn.dataset.admintab === 'stats') renderAdminStats();
       if(btn.dataset.admintab === 'live') renderAdminLiveTab();
       if(btn.dataset.admintab === 'pricing') renderAdminPricing();
+      if(btn.dataset.admintab === 'assistant') renderBotTab();
     };
   });
   document.getElementById('addVideoBtn').onclick = addNewVideo;

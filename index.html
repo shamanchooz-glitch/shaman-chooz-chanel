@@ -240,6 +240,7 @@
     <button class="chip" data-admintab="catalog">Catalogue</button>
     <button class="chip" data-admintab="live">🔴 Chaîne</button>
     <button class="chip" data-admintab="pricing">💰 Prix</button>
+    <button class="chip" data-admintab="assistant">🤖 Robot</button>
     <button class="chip" data-admintab="settings">Réglages</button>
   </div>
 
@@ -512,6 +513,33 @@
     <div id="prMessage" style="display:none;"></div>
     <button class="btn btn-primary" id="prApplyBtn">✅ Valider et appliquer ces prix</button>
     <button class="btn btn-ghost" id="prResetBtn">↩️ Revenir aux prix de départ</button>
+  </div>
+
+  <div id="adminTab-assistant" style="display:none;">
+    <p class="hint" style="margin-top:0;">Ton robot est « un deuxième toi ». Écris-lui ce que tu veux en français simple : il t'explique, te propose les changements, et tu valides d'un seul clic.</p>
+    <button class="btn btn-primary" id="botReportBtn">📋 Fais-moi le point du site</button>
+
+    <p class="field-label">📜 Mes instructions pour le robot</p>
+    <p class="hint">Écris ici comment tu veux qu'il gère le site (tu peux changer ce texte quand tu veux). Exemple : « Garde les prix bas pour les clients. Ne mets jamais la chaîne en maintenance la nuit. Parle-moi simplement. »</p>
+    <textarea class="input" id="botInstructions" rows="5" placeholder="Mes règles pour gérer le site..."></textarea>
+    <button class="btn btn-ghost" id="botSaveInstrBtn">💾 Enregistrer mes instructions</button>
+
+    <p class="field-label">💬 Parler au robot</p>
+    <div id="botChat" style="max-height:420px;overflow-y:auto;padding:4px 0;"></div>
+    <div id="botQuick" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;"></div>
+    <textarea class="input" id="botInput" rows="3" placeholder="Écris ton instruction ici (ex : baisse le prix réaliste à 60 par seconde)"></textarea>
+    <button class="btn btn-primary" id="botSendBtn">Envoyer au robot</button>
+    <label class="hint" style="display:flex;align-items:flex-start;gap:8px;margin:8px 0;">
+      <input type="checkbox" id="botAutoApply"> Appliquer directement sans me demander (les prix restent protégés par le contrôle de marge)
+    </label>
+
+    <details style="margin-top:16px;">
+      <summary class="field-label" style="cursor:pointer;">⚙️ Branchement du robot (une seule fois)</summary>
+      <p class="hint">Le robot utilise l'IA gratuite de Cloudflare (dans la limite quotidienne). Dans Cloudflare, ouvre ton Worker :<br>
+      1. <b>Paramètres > Liaisons > Ajouter une liaison > Workers AI</b>, nom de la variable : <code>AI</code>.<br>
+      2. <b>Paramètres > Variables et secrets</b> : ajoute <code>FIREBASE_API_KEY</code> (la valeur « apiKey » de ton fichier firebase-config.js) et <code>ADMIN_EMAIL</code> (la même adresse que dans firebase-config.js).<br>
+      3. Remplace le code du Worker par le nouveau <code>cloudflare-worker.js</code> et appuie sur Déployer.</p>
+    </details>
   </div>
 
   <div id="adminTab-settings" style="display:none;">
