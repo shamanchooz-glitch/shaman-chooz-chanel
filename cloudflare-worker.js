@@ -33,6 +33,8 @@
 // Paramètres > Variables et secrets, ajoute une variable (type Texte) FAL_MODEL_ENDPOINT, par ex. :
 //   https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video   (qualité supérieure, plus cher)
 // Pour revenir au modèle par défaut, supprime simplement cette variable.
+// Numéro de version du Worker (le site le compare pour te dire si le Worker est à jour).
+const WORKER_VERSION = "2026-10-02-b";
 const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video";
 const JSON2VIDEO_API = "https://api.json2video.com/v2/movies";
 
@@ -273,6 +275,6 @@ ${snapshot}`;
       }
     }
 
-    return json({ ok: true, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
+    return json({ ok: true, version: WORKER_VERSION, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
   }
 };

@@ -350,3 +350,15 @@ Seul toi (connecté à l'admin) peux utiliser le robot.
 ### Limites honnêtes
 - Ce robot est une IA gratuite : elle peut parfois mal comprendre. C'est pour cela que chaque action t’est montrée avant d'être appliquée.
 - Il ne voit que les données du site (commandes, catalogue, chaîne, prix). Il ne connaît pas tes finances personnelles.
+
+
+## Étape 19 — Mise à jour automatique du Worker (plus besoin de copier-coller dans Cloudflare)
+Le fichier `wrangler.jsonc` (à la racine de ton dépôt GitHub, à côté de `cloudflare-worker.js`) permet à Cloudflare de redéployer ton Worker tout seul chaque fois que tu envoies un nouveau `cloudflare-worker.js` sur GitHub.
+**À faire une seule fois :**
+1. Envoie `wrangler.jsonc` sur GitHub (même dossier que `cloudflare-worker.js`).
+2. Cloudflare > ton Worker (shaman-chooz-video-ia) > **Paramètres > Build > Connecter** (ou « Connect » sur la page du Worker) > choisis GitHub, ton dépôt et la branche `main`.
+3. Laisse « Build command » vide. « Deploy command » : `npx wrangler deploy`. Dossier racine : `/`.
+4. Enregistre. Le premier déploiement se lance.
+**Ensuite :** à chaque fois que tu envoies un nouveau `cloudflare-worker.js` sur GitHub, Cloudflare le déploie en 1 à 2 minutes. N'utilise plus « Modifier le code » dans Cloudflare : tes changements seraient écrasés.
+Tes secrets (JSON2VIDEO_KEY, FIREBASE_API_KEY, ADMIN_EMAIL) restent en place. Le nom dans `wrangler.jsonc` doit rester identique au nom du Worker dans Cloudflare. En cas d'erreur, regarde l'historique des builds (onglet Déploiements) : l'ancienne version continue de tourner.
+Dans 🤖 Robot > « Fais-moi le point du site », une ligne « 🔌 Relais Cloudflare » te dit si le Worker est à jour.

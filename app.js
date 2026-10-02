@@ -1555,6 +1555,20 @@ async function resetPricing(){
 
 /* ---------- Robot assistant de l'admin ---------- */
 let BOT_HISTORY = [];
+const EXPECTED_WORKER_VERSION = "2026-10-02-b";
+async function botShowReport(){
+  const bubble = botBubble('bot', botReportHtml());
+  if(!aiConfigured()) return;
+  let line;
+  try{
+    const r = await fetch(AI_CONFIG.workerUrl + '/');
+    const d = await r.json();
+    if(d.version === EXPECTED_WORKER_VERSION) line = 'à jour ✅';
+    else if(d.version) line = `ancienne version ⚠️ (installée : ${escH(d.version)}, attendue : ${EXPECTED_WORKER_VERSION}). Envoie le dernier cloudflare-worker.js sur GitHub pour la mise à jour automatique.`;
+    else line = 'très ancienne version ⚠️. Envoie le dernier cloudflare-worker.js sur GitHub (mise à jour automatique) ou remplace-le dans Cloudflare.';
+  }catch(e){ line = "injoignable ⚠️ (vérifie l'adresse du Worker dans ai-config.js)."; }
+  bubble.innerHTML += `<br><br><b>🔌 Relais Cloudflare (Worker) :</b> ${line}`;
+}
 function providerLabel(p){
   return ({ auto:'Programmation automatique', playlist:'Boucle de films & séries', cloudflare:'Cloudflare Stream' })[p] || LIVE_PROVIDERS[p] || p;
 }
@@ -1637,7 +1651,7 @@ function renderBotTab(){
   q.innerHTML = quick.map((t,i)=>`<button class="chip" data-botquick="${i}">${escH(t)}</button>`).join('');
   q.querySelectorAll('[data-botquick]').forEach(b=> b.onclick = ()=>{
     const t = quick[parseInt(b.dataset.botquick)];
-    if(parseInt(b.dataset.botquick) === 0){ botBubble('user', escH(t)); botBubble('bot', botReportHtml()); return; }
+    if(parseInt(b.dataset.botquick) === 0){ botBubble('user', escH(t)); botShowReport(); return; }
     document.getElementById('botInput').value = t; botSend();
   });
 }
@@ -1804,7 +1818,7 @@ async function botSend(){
   botBubble('user', escH(text).replace(/\n/g, '<br>'));
   BOT_HISTORY.push({ role:'user', content:text });
   if(/^\s*(fais[- ]moi\s+)?le point/i.test(text)){
-    botBubble('bot', botReportHtml());
+    botShowReport();
     return;
   }
   const thinking = botBubble('bot', '🤖 Je réfléchis...');
@@ -2698,7 +2712,7 @@ function bindEvents(){
   document.getElementById('prApplyBtn').onclick = applyPricing;
   document.getElementById('botSendBtn').onclick = botSend;
   document.getElementById('botSaveInstrBtn').onclick = botSaveInstructions;
-  document.getElementById('botReportBtn').onclick = ()=>{ botBubble('user', 'Fais-moi le point du site'); botBubble('bot', botReportHtml()); };
+  document.getElementById('botReportBtn').onclick = ()=>{ botBubble('user', 'Fais-moi le point du site'); botShowReport(); };
   document.getElementById('botInput').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && e.ctrlKey){ e.preventDefault(); botSend(); } });
   document.getElementById('prResetBtn').onclick = resetPricing;
   document.getElementById('addSlotBtn').onclick = addScheduleSlot;
