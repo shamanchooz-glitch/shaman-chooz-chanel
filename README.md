@@ -326,7 +326,8 @@ Admin > onglet **🔴 Chaîne** > bouton **🎬 Studio IA**. Écris ta scène (o
 ### Moteur et prix des vidéos « réalistes » vendues aux clients
 - Le Worker utilise maintenant **Kling 2.5 Turbo Pro** par défaut (environ 0,07 $ la seconde). Pour revenir à Kling v3 (plus cher, qualité supérieure) : variable `FAL_MODEL_ENDPOINT` = `https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video` dans les variables du Worker.
 - **Fais un test de 5 secondes** après avoir remplacé le code du Worker.
-- Prix réaliste dans `ai-config.js` : 100 FCFA/s (avant : 150). Tu peux le modifier à tout moment.
+- **Admin > 💰 Prix** : tu fixes toi-même les prix (réaliste, pub/diaporama, sur mesure). Le système compare chaque prix à ton coût réel (moteur, JSON2Video, frais de paiement) + ta marge minimale. Si un prix est trop bas, la validation est refusée, les lignes en rouge indiquent le prix minimum, et rien n'est appliqué. Les valeurs de coûts de départ sont des estimations : corrige-les avec tes vraies factures.
+- Prix de départ (utilisés tant que tu n'as rien validé) : réaliste 70 FCFA/s (5 s = 350 FCFA), pub 30 FCFA/s (5 s = 150 FCFA), sur mesure 500 FCFA + 150 par scène supplémentaire.
 - Les générateurs gratuits des sites publics ne peuvent pas être branchés automatiquement sur ton site (pas d'accès gratuit pour les applications) : ils servent à créer TES vidéos pour la chaîne.
 
 Le cache de `sw.js` passe à `scc-v5`, et les vidéos ne sont plus mises en cache par le service worker.

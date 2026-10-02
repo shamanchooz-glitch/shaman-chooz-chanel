@@ -112,8 +112,8 @@
       <button class="btn btn-ghost" style="margin:0;" id="customPreviewBtn">▶️ Prévisualiser</button>
     </div>
 
-    <p class="price-tag" id="customPriceTag" style="margin-top:18px;">800 FCFA</p>
-    <p class="hint" id="customPriceHint">Prix de base 800 FCFA + 250 FCFA par scène supplémentaire. La voix choisie ci-dessus est automatiquement intégrée dans ta vidéo téléchargeable — tu n'as besoin d'aucune autre application pour ajouter du son.</p>
+    <p class="price-tag" id="customPriceTag" style="margin-top:18px;">500 FCFA</p>
+    <p class="hint" id="customPriceHint">Prix de base 500 FCFA + 150 FCFA par scène supplémentaire. La voix choisie ci-dessus est automatiquement intégrée dans ta vidéo téléchargeable — tu n'as besoin d'aucune autre application pour ajouter du son.</p>
     <button class="btn btn-primary" id="customOrderBtn">Commander cette vidéo</button>
   </div>
 
@@ -239,6 +239,7 @@
     <button class="chip" data-admintab="orders">Commandes</button>
     <button class="chip" data-admintab="catalog">Catalogue</button>
     <button class="chip" data-admintab="live">🔴 Chaîne</button>
+    <button class="chip" data-admintab="pricing">💰 Prix</button>
     <button class="chip" data-admintab="settings">Réglages</button>
   </div>
 
@@ -477,6 +478,40 @@
     <p class="field-label" style="margin-top:0;">🎬 Replays (directs précédents)</p>
     <button class="btn btn-ghost" id="loadReplaysBtn">🔄 Actualiser les replays</button>
     <div id="adminReplaysList" style="margin-top:10px;"></div>
+  </div>
+
+  <div id="adminTab-pricing" style="display:none;">
+    <p class="hint" style="margin-top:0;">Fixe tes prix de vente. Le système compare chaque prix à ton coût réel + ta marge minimale. Si un prix est trop bas, la validation est refusée et le prix minimum conseillé s'affiche. Tu peux ainsi proposer des prix bas sans jamais vendre à perte.</p>
+    <p class="field-label">💳 Mes coûts réels</p>
+    <p class="hint">Valeurs de départ estimées : corrige-les avec tes vraies factures (fal.ai, JSON2Video).</p>
+    <p class="hint" style="margin:10px 0 2px;">Taux de change : combien de FCFA pour 1 dollar</p>
+    <input class="input" id="pr-rate" type="text" inputmode="decimal" placeholder="600">
+    <p class="hint" style="margin:10px 0 2px;">Coût du moteur réaliste (dollars par seconde)</p>
+    <input class="input" id="pr-usd" type="text" inputmode="decimal" placeholder="0.07">
+    <p class="hint" style="margin:10px 0 2px;">Coût d'assemblage JSON2Video (FCFA par seconde)</p>
+    <input class="input" id="pr-asm" type="text" inputmode="decimal" placeholder="10">
+    <p class="hint" style="margin:10px 0 2px;">Coût d'une scène de vidéo sur mesure (FCFA)</p>
+    <input class="input" id="pr-scene" type="text" inputmode="decimal" placeholder="40">
+    <p class="hint" style="margin:10px 0 2px;">Frais de paiement prélevés (%)</p>
+    <input class="input" id="pr-fee" type="text" inputmode="decimal" placeholder="2">
+    <p class="hint" style="margin:10px 0 2px;">Ma marge minimale voulue (% au-dessus du coût)</p>
+    <input class="input" id="pr-margin" type="text" inputmode="decimal" placeholder="30">
+    <p class="field-label" style="margin-top:20px;">🏷️ Mes prix de vente (FCFA)</p>
+    <p class="hint" style="margin:10px 0 2px;">Frais de base (réaliste et pub)</p>
+    <input class="input" id="pr-base" type="text" inputmode="decimal" placeholder="50">
+    <p class="hint" style="margin:10px 0 2px;">Réaliste : prix par seconde</p>
+    <input class="input" id="pr-real" type="text" inputmode="decimal" placeholder="60">
+    <p class="hint" style="margin:10px 0 2px;">Pub / diaporama : prix par seconde</p>
+    <input class="input" id="pr-tpl" type="text" inputmode="decimal" placeholder="30">
+    <p class="hint" style="margin:10px 0 2px;">Sur mesure : prix de base (1ère scène)</p>
+    <input class="input" id="pr-cbase" type="text" inputmode="decimal" placeholder="500">
+    <p class="hint" style="margin:10px 0 2px;">Sur mesure : prix par scène supplémentaire</p>
+    <input class="input" id="pr-cscene" type="text" inputmode="decimal" placeholder="150">
+    <p class="field-label" style="margin-top:20px;">📊 Contrôle en direct</p>
+    <div id="prAnalysis"></div>
+    <div id="prMessage" style="display:none;"></div>
+    <button class="btn btn-primary" id="prApplyBtn">✅ Valider et appliquer ces prix</button>
+    <button class="btn btn-ghost" id="prResetBtn">↩️ Revenir aux prix de départ</button>
   </div>
 
   <div id="adminTab-settings" style="display:none;">

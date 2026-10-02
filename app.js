@@ -198,7 +198,18 @@ let customLanguage = 'fr';
 let customVoices = [];
 
 function scenesFromScript(text){ return text.split(/\n+/).map(s=>s.trim()).filter(Boolean); }
-function customPrice(scenes){ return 800 + Math.max(0, scenes.length-1) * 250; }
+function getPricing(){
+  const p = (typeof LIVE_SETTINGS !== 'undefined' && LIVE_SETTINGS && LIVE_SETTINGS.pricing) || {};
+  const num = (v, d)=> (typeof v === 'number' && isFinite(v) && v >= 0) ? v : d;
+  return {
+    baseFee: num(p.baseFee, AI_CONFIG.baseFeeFCFA),
+    realistePerSec: num(p.realistePerSec, AI_CONFIG.pricePerSecondRealisteFCFA),
+    templatePerSec: num(p.templatePerSec, AI_CONFIG.pricePerSecondTemplateFCFA),
+    customBase: num(p.customBase, 500),
+    customPerScene: num(p.customPerScene, 150)
+  };
+}
+function customPrice(scenes){ const p = getPricing(); return p.customBase + Math.max(0, scenes.length-1) * p.customPerScene; }
 
 function drawCustomScene(ctx, canvas, t, sceneIndex, text, duration, visualStyle){
   const W = canvas.width, H = canvas.height;
@@ -316,6 +327,8 @@ async function buildSimpleMovie(order){
 function updateCustomPriceTag(){
   const scenes = scenesFromScript(document.getElementById('customScript').value);
   document.getElementById('customPriceTag').textContent = fcfa(customPrice(scenes.length ? scenes : ['x']));
+  const p = getPricing();
+  document.getElementById('customPriceHint').textContent = `Prix de base ${fcfa(p.customBase)} + ${fcfa(p.customPerScene)} par scène supplémentaire. La voix choisie ci-dessus est automatiquement intégrée dans ta vidéo téléchargeable — tu n'as besoin d'aucune autre application pour ajouter du son.`;
 }
 
 /* ---------- Commande d'une vidéo sur mesure ---------- */
@@ -383,8 +396,8 @@ let templateLanguage = 'fr';
 let templateFormat = 'horizontal';
 
 function aiConfigured(){ return AI_CONFIG && AI_CONFIG.workerUrl && AI_CONFIG.workerUrl !== 'REMPLACE_MOI'; }
-function aiRealistePrice(durationSec){ return AI_CONFIG.baseFeeFCFA + durationSec * AI_CONFIG.pricePerSecondRealisteFCFA; }
-function aiTemplatePrice(durationSec){ return AI_CONFIG.baseFeeFCFA + durationSec * AI_CONFIG.pricePerSecondTemplateFCFA; }
+function aiRealistePrice(durationSec){ const p = getPricing(); return p.baseFee + durationSec * p.realistePerSec; }
+function aiTemplatePrice(durationSec){ const p = getPricing(); return p.baseFee + durationSec * p.templatePerSec; }
 
 async function workerPost(path, body){
   const res = await fetch(AI_CONFIG.workerUrl + path, {
@@ -652,6 +665,7 @@ async function init(){
   bindEvents();
   registerSW();
   startUpdateChecks();
+  try{ updateCustomPriceTag(); updateAiRealistePriceTag(); updateAiTemplatePriceTag(); }catch(e){}
 
   // Lien direct vers une vidéo précise (partagée via #v=id) : ouvre directement sa fiche
   const hashMatch = location.hash.match(/^#v=(.+)$/);
@@ -1378,12 +1392,12 @@ async function saveLiveSettings(){
 
 /* ---------- Studio IA (admin) : générateurs de vidéo IA avec crédits gratuits ---------- */
 const STUDIO_TOOLS = [
-  { name:'Kling AI', url:'https://klingai.com', note:'Réalisme très élevé. Environ 66 crédits gratuits par jour (≈ 2 clips de 5 s). Dans le site : choisis « Text to Video », colle ta scène.' },
-  { name:'Dreamina (Seedance)', url:'https://dreamina.capcut.com', note:'Crédits gratuits chaque jour (environ 60 à 120). Dans le site : « AI Video » > « Text to video », colle ta scène.' },
-  { name:'Hailuo AI (MiniMax)', url:'https://hailuoai.video', note:'Plusieurs clips gratuits, mouvements humains naturels, clips de 6 s. Dans le site : « Text to Video », colle ta scène.' },
-  { name:'PixVerse', url:'https://pixverse.ai', note:'Environ 60 crédits gratuits par jour, simple et rapide, clips de 5 à 8 s. Dans le site : « Text to Video ».' },
-  { name:'Google Gemini (Veo)', url:'https://gemini.google.com', note:'Très haute qualité. Quelques générations gratuites selon ton compte et ton pays. Demande-lui « Génère une vidéo : » puis ta scène.' },
-  { name:'Wan 2.2 (gratuit, open source)', url:'https://huggingface.co/spaces?q=wan%20video', note:'Vraiment gratuit mais avec file d\'attente et peu de clips par jour. Ouvre un « Space » Wan, colle ta scène.' }
+  { name:'Kling AI', url:'https://app.klingai.com/global/text-to-video/new', home:'https://klingai.com', note:'Réalisme très élevé. Environ 66 crédits gratuits par jour (≈ 2 clips de 5 s).' },
+  { name:'Dreamina (Seedance)', url:'https://dreamina.capcut.com/ai-tool/video/generate', home:'https://dreamina.capcut.com', note:'Crédits gratuits chaque jour (environ 60 à 120).' },
+  { name:'Hailuo AI (MiniMax)', url:'https://hailuoai.video/create/text-to-video', home:'https://hailuoai.video', note:'Plusieurs clips gratuits, mouvements humains naturels, clips de 6 s.' },
+  { name:'PixVerse', url:'https://app.pixverse.ai/create/text', home:'https://pixverse.ai', note:'Environ 60 crédits gratuits par jour, simple et rapide, clips de 5 à 8 s.' },
+  { name:'Google Gemini (Veo)', url:'https://gemini.google.com/app', home:'https://gemini.google.com', note:'Très haute qualité. Quelques générations gratuites selon ton compte et ton pays. Écris « Génère une vidéo : » puis colle ta scène.' },
+  { name:'Wan 2.2 (gratuit, open source)', url:'https://huggingface.co/spaces?q=wan%20video', home:'https://huggingface.co/spaces?q=wan%20video', note:'Vraiment gratuit mais avec file d\'attente et peu de clips par jour. Ouvre un « Space » Wan et colle ta scène.' }
 ];
 const STUDIO_PROMPTS = [
   ['Plomberie', 'A friendly plumber in clean blue overalls repairing a kitchen sink in a bright modern home'],
@@ -1409,7 +1423,7 @@ async function studioCopyAndOpen(idx){
   const text = studioSceneText();
   if(!text){ toast("Écris d'abord ta scène dans la case « Ma scène ».", 'err'); return; }
   // On ouvre le site tout de suite (le navigateur l'exige au moment du clic), puis on copie le texte.
-  window.open(t.url, '_blank', 'noopener');
+  window.open(t.url, '_blank');
   try{ await navigator.clipboard.writeText(text); toast('Texte copié : colle-le dans la case du site.', 'ok'); }
   catch(e){ prompt('Copie ce texte puis colle-le dans le site :', text); }
 }
@@ -1420,6 +1434,7 @@ function renderStudio(){
       <div class="row"><strong>${escH(t.name)}</strong></div>
       <p class="hint" style="margin:0 0 8px;">${escH(t.note)}</p>
       <button class="btn btn-primary" style="margin:0;" data-studiotool="${i}">📋 Copier ma scène et ouvrir ${escH(t.name)} ↗</button>
+      <p class="hint" style="margin:8px 0 0;">Si la page affiche une erreur : <a href="${t.home}" target="_blank" rel="noopener noreferrer">ouvrir l'accueil du site</a> puis chercher « Text to Video ».</p>
     </div>`).join('');
   tools.querySelectorAll('[data-studiotool]').forEach(b=> b.onclick = ()=>studioCopyAndOpen(parseInt(b.dataset.studiotool)));
   const prompts = document.getElementById('studioPrompts');
@@ -1444,6 +1459,98 @@ function toggleStudio(){
   p.style.display = open ? 'block' : 'none';
   document.getElementById('studioToggleBtn').textContent = open ? '✖️ Fermer le Studio IA' : '🎬 Studio IA — créer mes vidéos gratuitement';
   if(open && !document.getElementById('studioTools').children.length) renderStudio();
+}
+
+/* ---------- Admin : prix de vente avec contrôle de la marge ---------- */
+const PR_FIELDS = {
+  rate:'pr-rate', usd:'pr-usd', asm:'pr-asm', scene:'pr-scene', fee:'pr-fee', margin:'pr-margin',
+  base:'pr-base', real:'pr-real', tpl:'pr-tpl', cbase:'pr-cbase', cscene:'pr-cscene'
+};
+const PR_DEFAULTS = { rate:600, usd:0.07, asm:10, scene:40, fee:2, margin:30 };
+function prNum(id){ const v = parseFloat(String(document.getElementById(id).value).replace(',', '.')); return isFinite(v) ? v : NaN; }
+function readPricingForm(){
+  const v = {}; Object.entries(PR_FIELDS).forEach(([k,id])=>{ v[k] = prNum(id); });
+  return v;
+}
+function pricingAnalyze(v){
+  const rows = [];
+  const invalid = Object.values(v).some(x=>!isFinite(x) || x < 0) || v.fee >= 100;
+  if(invalid) return { rows, invalid:true };
+  const need = cost => cost * (1 + v.margin/100) / (1 - v.fee/100);
+  const add = (label, price, cost)=>{
+    const net = price * (1 - v.fee/100);
+    rows.push({ label, price, cost, gain: Math.round(net - cost), pct: cost>0 ? (net-cost)/cost*100 : 0, minPrice: Math.ceil(need(cost)), ok: price + 0.0001 >= need(cost) });
+  };
+  const maxD = (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.maxDurationSec) || 600;
+  [...new Set([5, 10, 60, maxD])].sort((a,b)=>a-b).forEach(d=>{
+    add(`Réaliste ${d} s`, v.base + d * v.real, d * (v.usd * v.rate + v.asm));
+  });
+  [...new Set([5, 10, 60, maxD])].sort((a,b)=>a-b).forEach(d=>{
+    add(`Pub / diaporama ${d} s`, v.base + d * v.tpl, d * v.asm);
+  });
+  [1, 3, 10].forEach(n=>{
+    add(`Sur mesure ${n} scène${n>1?'s':''}`, v.cbase + (n-1) * v.cscene, n * v.scene);
+  });
+  return { rows, invalid:false };
+}
+function renderPricingAnalysis(){
+  const box = document.getElementById('prAnalysis');
+  const { rows, invalid } = pricingAnalyze(readPricingForm());
+  if(invalid){ box.innerHTML = `<p class="hint">Remplis toutes les cases avec des nombres (0 ou plus).</p>`; return null; }
+  box.innerHTML = rows.map(r=>`
+    <div style="border:1px solid ${r.ok ? 'var(--line)' : '#c0392b'};border-radius:12px;padding:10px;margin:8px 0;${r.ok ? '' : 'background:rgba(192,57,43,.08);'}">
+      <strong>${r.ok ? '✅' : '❌'} ${escH(r.label)}</strong><br>
+      <span class="hint" style="margin:0;">Prix client : ${fcfa(Math.round(r.price))} • Ton coût : ${fcfa(Math.round(r.cost))}<br>
+      Gain après frais : ${r.gain.toLocaleString('fr-FR')} FCFA (${Math.round(r.pct)} %)${r.ok ? '' : `<br><b>Prix minimum pour respecter ta marge : ${fcfa(r.minPrice)}</b>`}</span>
+    </div>`).join('');
+  return rows;
+}
+function renderAdminPricing(){
+  const cur = getPricing();
+  const saved = (LIVE_SETTINGS.pricing && LIVE_SETTINGS.pricing.costs) || {};
+  const costs = { ...PR_DEFAULTS, ...saved };
+  const set = (k, val)=>{ document.getElementById(PR_FIELDS[k]).value = val; };
+  Object.keys(PR_DEFAULTS).forEach(k=> set(k, costs[k]));
+  set('base', cur.baseFee); set('real', cur.realistePerSec); set('tpl', cur.templatePerSec);
+  set('cbase', cur.customBase); set('cscene', cur.customPerScene);
+  document.getElementById('prMessage').style.display = 'none';
+  renderPricingAnalysis();
+}
+async function applyPricing(){
+  const v = readPricingForm();
+  const rows = renderPricingAnalysis();
+  const msg = document.getElementById('prMessage');
+  msg.style.display = 'block';
+  if(!rows){
+    msg.style.cssText = 'display:block;border-radius:12px;padding:12px;margin:12px 0;background:rgba(192,57,43,.1);border:1px solid #c0392b;';
+    msg.innerHTML = `<b>❌ Validation impossible.</b><br>Remplis toutes les cases avec des nombres.`;
+    return;
+  }
+  const bad = rows.filter(r=>!r.ok);
+  if(bad.length){
+    msg.style.cssText = 'display:block;border-radius:12px;padding:12px;margin:12px 0;background:rgba(192,57,43,.1);border:1px solid #c0392b;';
+    msg.innerHTML = `<b>❌ Validation impossible : ${bad.length} prix sont trop bas.</b><br>Avec ces prix, ta marge serait inférieure à ${v.margin} % après les frais de paiement. Les lignes en rouge ci-dessus indiquent le prix minimum. Augmente tes prix (ou baisse ta marge minimale si tu l'acceptes), puis réessaie.`;
+    msg.scrollIntoView({ behavior:'smooth', block:'center' });
+    return;
+  }
+  const pricing = {
+    baseFee: v.base, realistePerSec: v.real, templatePerSec: v.tpl, customBase: v.cbase, customPerScene: v.cscene,
+    costs: { rate:v.rate, usd:v.usd, asm:v.asm, scene:v.scene, fee:v.fee, margin:v.margin }
+  };
+  LIVE_SETTINGS.pricing = pricing;
+  await DB.update('liveSettings', { pricing });
+  try{ updateCustomPriceTag(); updateAiRealistePriceTag(); updateAiTemplatePriceTag(); updateAdminPriceTag(); }catch(e){}
+  msg.style.cssText = 'display:block;border-radius:12px;padding:12px;margin:12px 0;background:rgba(39,174,96,.1);border:1px solid #27ae60;';
+  msg.innerHTML = `<b>✅ Prix validés et appliqués.</b><br>Tes clients voient les nouveaux prix tout de suite (ou au prochain chargement de la page).`;
+  toast('Prix appliqués.', 'ok');
+}
+async function resetPricing(){
+  if(!confirm("Revenir aux prix de départ du fichier ai-config.js ?")) return;
+  delete LIVE_SETTINGS.pricing;
+  await DB.update('liveSettings', { pricing: null });
+  try{ updateCustomPriceTag(); updateAiRealistePriceTag(); updateAiTemplatePriceTag(); updateAdminPriceTag(); }catch(e){}
+  renderAdminPricing();
+  toast('Prix de départ rétablis.', 'ok');
 }
 
 /* ---------- Admin : programmation automatique ---------- */
@@ -2290,6 +2397,9 @@ function bindEvents(){
   document.getElementById('fallbackPlaylistCheckbox').addEventListener('change', saveLiveSettings);
   document.getElementById('saveSourcesBtn').onclick = saveLiveSettings;
   document.getElementById('studioToggleBtn').onclick = toggleStudio;
+  Object.values(PR_FIELDS).forEach(id=> document.getElementById(id).addEventListener('input', renderPricingAnalysis));
+  document.getElementById('prApplyBtn').onclick = applyPricing;
+  document.getElementById('prResetBtn').onclick = resetPricing;
   document.getElementById('addSlotBtn').onclick = addScheduleSlot;
   document.getElementById('addPlaylistItemBtn').onclick = addPlaylistItemFromForm;
   document.getElementById('addPlaylistBulkBtn').onclick = addPlaylistBulk;
@@ -2384,11 +2494,12 @@ function bindEvents(){
     btn.onclick = ()=>{
       document.querySelectorAll('[data-admintab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      ['stats','orders','catalog','live','settings'].forEach(name=>{
+      ['stats','orders','catalog','live','pricing','settings'].forEach(name=>{
         document.getElementById('adminTab-'+name).style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
       });
       if(btn.dataset.admintab === 'stats') renderAdminStats();
       if(btn.dataset.admintab === 'live') renderAdminLiveTab();
+      if(btn.dataset.admintab === 'pricing') renderAdminPricing();
     };
   });
   document.getElementById('addVideoBtn').onclick = addNewVideo;

@@ -31,14 +31,14 @@ const AI_CONFIG = {
   stepDurationSec: 5,
 
   // Style "réaliste" (mouvement IA via Kling 2.5 Turbo, assemblé par JSON2Video)
-  // Coût du moteur : environ 0,07 $ la seconde (≈ 42 FCFA). À 100 FCFA/s, tu gardes une marge
+  // Coût du moteur : environ 0,07 $ la seconde (≈ 42 FCFA). À 70 FCFA/s, tu gardes une marge d'environ 30 %
   // pour les essais ratés, les frais de paiement, JSON2Video et tes futurs moteurs.
-  // Tu peux modifier ce prix à tout moment.
-  pricePerSecondRealisteFCFA: 100,
+  // Exemple : vidéo de 5 s = frais de base + 5 x 70 FCFA = 350 FCFA. Les prix se règlent maintenant dans l'admin > 💰 Prix. Tu peux modifier ces prix à tout moment.
+  pricePerSecondRealisteFCFA: 70,
 
   // Style "pub / diaporama" (JSON2Video seul : images + voix off + musique)
   // — moins cher, pas de génération de mouvement IA
-  pricePerSecondTemplateFCFA: 60,
+  pricePerSecondTemplateFCFA: 30,
 
-  baseFeeFCFA: 300
+  baseFeeFCFA: 0
 };
