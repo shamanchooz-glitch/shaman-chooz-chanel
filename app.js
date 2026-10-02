@@ -1822,6 +1822,13 @@ async function botSend(){
     if(res.status === 401) throw new Error('UNAUTH');
     if(data.error) throw new Error('AIFAIL');
     thinking.innerHTML = escH(data.reply || 'Voilà.').replace(/\n/g, '<br>');
+    if((data.reply || '').length > 80){
+      const cp = document.createElement('button');
+      cp.className = 'btn btn-ghost'; cp.style.cssText = 'margin:8px 0 0;width:auto;padding:6px 12px;';
+      cp.textContent = '📋 Copier ce texte';
+      cp.onclick = async ()=>{ try{ await navigator.clipboard.writeText(data.reply); toast('Texte copié.', 'ok'); }catch(e){ prompt('Copie ce texte :', data.reply); } };
+      thinking.appendChild(cp);
+    }
     BOT_HISTORY.push({ role:'assistant', content: data.reply || '' });
     const valid = (Array.isArray(data.actions) ? data.actions : []).filter(a=>a && typeof a.type === 'string').slice(0, 8);
     botShowActions(valid);

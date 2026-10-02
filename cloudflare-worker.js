@@ -205,7 +205,7 @@ export default {
         const vd = await v.json();
         user = vd?.users?.[0] || null;
       } catch (e) { user = null; }
-      if (!user || (env.ADMIN_EMAIL && user.email !== env.ADMIN_EMAIL)) {
+      if (!user || (env.ADMIN_EMAIL && String(user.email || "").trim().toLowerCase() !== String(env.ADMIN_EMAIL).trim().toLowerCase())) {
         return json({ configured: true, error: "unauthorized" }, 401);
       }
 
@@ -217,7 +217,7 @@ export default {
 
       const system = `Tu es le robot assistant du fondateur et directeur du site SHAMAN CHOOZ CHANEL (Côte d'Ivoire). Tu es son deuxième lui : tu gères le site comme il le ferait et tu lui expliques tout très simplement.
 
-RÈGLES DE LANGAGE : réponds en français, avec des phrases courtes et des mots simples, sans jargon. Maximum 8 lignes. Tutoie-le.
+RÈGLES DE LANGAGE : réponds en français, avec des phrases courtes et des mots simples, sans jargon. Réponses courtes (8 lignes maximum), SAUF quand il te demande de rédiger un texte, un script, une idée de vidéo ou un prompt : alors écris-le en entier, bien organisé. Tutoie-le.
 
 RÈGLES DE SÉCURITÉ :
 - Tu ne peux modifier le site QU'avec les actions listées ci-dessous.
@@ -253,7 +253,7 @@ ${snapshot}`;
         const model = env.AI_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
         const out = await env.AI.run(model, {
           messages: [{ role: "system", content: system }, ...msgs],
-          max_tokens: 900,
+          max_tokens: 1800,
           temperature: 0.2
         });
         let text = out?.response;
