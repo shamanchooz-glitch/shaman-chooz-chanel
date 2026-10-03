@@ -346,6 +346,18 @@ body{top:0 !important;}
   padding:10px 14px; padding-bottom:max(10px, env(safe-area-inset-bottom));
 }
 #botOverlayBody #adminTab-assistant{ display:flex !important; flex-direction:column; flex:1; min-height:0; }
-#botOverlayBody .bot-top{ flex-shrink:0; max-height:50vh; overflow-y:auto; }
-#botOverlayBody #botChat{ flex:1; min-height:0; max-height:none !important; overflow-y:auto; }
+/* Dans la fenêtre plein écran : seulement la conversation (les réglages s'ouvrent avec le bouton ⚙️) */
+#botOverlayBody .bot-top{ display:none; flex-shrink:0; }
+#botOverlay.settings-open #botOverlayBody .bot-top{ display:block; max-height:60vh; overflow-y:auto; margin-bottom:8px; }
+#botOverlayBody #botChat{ flex:1; min-height:0; max-height:none !important; overflow-y:auto; margin-top:0 !important; }
 #botOverlayBody .bot-bottom{ flex-shrink:0; }
+#botOverlayBody #botQuick{ flex-wrap:nowrap !important; overflow-x:auto; padding-bottom:4px; }
+#botOverlayBody #botQuick .chip{ white-space:nowrap; flex-shrink:0; }
+#botQuick{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.bot-inputrow{ display:flex; align-items:flex-end; gap:8px; }
+.bot-inputrow .input{ flex:1; margin:0; resize:none; max-height:120px; overflow-y:auto; line-height:1.4; }
+#botSendBtn{
+  flex-shrink:0; width:48px; height:48px; border-radius:50%; border:0; cursor:pointer; font-size:20px; color:#fff;
+  background:linear-gradient(135deg,var(--yellow),var(--pink));
+}
+#botSendBtn:disabled{ opacity:.5; }

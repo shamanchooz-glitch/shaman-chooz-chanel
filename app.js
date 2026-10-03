@@ -1568,6 +1568,7 @@ async function botShowReport(){
     else line = 'très ancienne version ⚠️. Envoie le dernier cloudflare-worker.js sur GitHub (mise à jour automatique) ou remplace-le dans Cloudflare.';
   }catch(e){ line = "injoignable ⚠️ (vérifie l'adresse du Worker dans ai-config.js)."; }
   bubble.innerHTML += `<br><br><b>🔌 Relais Cloudflare (Worker) :</b> ${line}`;
+  botScroll(bubble);
 }
 function providerLabel(p){
   return ({ auto:'Programmation automatique', playlist:'Boucle de films & séries', cloudflare:'Cloudflare Stream' })[p] || LIVE_PROVIDERS[p] || p;
@@ -1630,14 +1631,26 @@ function botReportHtml(){
   L.push(`<b>✅ À faire en priorité :</b><br>` + (todo.length ? todo.map((t,i)=>`${i+1}. ${t}`).join('<br>') : `Rien d'urgent. Tout est en ordre.`));
   return L.join('<br><br>');
 }
+function botScroll(div){
+  const chat = document.getElementById('botChat');
+  if(!chat || !div) return;
+  if(div.classList.contains('bot-msg-bot') && div.offsetHeight > chat.clientHeight * 0.7){
+    chat.scrollTop += div.getBoundingClientRect().top - chat.getBoundingClientRect().top - 8;
+  } else {
+    chat.scrollTop = chat.scrollHeight;
+  }
+}
 function botBubble(role, html){
   const chat = document.getElementById('botChat');
   const div = document.createElement('div');
-  div.style.cssText = `border-radius:14px;padding:10px 12px;margin:8px 0;line-height:1.45;font-size:15px;` +
-    (role==='user' ? 'background:rgba(200,120,60,.15);margin-left:28px;' : 'background:rgba(0,0,0,.05);margin-right:12px;');
+  div.className = role === 'user' ? 'bot-msg-user' : 'bot-msg-bot';
+  div.style.cssText = `border-radius:18px;padding:10px 14px;margin:8px 0;line-height:1.5;font-size:16px;width:fit-content;word-break:break-word;` +
+    (role === 'user'
+      ? 'background:rgba(200,120,60,.2);margin-left:auto;max-width:86%;border-bottom-right-radius:5px;'
+      : 'background:rgba(0,0,0,.06);margin-right:auto;max-width:94%;border-bottom-left-radius:5px;');
   div.innerHTML = html;
   chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+  botScroll(div);
   return div;
 }
 function renderBotTab(){
@@ -1646,13 +1659,20 @@ function renderBotTab(){
   if(!chat.children.length){
     botBubble('bot', "Bonjour ! Je suis ton robot. Je peux te faire le point du site, changer les prix, gérer la chaîne, ajouter des vidéos à la boucle, écrire tes textes et tes idées de vidéos. Pour m'apprendre une nouvelle règle, dis-moi par exemple : « Retiens que ... ». Dis-moi ce que tu veux, simplement.");
   }
-  const quick = ['Fais-moi le point du site', "Qu'est-ce que je dois faire aujourd'hui ?", 'Baisse le prix réaliste à 60 par seconde', 'Mets la chaîne en maintenance', 'Enlève la maintenance'];
+  const quick = [
+    { label:'📋 Le point du site', report:true },
+    { label:"✅ Que faire aujourd'hui ?", text:"Qu'est-ce que je dois faire aujourd'hui ?" },
+    { label:'💡 Idées de vidéos', text:'Donne-moi 3 idées de vidéos pour mes services, avec le titre, la voix off en français et le prompt en anglais pour le générateur.' },
+    { label:'🗓️ Plan de la semaine', text:'Fais-moi le plan de contenu de la semaine pour la chaîne.' },
+    { label:'🛠️ Mettre en maintenance', text:'Mets la chaîne en maintenance' },
+    { label:'▶️ Enlever la maintenance', text:'Enlève la maintenance' }
+  ];
   const q = document.getElementById('botQuick');
-  q.innerHTML = quick.map((t,i)=>`<button class="chip" data-botquick="${i}">${escH(t)}</button>`).join('');
+  q.innerHTML = quick.map((t,i)=>`<button class="chip" data-botquick="${i}">${escH(t.label)}</button>`).join('');
   q.querySelectorAll('[data-botquick]').forEach(b=> b.onclick = ()=>{
     const t = quick[parseInt(b.dataset.botquick)];
-    if(parseInt(b.dataset.botquick) === 0){ botBubble('user', escH(t)); botShowReport(); return; }
-    document.getElementById('botInput').value = t; botSend();
+    if(t.report){ botBubble('user', 'Fais-moi le point du site'); botShowReport(); return; }
+    document.getElementById('botInput').value = t.text; botSend();
   });
 }
 function botDescribe(a){
@@ -1816,7 +1836,7 @@ async function botSend(){
   const input = document.getElementById('botInput');
   const text = input.value.trim();
   if(!text) return;
-  input.value = '';
+  input.value = ''; input.style.height = 'auto';
   botBubble('user', escH(text).replace(/\n/g, '<br>'));
   BOT_HISTORY.push({ role:'user', content:text });
   if(/^\s*(fais[- ]moi\s+)?le point/i.test(text)){
@@ -1845,6 +1865,7 @@ async function botSend(){
       cp.onclick = async ()=>{ try{ await navigator.clipboard.writeText(data.reply); toast('Texte copié.', 'ok'); }catch(e){ prompt('Copie ce texte :', data.reply); } };
       thinking.appendChild(cp);
     }
+    botScroll(thinking);
     BOT_HISTORY.push({ role:'assistant', content: data.reply || '' });
     const valid = (Array.isArray(data.actions) ? data.actions : []).filter(a=>a && typeof a.type === 'string').slice(0, 8);
     botShowActions(valid);
@@ -1884,6 +1905,7 @@ function openBotOverlay(){
   const tab = document.getElementById('adminTab-assistant');
   if(!BOT_TAB_HOME) BOT_TAB_HOME = { parent: tab.parentNode, next: tab.nextSibling };
   document.getElementById('botOverlayBody').appendChild(tab);
+  document.getElementById('botOverlay').classList.remove('settings-open');
   document.getElementById('botOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
   renderBotTab();
@@ -2769,6 +2791,8 @@ function bindEvents(){
   document.getElementById('botAddRuleBtn').onclick = botAddRuleFromForm;
   document.getElementById('botFab').onclick = openBotOverlay;
   document.getElementById('botCloseBtn').onclick = closeBotOverlay;
+  document.getElementById('botSettingsBtn').onclick = ()=> document.getElementById('botOverlay').classList.toggle('settings-open');
+  document.getElementById('botInput').addEventListener('input', e=>{ e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; });
   setInterval(updateBotFab, 2000);
   document.getElementById('botSaveInstrBtn').onclick = botSaveInstructions;
   document.getElementById('botReportBtn').onclick = ()=>{ botBubble('user', 'Fais-moi le point du site'); botShowReport(); };

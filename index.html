@@ -528,22 +528,24 @@
         <input class="input" id="botNewRule" placeholder="Ex : Sache aussi rédiger des contrats simples">
         <button class="btn btn-ghost" id="botAddRuleBtn">➕ Ajouter à mes instructions</button>
       </details>
+      <label class="hint" style="display:flex;align-items:flex-start;gap:8px;margin:10px 0 0;">
+        <input type="checkbox" id="botAutoApply"> Appliquer directement sans me demander (les prix restent protégés par le contrôle de marge)
+      </label>
       <details style="margin-top:8px;">
         <summary class="field-label" style="cursor:pointer;">⚙️ Branchement du robot (une seule fois)</summary>
         <p class="hint">Le robot utilise l'IA gratuite de Cloudflare (dans la limite quotidienne). Dans Cloudflare, ouvre ton Worker :<br>
         1. <b>Paramètres > Liaisons > Ajouter une liaison > Workers AI</b>, nom de la variable : <code>AI</code>.<br>
         2. <b>Paramètres > Variables et secrets</b> : ajoute <code>FIREBASE_API_KEY</code> et <code>ADMIN_EMAIL</code> (les valeurs de ton fichier firebase-config.js).<br>
-        3. Envoie le dernier <code>cloudflare-worker.js</code> sur GitHub (mise à jour automatique) ou colle-le dans Cloudflare puis Déployer.</p>
+        3. Envoie le dernier <code>cloudflare-worker.js</code> sur GitHub (mise à jour automatique).</p>
       </details>
     </div>
     <div id="botChat" style="max-height:420px;overflow-y:auto;padding:4px 0;margin-top:8px;"></div>
     <div class="bot-bottom">
-      <div id="botQuick" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;"></div>
-      <textarea class="input" id="botInput" rows="2" placeholder="Écris ton instruction ici (ex : baisse le prix réaliste à 70 par seconde)"></textarea>
-      <button class="btn btn-primary" id="botSendBtn">Envoyer au robot</button>
-      <label class="hint" style="display:flex;align-items:flex-start;gap:8px;margin:8px 0 0;">
-        <input type="checkbox" id="botAutoApply"> Appliquer directement sans me demander (les prix restent protégés par le contrôle de marge)
-      </label>
+      <div id="botQuick"></div>
+      <div class="bot-inputrow">
+        <textarea class="input" id="botInput" rows="1" placeholder="Écris ton message au robot..."></textarea>
+        <button id="botSendBtn" aria-label="Envoyer">➤</button>
+      </div>
     </div>
   </div>
 
@@ -637,8 +639,11 @@
 <button id="botFab" aria-label="Ouvrir le robot assistant">🤖<span id="botFabBadge"></span></button>
 <div id="botOverlay" role="dialog" aria-label="Robot assistant">
   <div id="botOverlayHead">
-    <strong style="font-size:18px;">🤖 Mon robot assistant</strong>
-    <button class="btn btn-ghost" id="botCloseBtn" style="margin:0;width:auto;padding:8px 14px;">✖️ Fermer</button>
+    <strong style="font-size:18px;">🤖 Mon robot</strong>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="botSettingsBtn" aria-label="Réglages du robot" style="margin:0;width:auto;padding:8px 12px;">⚙️</button>
+      <button class="btn btn-ghost" id="botCloseBtn" style="margin:0;width:auto;padding:8px 12px;">✖️ Fermer</button>
+    </div>
   </div>
   <div id="botOverlayBody"></div>
 </div>
