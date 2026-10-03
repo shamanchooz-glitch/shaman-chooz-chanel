@@ -1555,7 +1555,7 @@ async function resetPricing(){
 
 /* ---------- Robot assistant de l'admin ---------- */
 let BOT_HISTORY = [];
-const EXPECTED_WORKER_VERSION = "2026-10-02-b";
+const EXPECTED_WORKER_VERSION = "2026-10-03-a";
 async function botShowReport(){
   const bubble = botBubble('bot', botReportHtml());
   if(!aiConfigured()) return;
@@ -1644,7 +1644,7 @@ function renderBotTab(){
   document.getElementById('botInstructions').value = LIVE_SETTINGS.assistantInstructions || '';
   const chat = document.getElementById('botChat');
   if(!chat.children.length){
-    botBubble('bot', "Bonjour ! Je suis ton robot. Je peux te faire le point du site, changer les prix, gérer la chaîne, ajouter des vidéos à la boucle, et plus. Dis-moi ce que tu veux, simplement.");
+    botBubble('bot', "Bonjour ! Je suis ton robot. Je peux te faire le point du site, changer les prix, gérer la chaîne, ajouter des vidéos à la boucle, écrire tes textes et tes idées de vidéos. Pour m'apprendre une nouvelle règle, dis-moi par exemple : « Retiens que ... ». Dis-moi ce que tu veux, simplement.");
   }
   const quick = ['Fais-moi le point du site', "Qu'est-ce que je dois faire aujourd'hui ?", 'Baisse le prix réaliste à 60 par seconde', 'Mets la chaîne en maintenance', 'Enlève la maintenance'];
   const q = document.getElementById('botQuick');
@@ -1678,6 +1678,7 @@ function botDescribe(a){
     case 'add_slot': return `Ajouter un créneau : ${(a.days||[]).map(d=>DAY_NAMES[d]).join(', ')} de ${a.start} à ${a.end} (${providerLabel(a.provider)})`;
     case 'set_pass_price': return `Changer le prix du pass « ${a.name} » : ${n(a.price)}`;
     case 'set_catalog_price': return `Changer le prix de « ${a.title} » : ${n(a.price)}`;
+    case 'add_instruction': return `Retenir cette nouvelle règle : « ${a.text} »`;
   }
   return 'Action inconnue';
 }
@@ -1762,6 +1763,7 @@ async function botExecute(a){
         try{ renderLivePassSwatches(); }catch(e){}
         return { ok:true, text:`Pass « ${entry[1].name} » : ${fcfa(price)}.` };
       }
+      case 'add_instruction': return await botAddInstruction(a.text);
       case 'set_catalog_price': {
         const price = num(a.price); if(price === undefined) return { ok:false, text:'Prix invalide.' };
         const q = String(a.title||'').toLowerCase();
@@ -1857,6 +1859,55 @@ async function botSend(){
     thinking.innerHTML = escH(msgs[e.message] || ("Petit problème : " + (e.message || e)));
   } finally { btn.disabled = false; }
 }
+
+async function botAddInstruction(text){
+  text = String(text || '').trim().replace(/\s+/g, ' ');
+  if(!text) return { ok:false, text:'Texte vide.' };
+  const cur = (LIVE_SETTINGS.assistantInstructions || '').trimEnd();
+  const next = (cur ? cur + '\n' : '') + '- ' + text;
+  if(next.length > 4000) return { ok:false, text:`Trop long : il reste ${Math.max(0, 3998 - cur.length)} caractères. Raccourcis ou supprime une ancienne règle dans « Mes instructions et compétences ».` };
+  LIVE_SETTINGS.assistantInstructions = next;
+  await DB.update('liveSettings', { assistantInstructions: next });
+  const box = document.getElementById('botInstructions'); if(box) box.value = next;
+  return { ok:true, text:'Règle ajoutée à tes instructions.' };
+}
+async function botAddRuleFromForm(){
+  const input = document.getElementById('botNewRule');
+  const r = await botAddInstruction(input.value);
+  toast(r.text, r.ok ? 'ok' : 'err');
+  if(r.ok) input.value = '';
+}
+
+/* ---------- Bulle du robot : fenêtre plein écran ---------- */
+let BOT_TAB_HOME = null;
+function openBotOverlay(){
+  const tab = document.getElementById('adminTab-assistant');
+  if(!BOT_TAB_HOME) BOT_TAB_HOME = { parent: tab.parentNode, next: tab.nextSibling };
+  document.getElementById('botOverlayBody').appendChild(tab);
+  document.getElementById('botOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  renderBotTab();
+  const chat = document.getElementById('botChat'); chat.scrollTop = chat.scrollHeight;
+}
+function closeBotOverlay(){
+  const tab = document.getElementById('adminTab-assistant');
+  document.getElementById('botOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  if(BOT_TAB_HOME){ BOT_TAB_HOME.parent.insertBefore(tab, BOT_TAB_HOME.next); }
+  tab.style.display = 'none';
+}
+function updateBotFab(){
+  const fab = document.getElementById('botFab');
+  if(!fab) return;
+  const show = typeof ADMIN_LOGGED_IN !== 'undefined' && ADMIN_LOGGED_IN;
+  fab.style.display = show ? 'flex' : 'none';
+  if(!show && document.getElementById('botOverlay').classList.contains('open')) closeBotOverlay();
+  const badge = document.getElementById('botFabBadge');
+  const pending = show ? Object.values(ORDERS || {}).filter(o=>o.status === 'pending').length : 0;
+  badge.textContent = pending > 99 ? '99+' : pending;
+  badge.style.display = pending ? 'flex' : 'none';
+}
+
 async function botSaveInstructions(){
   const text = document.getElementById('botInstructions').value.trim().slice(0, 4000);
   LIVE_SETTINGS.assistantInstructions = text;
@@ -2711,6 +2762,10 @@ function bindEvents(){
   Object.values(PR_FIELDS).forEach(id=> document.getElementById(id).addEventListener('input', renderPricingAnalysis));
   document.getElementById('prApplyBtn').onclick = applyPricing;
   document.getElementById('botSendBtn').onclick = botSend;
+  document.getElementById('botAddRuleBtn').onclick = botAddRuleFromForm;
+  document.getElementById('botFab').onclick = openBotOverlay;
+  document.getElementById('botCloseBtn').onclick = closeBotOverlay;
+  setInterval(updateBotFab, 2000);
   document.getElementById('botSaveInstrBtn').onclick = botSaveInstructions;
   document.getElementById('botReportBtn').onclick = ()=>{ botBubble('user', 'Fais-moi le point du site'); botShowReport(); };
   document.getElementById('botInput').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && e.ctrlKey){ e.preventDefault(); botSend(); } });

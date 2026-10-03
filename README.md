@@ -362,3 +362,12 @@ Le fichier `wrangler.jsonc` (à la racine de ton dépôt GitHub, à côté de `c
 **Ensuite :** à chaque fois que tu envoies un nouveau `cloudflare-worker.js` sur GitHub, Cloudflare le déploie en 1 à 2 minutes. N'utilise plus « Modifier le code » dans Cloudflare : tes changements seraient écrasés.
 Tes secrets (JSON2VIDEO_KEY, FIREBASE_API_KEY, ADMIN_EMAIL) restent en place. Le nom dans `wrangler.jsonc` doit rester identique au nom du Worker dans Cloudflare. En cas d'erreur, regarde l'historique des builds (onglet Déploiements) : l'ancienne version continue de tourner.
 Dans 🤖 Robot > « Fais-moi le point du site », une ligne « 🔌 Relais Cloudflare » te dit si le Worker est à jour.
+
+
+## Étape 20 — La bulle du robot (fenêtre plein écran)
+Quand tu es connecté à l'admin, une bulle **🤖** apparaît en bas à gauche de l'écran, sur toutes les pages. Appuie dessus : le robot s'ouvre en **plein écran**. Un badge rouge sur la bulle indique le nombre de commandes en attente.
+- Écris tes demandes en bas de l'écran. Les réponses et les actions proposées s'affichent en grand dans la conversation.
+- **📜 Mes instructions et compétences** : modifie tout le texte, ou ajoute une seule règle avec « ➕ Ajouter ». Tu peux aussi dire au robot : « Retiens que ... » et il l'ajoute lui-même à tes instructions (4000 caractères maximum).
+- Appuie sur **✖️ Fermer** pour revenir au site.
+- Limite honnête : le robot apprend de nouvelles règles et compétences d'écriture, d'organisation et de gestion. Pour une toute nouvelle fonction qui n'existe pas encore dans le site (un nouveau bouton, un nouvel écran), il faut modifier le code du site.
+- Le cache de `sw.js` passe à `scc-v6`. Le Worker passe à la version `2026-10-03-a` (ligne « 🔌 Relais Cloudflare » du point du site).

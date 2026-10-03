@@ -34,7 +34,7 @@
 //   https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video   (qualité supérieure, plus cher)
 // Pour revenir au modèle par défaut, supprime simplement cette variable.
 // Numéro de version du Worker (le site le compare pour te dire si le Worker est à jour).
-const WORKER_VERSION = "2026-10-02-b";
+const WORKER_VERSION = "2026-10-03-a";
 const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video";
 const JSON2VIDEO_API = "https://api.json2video.com/v2/movies";
 
@@ -244,6 +244,7 @@ ACTIONS POSSIBLES (n'utilise que celles-ci, avec ces champs exacts) :
 {"type":"add_slot","days":[1,2,3],"start":"18:00","end":"20:00","provider":"youtube","label":"..."}  (jours : 0=dimanche, 1=lundi ... 6=samedi ; heure de Côte d'Ivoire)
 {"type":"set_pass_price","name":"1 jour","price":150}
 {"type":"set_catalog_price","title":"titre de la vidéo","price":500}
+{"type":"add_instruction","text":"la nouvelle règle ou compétence, en une phrase"}  (à utiliser quand le fondateur te demande de retenir, d'apprendre ou d'ajouter une règle ou une compétence)
 
 INSTRUCTIONS PERMANENTES DU FONDATEUR (à respecter toujours) :
 ${instructions || "(aucune pour l'instant)"}
