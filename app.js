@@ -52,6 +52,10 @@ const DB = {
 /* ---------- Utilitaires ---------- */
 function toast(msg, type=''){
   const t = document.getElementById('toast');
+  // Les notifications s'affichent en haut : sous l'en-tête du site, ou sous la barre de la fenêtre du robot
+  const overlay = document.getElementById('botOverlay');
+  const head = overlay && overlay.classList.contains('open') ? document.getElementById('botOverlayHead') : document.querySelector('header');
+  t.style.top = ((head ? head.getBoundingClientRect().bottom : 0) + 8) + 'px';
   t.textContent = msg;
   t.className = 'toast show ' + type;
   setTimeout(()=> t.className = 'toast ' + type, 2600);
