@@ -1900,7 +1900,11 @@ function updateBotFab(){
   const fab = document.getElementById('botFab');
   if(!fab) return;
   const show = typeof ADMIN_LOGGED_IN !== 'undefined' && ADMIN_LOGGED_IN;
-  fab.style.display = show ? 'flex' : 'none';
+  // Cache la bulle quand le robot est déjà affiché dans l'onglet 🤖 de l'admin (elle gênerait la lecture)
+  const tab = document.getElementById('adminTab-assistant');
+  const overlay = document.getElementById('botOverlay');
+  const tabShownInPage = tab && tab.style.display !== 'none' && !overlay.contains(tab);
+  fab.style.display = (show && !tabShownInPage) ? 'flex' : 'none';
   if(!show && document.getElementById('botOverlay').classList.contains('open')) closeBotOverlay();
   const badge = document.getElementById('botFabBadge');
   const pending = show ? Object.values(ORDERS || {}).filter(o=>o.status === 'pending').length : 0;
