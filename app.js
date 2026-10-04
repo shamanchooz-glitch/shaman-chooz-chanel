@@ -1543,6 +1543,13 @@ async function ogGenerate(){
   const secs = scenes.map(s=>ogClipSeconds(s.voice));
   if(secs.includes(0)) return toast('Une phrase de voix off est trop longue (24 mots maximum).', 'err');
   const total = secs.reduce((a,b)=>a+b, 0);
+  try{
+    const info = await workerGet('/');
+    if(info && info.keys){
+      if(!info.keys.fal) return toast("La clé Kling (FAL_KEY) n'est pas encore ajoutée dans Cloudflare : voir README, étape 5.", 'err');
+      if(!info.keys.json2video) return toast("La clé JSON2Video (JSON2VIDEO_KEY) n'est pas ajoutée dans Cloudflare.", 'err');
+    }
+  }catch(e){ return toast("Impossible de joindre le relais Cloudflare. Réessaie dans un instant.", 'err'); }
   if(!confirm(`Cette génération utilise tes crédits Kling et JSON2Video : environ ${ogCostFCFA(total).toLocaleString('fr-FR')} FCFA pour ${total} secondes. Continuer ?`)) return;
   const btn = document.getElementById('ogGenerateBtn'); btn.disabled = true;
   const addRealism = document.getElementById('studioRealismBox').checked;
@@ -1574,10 +1581,11 @@ async function ogGenerate(){
     }
     if(document.getElementById('ogCatalog').checked){
       const id = 'v'+Date.now();
-      CATALOG[id] = { title, cat:'Divers', price: aiRealistePrice(total), desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl, createdAt:Date.now(), views:0, free:true };
+      const catPrice = Math.max(0, Math.round(Number(document.getElementById('ogPrice').value) || 0));
+      CATALOG[id] = { title, cat:'Services', price: catPrice, desc:'Vidéo réaliste avec voix off en français.', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl, createdAt:Date.now(), views:0, free:false };
       await DB.set('catalog', CATALOG);
       try{ renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos(); }catch(e){}
-      note += ' Ajoutée au catalogue.';
+      note += ' Ajoutée au catalogue (payante).';
     }
     status.innerHTML = `✅ Vidéo prête !${note} <a href="${videoUrl}" target="_blank" rel="noopener noreferrer">Voir la vidéo ↗</a>`;
     toast('Vidéo finale prête.', 'ok');
@@ -1714,7 +1722,7 @@ async function resetPricing(){
 
 /* ---------- Robot assistant de l'admin ---------- */
 let BOT_HISTORY = [];
-const EXPECTED_WORKER_VERSION = "2026-10-03-a";
+const EXPECTED_WORKER_VERSION = "2026-10-04-a";
 async function botShowReport(){
   const bubble = botBubble('bot', botReportHtml());
   if(!aiConfigured()) return;
@@ -1723,6 +1731,11 @@ async function botShowReport(){
     const r = await fetch(AI_CONFIG.workerUrl + '/');
     const d = await r.json();
     if(d.version === EXPECTED_WORKER_VERSION) line = 'à jour ✅';
+    if(d.keys){
+      line += `<br>🎬 Clé Kling (fal.ai) : ${d.keys.fal ? 'présente ✅' : 'MANQUANTE ⚠️ (ajoute FAL_KEY dans Cloudflare)'}`;
+      line += `<br>🎙️ Clé JSON2Video : ${d.keys.json2video ? 'présente ✅' : 'MANQUANTE ⚠️ (ajoute JSON2VIDEO_KEY)'}`;
+      line += `<br><span style="font-size:13px;">(Je vérifie que les clés existent, pas le solde de tes crédits.)</span>`;
+    }
     else if(d.version) line = `ancienne version ⚠️ (installée : ${escH(d.version)}, attendue : ${EXPECTED_WORKER_VERSION}). Envoie le dernier cloudflare-worker.js sur GitHub pour la mise à jour automatique.`;
     else line = 'très ancienne version ⚠️. Envoie le dernier cloudflare-worker.js sur GitHub (mise à jour automatique) ou remplace-le dans Cloudflare.';
   }catch(e){ line = "injoignable ⚠️ (vérifie l'adresse du Worker dans ai-config.js)."; }

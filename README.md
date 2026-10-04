@@ -384,4 +384,6 @@ Dans 🎬 Studio IA, la section **⚡ Générer la vidéo finale d'un coup** cr�
 - Ça utilise tes crédits payants (Kling + JSON2Video). Une estimation en FCFA s'affiche avant de lancer, et le site te demande confirmation. Fais d'abord un essai avec une seule scène.
 - Dans un épisode, le bouton **⚡ Préparer cet épisode** remplit automatiquement le titre et les scènes.
 - Sans payer d'API : « Copier la voix off et ouvrir Fliki / InVideo AI » (versions gratuites avec filigrane, droits commerciaux limités selon l'offre).
+- Le catalogue reçoit la vidéo **en version payante** au prix que tu choisis (500 FCFA par défaut). Les gratuits restent possibles depuis l'onglet Catalogue.
+- Il faut les deux clés dans le Worker : `FAL_KEY` (Kling, via fal.ai) et `JSON2VIDEO_KEY`. Le point du robot indique si elles sont présentes (pas le solde).
 - Les liens des vidéos assemblées sont hébergés par JSON2Video : garde une copie des vidéos importantes.

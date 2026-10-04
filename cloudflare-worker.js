@@ -34,7 +34,7 @@
 //   https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video   (qualité supérieure, plus cher)
 // Pour revenir au modèle par défaut, supprime simplement cette variable.
 // Numéro de version du Worker (le site le compare pour te dire si le Worker est à jour).
-const WORKER_VERSION = "2026-10-03-a";
+const WORKER_VERSION = "2026-10-04-a";
 const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video";
 const JSON2VIDEO_API = "https://api.json2video.com/v2/movies";
 
@@ -276,6 +276,6 @@ ${snapshot}`;
       }
     }
 
-    return json({ ok: true, version: WORKER_VERSION, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
+    return json({ ok: true, version: WORKER_VERSION, keys: { fal: Boolean(env.FAL_KEY), json2video: Boolean(env.JSON2VIDEO_KEY) }, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
   }
 };

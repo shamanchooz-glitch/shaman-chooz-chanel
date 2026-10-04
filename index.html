@@ -363,7 +363,9 @@
         <textarea class="input" id="ogScenes" rows="7" placeholder="A plumber repairing a kitchen sink in a bright home | Un robinet qui fuit, ça arrive à tout le monde."></textarea>
         <select class="input" id="ogVoice"><option value="f">Voix de femme</option><option value="m">Voix d'homme</option></select>
         <label class="hint" style="display:flex;align-items:center;gap:8px;margin:6px 0;"><input type="checkbox" id="ogLoop" checked> Ajouter à la boucle de la chaîne</label>
-        <label class="hint" style="display:flex;align-items:center;gap:8px;margin:6px 0;"><input type="checkbox" id="ogCatalog"> Ajouter aussi au catalogue (gratuit pour les visiteurs)</label>
+        <label class="hint" style="display:flex;align-items:center;gap:8px;margin:6px 0;"><input type="checkbox" id="ogCatalog" checked> Ajouter au catalogue (vidéo payante)</label>
+        <p class="hint" style="margin:6px 0 2px;">Prix de vente au catalogue (FCFA)</p>
+        <input class="input" id="ogPrice" type="number" min="0" inputmode="numeric" value="500" placeholder="500">
         <p class="hint" id="ogEstimate"></p>
         <button class="btn btn-primary" id="ogGenerateBtn">⚡ Générer la vidéo finale</button>
         <p class="hint" id="ogStatus"></p>
