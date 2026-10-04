@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v9';
+const CACHE_NAME = 'scc-v11';
 
 const APP_SHELL = [
   './',
@@ -65,7 +65,7 @@ self.addEventListener('fetch', (event) => {
 
   // Les vidéos (dossier videos/, .mp4, .webm, .m3u8) et les lectures partielles
   // (Range) passent toujours directement par le réseau, sans mise en cache.
-  if (url.pathname.includes('/videos/') || /\.(mp4|webm|m3u8|ts)$/i.test(url.pathname) || req.headers.has('range')) return;
+  if (url.pathname.endsWith('/studio-episodes.js') || url.pathname.includes('/videos/') || /\.(mp4|webm|m3u8|ts)$/i.test(url.pathname) || req.headers.has('range')) return;
 
   event.respondWith(
     fetch(req)

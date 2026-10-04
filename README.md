@@ -371,3 +371,17 @@ Quand tu es connecté à l'admin, une bulle **🤖** apparaît en bas à gauche 
 - Appuie sur **✖️ Fermer** pour revenir au site.
 - Limite honnête : le robot apprend de nouvelles règles et compétences d'écriture, d'organisation et de gestion. Pour une toute nouvelle fonction qui n'existe pas encore dans le site (un nouveau bouton, un nouvel écran), il faut modifier le code du site.
 - Le cache de `sw.js` passe à `scc-v6`. Le Worker passe à la version `2026-10-03-a` (ligne « 🔌 Relais Cloudflare » du point du site).
+
+
+## Étape 21 — Épisodes scène par scène dans le Studio IA
+Dans 🎬 Studio IA, sous « Ma scène », la section **🎞️ Mes épisodes (voix off française)** liste chaque épisode avec ses 10 scènes séparées. Pour chaque scène : **✏️ Utiliser cette scène** (elle se place dans « Ma scène »), puis le bouton d'un générateur. Coche **Clip fait** pour suivre ton avancement. La voix off complète de l'épisode se copie en un bouton, à coller dans CapCut (voix française).
+Les épisodes sont dans le fichier `studio-episodes.js` : pour en ajouter, il suffit de remplacer ce seul fichier sur GitHub (il est toujours chargé à jour, sans changer la version du cache).
+
+
+## Étape 22 — Vidéo finale avec voix off française, d'un coup (Studio IA)
+Dans 🎬 Studio IA, la section **⚡ Générer la vidéo finale d'un coup** crée la vidéo complète sans CapCut : une ligne = une scène, au format `description en anglais | phrase de voix off en français`. Le site génère les clips (Kling), ajoute la voix française (JSON2Video) et assemble la vidéo, puis l'ajoute à la boucle de la chaîne (et au catalogue si tu le coches).
+- Une phrase de 11 mots maximum donne un clip de 5 s ; de 12 à 24 mots, un clip de 10 s.
+- Ça utilise tes crédits payants (Kling + JSON2Video). Une estimation en FCFA s'affiche avant de lancer, et le site te demande confirmation. Fais d'abord un essai avec une seule scène.
+- Dans un épisode, le bouton **⚡ Préparer cet épisode** remplit automatiquement le titre et les scènes.
+- Sans payer d'API : « Copier la voix off et ouvrir Fliki / InVideo AI » (versions gratuites avec filigrane, droits commerciaux limités selon l'offre).
+- Les liens des vidéos assemblées sont hébergés par JSON2Video : garde une copie des vidéos importantes.

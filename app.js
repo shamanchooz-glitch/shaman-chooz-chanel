@@ -513,15 +513,15 @@ function watermarkScene(){
     { type:'text', text:'SHAMAN CHOOZ CHANEL', style:'001' }
   ]};
 }
-function buildRealisteMovie(clipUrls, clipDurations){
+function buildRealisteMovie(clipUrls, clipDurations, voices, voiceName){
   return {
     resolution: 'full-hd',
     scenes: [
-      ...clipUrls.map((url,i)=>({
-        duration: clipDurations[i],
-        transition: i>0 ? { style:'fade', duration:0.5 } : undefined,
-        elements: [ { type:'video', src:url, duration: clipDurations[i] } ]
-      })),
+      ...clipUrls.map((url,i)=>{
+        const elements = [ { type:'video', src:url, duration: clipDurations[i] } ];
+        if(voices && voices[i]) elements.push({ type:'voice', model:'azure', voice: voiceName, text: voices[i], duration: clipDurations[i] });
+        return { duration: clipDurations[i], transition: i>0 ? { style:'fade', duration:0.5 } : undefined, elements };
+      }),
       watermarkScene()
     ]
   };
@@ -1431,7 +1431,162 @@ async function studioCopyAndOpen(idx){
   try{ await navigator.clipboard.writeText(text); toast('Texte copié : colle-le dans la case du site.', 'ok'); }
   catch(e){ prompt('Copie ce texte puis colle-le dans le site :', text); }
 }
+
+/* ---------- Studio IA : épisodes scène par scène ---------- */
+function studioDoneMap(){ try{ return JSON.parse(localStorage.getItem('studioDone') || '{}'); }catch(e){ return {}; } }
+function studioSetDone(key, val){
+  const d = studioDoneMap(); if(val) d[key] = 1; else delete d[key];
+  try{ localStorage.setItem('studioDone', JSON.stringify(d)); }catch(e){}
+}
+function studioEpScene(s){ return (typeof s === 'string') ? { prompt:s, voice:'' } : s; }
+function studioEpVoice(ep){ return ep.scenes.map(s=>studioEpScene(s).voice).filter(Boolean).join(' '); }
+function renderStudioEpisodes(){
+  const box = document.getElementById('studioEpisodes');
+  if(!box) return;
+  const eps = window.STUDIO_EPISODES || [];
+  if(!eps.length){ box.innerHTML = ''; return; }
+  const done = studioDoneMap();
+  const count = ei => eps[ei].scenes.filter((_,si)=>done[ei+'-'+si]).length;
+  box.innerHTML = `<p class="field-label">🎞️ Mes épisodes (voix off française)</p>` + eps.map((ep,ei)=>`
+    <details class="order-card" data-ep="${ei}">
+      <summary><strong>${escH(ep.title)}</strong> <span class="hint" style="margin:0;" data-epcount="${ei}">(${count(ei)}/${ep.scenes.length} clips faits)</span></summary>
+      <button class="btn btn-primary" data-prepare="${ei}">⚡ Préparer cet épisode pour la génération d'un coup</button>
+      <p class="hint">Ou fais les scènes une par une avec les générateurs gratuits : « Utiliser cette scène » la place dans « Ma scène ».</p>
+      ${ep.scenes.map((raw,si)=>{ const s = studioEpScene(raw); return `
+        <div style="border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0;">
+          <strong>Scène ${si+1}</strong>
+          <p class="hint" style="margin:4px 0;">${escH(s.prompt)}</p>
+          ${s.voice ? `<p class="hint" style="margin:0 0 8px;">🎙️ ${escH(s.voice)}</p>` : ''}
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-usescene="${ei}-${si}">✏️ Utiliser cette scène</button>
+            <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px;"><input type="checkbox" data-donescene="${ei}-${si}" ${done[ei+'-'+si] ? 'checked' : ''}> Clip fait</label>
+          </div>
+        </div>`; }).join('')}
+      <p class="field-label">🎙️ Voix off française de l'épisode</p>
+      <p class="hint">${escH(studioEpVoice(ep))}</p>
+      <button class="btn btn-ghost" data-copyvoice="${ei}">📋 Copier la voix off</button>
+      <p class="hint">Option sans payer d'API (version gratuite avec filigrane, images d'archive ou IA, voix françaises) :</p>
+      <button class="btn btn-ghost" data-openvoice="${ei}|https://fliki.ai">Copier la voix off et ouvrir Fliki ↗</button>
+      <button class="btn btn-ghost" data-openvoice="${ei}|https://invideo.io">Copier la voix off et ouvrir InVideo AI ↗</button>
+    </details>`).join('');
+  box.querySelectorAll('[data-prepare]').forEach(b=> b.onclick = ()=>{
+    const ep = eps[parseInt(b.dataset.prepare)];
+    document.getElementById('ogTitle').value = ep.title;
+    document.getElementById('ogScenes').value = ep.scenes.map(r=>{ const s = studioEpScene(r); return s.voice ? `${s.prompt} | ${s.voice}` : s.prompt; }).join('\n');
+    b.closest('details').open = false;
+    ogUpdateEstimate();
+    document.getElementById('ogTitle').scrollIntoView({ behavior:'smooth', block:'center' });
+    toast("Épisode prêt : vérifie l'estimation, puis appuie sur « Générer ».", 'ok');
+  });
+  box.querySelectorAll('[data-usescene]').forEach(b=> b.onclick = ()=>{
+    const [ei, si] = b.dataset.usescene.split('-').map(Number);
+    document.getElementById('studioScene').value = studioEpScene(eps[ei].scenes[si]).prompt;
+    b.closest('details').open = false;
+    document.getElementById('studioScene').scrollIntoView({ behavior:'smooth', block:'center' });
+    toast(`Scène ${si+1} prête : choisis un générateur plus bas.`, 'ok');
+  });
+  box.querySelectorAll('[data-donescene]').forEach(c=> c.onchange = ()=>{
+    studioSetDone(c.dataset.donescene, c.checked);
+    const ei = parseInt(c.dataset.donescene.split('-')[0]);
+    const d = studioDoneMap();
+    const n = eps[ei].scenes.filter((_,si)=>d[ei+'-'+si]).length;
+    const span = box.querySelector(`[data-epcount="${ei}"]`);
+    if(span) span.textContent = `(${n}/${eps[ei].scenes.length} clips faits)`;
+  });
+  box.querySelectorAll('[data-copyvoice]').forEach(b=> b.onclick = async ()=>{
+    const txt = studioEpVoice(eps[parseInt(b.dataset.copyvoice)]);
+    try{ await navigator.clipboard.writeText(txt); toast('Voix off copiée.', 'ok'); }
+    catch(e){ prompt('Copie ce texte :', txt); }
+  });
+  box.querySelectorAll('[data-openvoice]').forEach(b=> b.onclick = async ()=>{
+    const [ei, url] = b.dataset.openvoice.split('|');
+    const txt = studioEpVoice(eps[parseInt(ei)]);
+    window.open(url, '_blank');
+    try{ await navigator.clipboard.writeText(txt); toast('Voix off copiée : colle-la dans le site.', 'ok'); }
+    catch(e){ prompt('Copie ce texte :', txt); }
+  });
+}
+
+/* ---------- Studio IA : vidéo finale d'un coup (clips Kling + voix off française JSON2Video) ---------- */
+function ogParse(){
+  return document.getElementById('ogScenes').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
+    const [p, ...rest] = l.split('|');
+    return { prompt: p.trim(), voice: rest.join('|').trim() };
+  }).filter(x=>x.prompt);
+}
+function ogClipSeconds(voice){
+  const words = voice ? voice.split(/\s+/).filter(Boolean).length : 0;
+  if(words <= 11) return 5;
+  if(words <= 24) return 10;
+  return 0;
+}
+function ogCostFCFA(totalSec){
+  const c = { ...PR_DEFAULTS, ...((LIVE_SETTINGS.pricing && LIVE_SETTINGS.pricing.costs) || {}) };
+  return Math.round(totalSec * (c.usd * c.rate + c.asm));
+}
+function ogUpdateEstimate(){
+  const el = document.getElementById('ogEstimate');
+  const scenes = ogParse();
+  if(!scenes.length){ el.textContent = ''; return; }
+  const secs = scenes.map(s=>ogClipSeconds(s.voice));
+  if(secs.includes(0)){ el.textContent = '⚠️ Une phrase de voix off est trop longue (24 mots maximum). Raccourcis-la ou coupe-la en deux scènes.'; return; }
+  const total = secs.reduce((a,b)=>a+b, 0);
+  el.textContent = `${scenes.length} scène${scenes.length>1?'s':''} • ${total} s de vidéo • coût estimé pour toi : environ ${ogCostFCFA(total).toLocaleString('fr-FR')} FCFA de crédits.`;
+}
+async function ogGenerate(){
+  const title = document.getElementById('ogTitle').value.trim();
+  const scenes = ogParse();
+  const status = document.getElementById('ogStatus');
+  if(!title) return toast('Donne un titre à la vidéo.', 'err');
+  if(!scenes.length) return toast('Écris au moins une scène.', 'err');
+  if(!aiConfigured()) return toast("La génération vidéo IA n'est pas activée (README, étape 5).", 'err');
+  const secs = scenes.map(s=>ogClipSeconds(s.voice));
+  if(secs.includes(0)) return toast('Une phrase de voix off est trop longue (24 mots maximum).', 'err');
+  const total = secs.reduce((a,b)=>a+b, 0);
+  if(!confirm(`Cette génération utilise tes crédits Kling et JSON2Video : environ ${ogCostFCFA(total).toLocaleString('fr-FR')} FCFA pour ${total} secondes. Continuer ?`)) return;
+  const btn = document.getElementById('ogGenerateBtn'); btn.disabled = true;
+  const addRealism = document.getElementById('studioRealismBox').checked;
+  const voiceName = getLangVoice('fr', document.getElementById('ogVoice').value);
+  try{
+    let completed = 0;
+    status.textContent = `Génération des clips… (0/${scenes.length})`;
+    const clipUrls = await Promise.all(scenes.map(async (s, i)=>{
+      const text = (addRealism && !/realistic/i.test(s.prompt)) ? s.prompt + STUDIO_REALISM : s.prompt;
+      const { request_id } = await workerPost('/kling/submit', { prompt: text, duration: secs[i] });
+      for(let t=0; t<90; t++){
+        await new Promise(r=>setTimeout(r, 4000));
+        const d = await workerGet('/kling/status?id=' + encodeURIComponent(request_id));
+        if(d.status === 'ERROR') throw new Error(d.message || `Erreur à la scène ${i+1}`);
+        if(d.status === 'COMPLETED' && d.videoUrl){ completed++; status.textContent = `Génération des clips… (${completed}/${scenes.length})`; return d.videoUrl; }
+      }
+      throw new Error(`Délai dépassé à la scène ${i+1}`);
+    }));
+    status.textContent = 'Ajout de la voix off française et assemblage…';
+    const movie = buildRealisteMovie(clipUrls, secs, scenes.map(s=>s.voice), voiceName);
+    const videoUrl = await renderMovieAndWait(movie, st=>{ status.textContent = `Assemblage en cours… (${st})`; });
+    let note = '';
+    if(document.getElementById('ogLoop').checked){
+      let sec = await detectDuration(videoUrl);
+      if(!sec) sec = total + 2;
+      await savePlaylist([...(LIVE_SETTINGS.playlist || []), { id:'p'+Date.now(), title, type:'file', ref:videoUrl, sec }]);
+      try{ renderAdminPlaylist(); }catch(e){}
+      note += ' Ajoutée à la boucle.';
+    }
+    if(document.getElementById('ogCatalog').checked){
+      const id = 'v'+Date.now();
+      CATALOG[id] = { title, cat:'Divers', price: aiRealistePrice(total), desc:'', emoji:'🎬', hue:Math.floor(Math.random()*360), videoUrl, createdAt:Date.now(), views:0, free:true };
+      await DB.set('catalog', CATALOG);
+      try{ renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos(); }catch(e){}
+      note += ' Ajoutée au catalogue.';
+    }
+    status.innerHTML = `✅ Vidéo prête !${note} <a href="${videoUrl}" target="_blank" rel="noopener noreferrer">Voir la vidéo ↗</a>`;
+    toast('Vidéo finale prête.', 'ok');
+  } catch(e){
+    status.textContent = 'Erreur : ' + (e.message || 'la génération a échoué.');
+  } finally { btn.disabled = false; }
+}
 function renderStudio(){
+  renderStudioEpisodes();
   const tools = document.getElementById('studioTools');
   tools.innerHTML = STUDIO_TOOLS.map((t,i)=>`
     <div class="order-card">
@@ -2789,6 +2944,8 @@ function bindEvents(){
   document.getElementById('fallbackPlaylistCheckbox').addEventListener('change', saveLiveSettings);
   document.getElementById('saveSourcesBtn').onclick = saveLiveSettings;
   document.getElementById('studioToggleBtn').onclick = toggleStudio;
+  document.getElementById('ogGenerateBtn').onclick = ogGenerate;
+  document.getElementById('ogScenes').addEventListener('input', ogUpdateEstimate);
   Object.values(PR_FIELDS).forEach(id=> document.getElementById(id).addEventListener('input', renderPricingAnalysis));
   document.getElementById('prApplyBtn').onclick = applyPricing;
   document.getElementById('botSendBtn').onclick = botSend;

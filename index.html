@@ -355,10 +355,23 @@
       <label class="hint" style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;">
         <input type="checkbox" id="studioRealismBox" checked> Ajouter automatiquement les mots « réalisme » (lumière naturelle, caméra fluide, sans texte)
       </label>
+      <div id="studioEpisodes"></div>
+      <div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0;">
+        <p class="field-label" style="margin-top:0;">⚡ Générer la vidéo finale d'un coup (voix off française)</p>
+        <p class="hint">Une ligne = une scène : <b>description en anglais | phrase de voix off en français</b>. Le site génère les clips, ajoute la voix française et assemble la vidéo, sans CapCut. Ça utilise tes crédits Kling et JSON2Video (payants) : fais d'abord un essai avec 1 seule scène.</p>
+        <input class="input" id="ogTitle" placeholder="Titre de la vidéo (ex : Épisode 1 – La plomberie)">
+        <textarea class="input" id="ogScenes" rows="7" placeholder="A plumber repairing a kitchen sink in a bright home | Un robinet qui fuit, ça arrive à tout le monde."></textarea>
+        <select class="input" id="ogVoice"><option value="f">Voix de femme</option><option value="m">Voix d'homme</option></select>
+        <label class="hint" style="display:flex;align-items:center;gap:8px;margin:6px 0;"><input type="checkbox" id="ogLoop" checked> Ajouter à la boucle de la chaîne</label>
+        <label class="hint" style="display:flex;align-items:center;gap:8px;margin:6px 0;"><input type="checkbox" id="ogCatalog"> Ajouter aussi au catalogue (gratuit pour les visiteurs)</label>
+        <p class="hint" id="ogEstimate"></p>
+        <button class="btn btn-primary" id="ogGenerateBtn">⚡ Générer la vidéo finale</button>
+        <p class="hint" id="ogStatus"></p>
+      </div>
       <div id="studioTools"></div>
       <div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0;">
         <p class="field-label" style="margin-top:0;">ℹ️ À savoir, en toute honnêteté</p>
-        <p class="hint">• Aucun générateur n'est gratuit sans limite : ils donnent des crédits gratuits chaque jour (environ 2 à 6 clips par jour par site). Utilise plusieurs sites et reviens chaque jour.<br>• Un clip dure 5 à 10 secondes. Pour avoir plus long, fais plusieurs clips et ajoute-les dans la boucle : ils s'enchaînent.<br>• Certains sites ajoutent un filigrane, et les sources se contredisent sur l'usage commercial. Lis les conditions du site avant de diffuser sur une chaîne payante.<br>• Évite les vrais visages de personnes connues et les marques.</p>
+        <p class="hint">• Aucun générateur n'est gratuit sans limite : ils donnent des crédits gratuits chaque jour (environ 2 à 6 clips par jour par site). Utilise plusieurs sites et reviens chaque jour.<br>• Voix en français : la voix générée directement par Kling est officiellement prévue pour l'anglais, le chinois, le japonais, le coréen et l'espagnol, et Veo est surtout en anglais. Pour une voix française fiable, utilise « Générer la vidéo finale d'un coup » ci-dessus.<br>• Un clip dure 5 à 10 secondes. Pour avoir plus long, fais plusieurs clips et ajoute-les dans la boucle : ils s'enchaînent.<br>• Certains sites ajoutent un filigrane, et les sources se contredisent sur l'usage commercial. Lis les conditions du site avant de diffuser sur une chaîne payante.<br>• Évite les vrais visages de personnes connues et les marques.</p>
       </div>
       <p class="field-label">💡 Idées de scènes (appuie pour l'utiliser)</p>
       <div id="studioPrompts"></div>
@@ -592,6 +605,7 @@
 <script src="firebase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <script src="ai-config.js"></script>
+<script src="studio-episodes.js"></script>
 <script src="app.js"></script>
 
 <!-- ===== Traduction du site dans toutes les langues (widget Google Traduction, gratuit) =====
