@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v13';
+const CACHE_NAME = 'scc-v14';
 
 const APP_SHELL = [
   './',
@@ -34,7 +34,10 @@ const APP_SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
+      // "reload" = on va chercher les fichiers directement sur le serveur (jamais une vieille copie en mémoire du navigateur)
+      .then((cache) => Promise.all(APP_SHELL.map((u) =>
+        fetch(new Request(u, { cache: 'reload' })).then((r) => (r.ok ? cache.put(u, r) : null)).catch(() => null)
+      )))
       .then(() => self.skipWaiting())
   );
 });
@@ -74,12 +77,12 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.endsWith('/studio-episodes.js') || url.pathname.includes('/videos/') || /\.(mp4|webm|m3u8|ts)$/i.test(url.pathname) || req.headers.has('range')) return;
 
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })
       .then((networkResponse) => {
         const copy = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
         return networkResponse;
       })
-      .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
+      .catch(() => caches.match(req, { ignoreSearch: true }).then((cached) => cached || caches.match('./index.html')))
   );
 });

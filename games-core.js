@@ -7,6 +7,7 @@
    Les jeux eux-mêmes sont dans games-board.js, games-arcade.js
    et games-brain.js (chacun s'enregistre avec SCCG.register).
    ========================================================== */
+window.SCC_GAMES_BUILD = 14; // numéro de version : vérifié par la page
 (function(){
 'use strict';
 
@@ -115,6 +116,7 @@ SCCG.refreshSession = async function(){
 };
 
 SCCG.init = async function(){
+  if(SCCG._started) return; SCCG._started = true;
   try{
     let p = await DB.get('gamePasses', null);
     if(!p){
@@ -139,7 +141,7 @@ SCCG.init = async function(){
   SCCG.refreshSession();
   setInterval(()=>{ if(SCCG.session && SCCG.session.expiresAt <= Date.now()){ setSession(null); SCCG.renderHub(); } }, 60000);
 };
-SCCG.onShow = function(){ SCCG.renderHub(); SCCG.refreshSession(); };
+SCCG.onShow = function(){ if(!SCCG._started){ SCCG.init(); return; } SCCG.renderHub(); SCCG.refreshSession(); };
 
 /* ---------- Hub : liste des jeux ---------- */
 SCCG.bind = function(){

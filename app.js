@@ -1,3 +1,4 @@
+window.SCC_APP_BUILD = 14; // numéro de version : permet à la page de vérifier que app.js est bien à jour
 /* ==========================================================
    SHAMAN CHOOZ CHANEL — logique principale
    ========================================================== */
@@ -2898,7 +2899,17 @@ function showScreen(name){
   if(name==='admin-login'){ document.getElementById('screen-admin-login').classList.add('active'); document.querySelector('[data-tab="admin"]').classList.add('active'); }
   if(name==='admin-dash'){ document.getElementById('screen-admin-dash').classList.add('active'); document.querySelector('[data-tab="admin"]').classList.add('active'); }
   if(name==='live'){ document.getElementById('screen-live').classList.add('active'); document.querySelector('[data-tab="live"]').classList.add('active'); }
-  if(name==='games'){ document.getElementById('screen-games').classList.add('active'); document.querySelector('[data-tab="games"]').classList.add('active'); if(window.SCCG) SCCG.onShow(); }
+  if(name==='games'){
+    const gs = document.getElementById('screen-games'), gt = document.querySelector('[data-tab="games"]');
+    if(gs) gs.classList.add('active'); if(gt) gt.classList.add('active');
+    if(window.SCCG) SCCG.onShow();
+    else if(gs){ const gg = document.getElementById('gmGrid'); if(gg) gg.innerHTML = '<p class="hint" style="grid-column:1/-1;">Les fichiers des jeux ne sont pas encore chargés. Ferme puis rouvre l\'application dans 2 minutes.</p>'; }
+  }
+  // Sécurité : si aucun écran n'est actif (fichier manquant ou pas à jour), on revient au catalogue au lieu d'afficher une page vide
+  if(!document.querySelector('.screen.active')){
+    const c = document.getElementById('screen-catalog'), ct = document.querySelector('[data-tab="catalog"]');
+    if(c) c.classList.add('active'); if(ct) ct.classList.add('active');
+  }
 
   // Sur l'écran "Mes vidéos", on réactualise automatiquement toutes les 15s pour que le
   // client voie sans rien faire quand sa commande passe de "en attente" à "débloquée".
@@ -3081,7 +3092,8 @@ function bindEvents(){
       document.querySelectorAll('[data-admintab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       ['stats','orders','catalog','live','games','pricing','assistant','settings'].forEach(name=>{
-        document.getElementById('adminTab-'+name).style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
+        const tabEl = document.getElementById('adminTab-'+name);
+        if(tabEl) tabEl.style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
       });
       if(btn.dataset.admintab === 'stats') renderAdminStats();
       if(btn.dataset.admintab === 'live') renderAdminLiveTab();
@@ -3091,9 +3103,8 @@ function bindEvents(){
     };
   });
   document.getElementById('addVideoBtn').onclick = addNewVideo;
-  document.getElementById('addGamePassBtn').onclick = ()=>{ if(window.SCCG) SCCG.addPass(); };
-  document.getElementById('gamesAllFreeBtn').onclick = ()=>{ if(window.SCCG) SCCG.setAllFree(true); };
-  document.getElementById('gamesAllPaidBtn').onclick = ()=>{ if(window.SCCG) SCCG.setAllFree(false); };
+  [['addGamePassBtn', ()=>{ if(window.SCCG) SCCG.addPass(); }], ['gamesAllFreeBtn', ()=>{ if(window.SCCG) SCCG.setAllFree(true); }], ['gamesAllPaidBtn', ()=>{ if(window.SCCG) SCCG.setAllFree(false); }]]
+    .forEach(([id,fn])=>{ const e = document.getElementById(id); if(e) e.onclick = fn; });
 
   document.getElementById('adminOrderSearch').addEventListener('input', e=>{
     ORDER_SEARCH = e.target.value.trim();
