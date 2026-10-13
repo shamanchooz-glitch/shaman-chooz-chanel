@@ -669,6 +669,7 @@ async function init(){
   bindEvents();
   registerSW();
   startUpdateChecks();
+  try{ if(window.SCCG) SCCG.init().catch(e=>console.error('Jeux :', e)); }catch(e){ console.error('Jeux :', e); }
   try{ updateCustomPriceTag(); updateAiRealistePriceTag(); updateAiTemplatePriceTag(); }catch(e){}
 
   // Lien direct vers une vidéo précise (partagée via #v=id) : ouvre directement sa fiche
@@ -1098,14 +1099,15 @@ function renderAdminStats(){
     ? topViewed.map(([,v],i)=>`<p class="hint" style="margin:4px 0;">${i+1}. ${v.title} — ${v.views||0} vue${(v.views||0)>1?'s':''}</p>`).join('')
     : `<p class="hint">Pas encore de données.</p>`;
 
-  const types = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0, 'Pass chaîne':0 };
-  const typeRevenue = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0, 'Pass chaîne':0 };
+  const types = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0, 'Pass chaîne':0, 'Pass jeux':0 };
+  const typeRevenue = { 'Catalogue':0, 'Vidéo sur mesure':0, 'Vidéo IA réaliste':0, 'Vidéo IA pub/diaporama':0, 'Pass chaîne':0, 'Pass jeux':0 };
   paid.forEach(o=>{
     let key = 'Catalogue';
     if(o.type==='custom') key = 'Vidéo sur mesure';
     else if(o.type==='ai' && o.aiMode==='realiste') key = 'Vidéo IA réaliste';
     else if(o.type==='ai' && o.aiMode==='template') key = 'Vidéo IA pub/diaporama';
     else if(o.type==='live-pass') key = 'Pass chaîne';
+    else if(o.type==='game-pass') key = 'Pass jeux';
     types[key]++; typeRevenue[key]+=(o.price||0);
   });
   document.getElementById('statsByType').innerHTML = Object.keys(types).map(k=>
@@ -2383,6 +2385,17 @@ function exportOrdersCsv(){
 }
 async function validateOrder(id){
   const o = ORDERS[id];
+  if(o.type === 'game-pass'){
+    const days = o.passDays || 1, phoneD = String(o.buyerPhone||'').replace(/\D/g,'');
+    let start = Date.now();
+    Object.entries(ORDERS).forEach(([oid,x])=>{
+      if(oid!==id && x.type==='game-pass' && x.status==='paid' && String(x.buyerPhone||'').replace(/\D/g,'')===phoneD && x.gameExpiresAt > start) start = x.gameExpiresAt;
+    });
+    await DB.update(`orders/${id}`, { status:'paid', gameExpiresAt: start + days*24*3600*1000 });
+    toast('Pass jeux validé !', 'ok');
+    renderAdminOrders();
+    return;
+  }
   if(o.type === 'live-pass'){
     const days = o.passDays || 1;
     await DB.update(`orders/${id}`, { status:'paid', liveExpiresAt: Date.now() + days*24*3600*1000 });
@@ -2885,6 +2898,7 @@ function showScreen(name){
   if(name==='admin-login'){ document.getElementById('screen-admin-login').classList.add('active'); document.querySelector('[data-tab="admin"]').classList.add('active'); }
   if(name==='admin-dash'){ document.getElementById('screen-admin-dash').classList.add('active'); document.querySelector('[data-tab="admin"]').classList.add('active'); }
   if(name==='live'){ document.getElementById('screen-live').classList.add('active'); document.querySelector('[data-tab="live"]').classList.add('active'); }
+  if(name==='games'){ document.getElementById('screen-games').classList.add('active'); document.querySelector('[data-tab="games"]').classList.add('active'); if(window.SCCG) SCCG.onShow(); }
 
   // Sur l'écran "Mes vidéos", on réactualise automatiquement toutes les 15s pour que le
   // client voie sans rien faire quand sa commande passe de "en attente" à "débloquée".
@@ -3066,16 +3080,20 @@ function bindEvents(){
     btn.onclick = ()=>{
       document.querySelectorAll('[data-admintab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      ['stats','orders','catalog','live','pricing','assistant','settings'].forEach(name=>{
+      ['stats','orders','catalog','live','games','pricing','assistant','settings'].forEach(name=>{
         document.getElementById('adminTab-'+name).style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
       });
       if(btn.dataset.admintab === 'stats') renderAdminStats();
       if(btn.dataset.admintab === 'live') renderAdminLiveTab();
+      if(btn.dataset.admintab === 'games' && window.SCCG) SCCG.renderAdmin();
       if(btn.dataset.admintab === 'pricing') renderAdminPricing();
       if(btn.dataset.admintab === 'assistant') renderBotTab();
     };
   });
   document.getElementById('addVideoBtn').onclick = addNewVideo;
+  document.getElementById('addGamePassBtn').onclick = ()=>{ if(window.SCCG) SCCG.addPass(); };
+  document.getElementById('gamesAllFreeBtn').onclick = ()=>{ if(window.SCCG) SCCG.setAllFree(true); };
+  document.getElementById('gamesAllPaidBtn').onclick = ()=>{ if(window.SCCG) SCCG.setAllFree(false); };
 
   document.getElementById('adminOrderSearch').addEventListener('input', e=>{
     ORDER_SEARCH = e.target.value.trim();

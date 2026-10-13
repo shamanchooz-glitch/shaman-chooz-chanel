@@ -10,6 +10,7 @@
 <link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="games.css">
 </head>
 <body>
 
@@ -211,6 +212,16 @@
   </div>
 </section>
 
+<!-- ===== ECRAN SALLE DE JEUX ===== -->
+<section class="screen" id="screen-games">
+  <h2 class="section-title">🎮 Salle de jeux <span class="hint" id="gmCount" style="font-weight:600;"></span></h2>
+  <p class="section-sub">Des dizaines de jeux directement sur ton téléphone : arcade, plateau, réflexion, quiz et réflexes. Bats les records et grimpe dans le classement !</p>
+  <div id="gmPassCard"></div>
+  <input class="input" id="gmSearch" placeholder="🔎 Chercher un jeu…" autocomplete="off">
+  <div class="filters" id="gmFilters"></div>
+  <div class="gm-grid" id="gmGrid"></div>
+</section>
+
 <!-- ===== ECRAN ADMIN : LOGIN ===== -->
 <section class="screen" id="screen-admin-login">
   <div class="lock-wrap">
@@ -239,6 +250,7 @@
     <button class="chip" data-admintab="orders">Commandes</button>
     <button class="chip" data-admintab="catalog">Catalogue</button>
     <button class="chip" data-admintab="live">🔴 Chaîne</button>
+    <button class="chip" data-admintab="games">🎮 Jeux</button>
     <button class="chip" data-admintab="pricing">💰 Prix</button>
     <button class="chip" data-admintab="assistant">🤖 Robot</button>
     <button class="chip" data-admintab="settings">Réglages</button>
@@ -496,6 +508,31 @@
     <div id="adminReplaysList" style="margin-top:10px;"></div>
   </div>
 
+  <div id="adminTab-games" style="display:none;">
+    <p class="field-label" style="margin-top:0;">📊 Statistiques des jeux</p>
+    <div class="stats-grid" id="gameStatsCards"></div>
+    <p class="field-label">🔥 Jeux les plus joués</p>
+    <div id="gameTopPlayed"></div>
+
+    <p class="field-label" style="margin-top:24px;">🎟️ Pass jeux (prix et durée)</p>
+    <p class="hint">Les joueurs paient avec les mêmes moyens que pour les pass de la chaîne (Orange Money, MTN, Moov, Wave…). Tu valides ensuite la commande dans l'onglet « Commandes ».</p>
+    <div id="adminGamePassesList"></div>
+    <input class="input" id="newGpName" placeholder="Nom du pass (ex : 3 jours)">
+    <div style="display:flex;gap:8px;">
+      <input class="input" id="newGpDays" type="number" min="1" placeholder="Durée (jours)">
+      <input class="input" id="newGpPrice" type="number" min="0" placeholder="Prix (FCFA)">
+    </div>
+    <button class="btn btn-primary" id="addGamePassBtn">+ Ajouter ce pass</button>
+
+    <p class="field-label" style="margin-top:24px;">🎮 Mes jeux</p>
+    <p class="hint">Coche « Gratuit » pour offrir un jeu à tout le monde (vitrine), ou « Masqué » pour le cacher du site.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="btn btn-ghost" style="margin:0;" id="gamesAllFreeBtn">Tout gratuit</button>
+      <button class="btn btn-ghost" style="margin:0;" id="gamesAllPaidBtn">Tout payant</button>
+    </div>
+    <div id="adminGamesList"></div>
+  </div>
+
   <div id="adminTab-pricing" style="display:none;">
     <p class="hint" style="margin-top:0;">Fixe tes prix de vente. Le système compare chaque prix à ton coût réel + ta marge minimale. Si un prix est trop bas, la validation est refusée et le prix minimum conseillé s'affiche. Tu peux ainsi proposer des prix bas sans jamais vendre à perte.</p>
     <p class="field-label">💳 Mes coûts réels</p>
@@ -590,6 +627,7 @@
   <button class="tab active" data-tab="catalog"><span>🎞️</span>Catalogue</button>
   <button class="tab" data-tab="custom"><span>🎨</span>Créer</button>
   <button class="tab" data-tab="live"><span>🔴</span>Chaîne</button>
+  <button class="tab" data-tab="games"><span>🎮</span>Jeux</button>
   <button class="tab" data-tab="client"><span>📺</span>Mes vidéos</button>
   <button class="tab" data-tab="admin"><span>🔒</span>Admin<span class="dot" id="adminDot"></span></button>
 </nav>
@@ -608,6 +646,11 @@
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <script src="ai-config.js"></script>
 <script src="studio-episodes.js"></script>
+<script src="games-core.js"></script>
+<script src="games-board.js"></script>
+<script src="games-puzzle.js"></script>
+<script src="games-arcade.js"></script>
+<script src="games-brain.js"></script>
 <script src="app.js"></script>
 
 <!-- ===== Traduction du site dans toutes les langues (widget Google Traduction, gratuit) =====

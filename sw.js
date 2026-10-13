@@ -10,13 +10,19 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v12';
+const CACHE_NAME = 'scc-v13';
 
 const APP_SHELL = [
   './',
   './index.html',
   './style.css',
+  './games.css',
   './app.js',
+  './games-core.js',
+  './games-board.js',
+  './games-puzzle.js',
+  './games-arcade.js',
+  './games-brain.js',
   './firebase-config.js',
   './ai-config.js',
   './manifest.json',

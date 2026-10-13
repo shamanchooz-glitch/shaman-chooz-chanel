@@ -30,6 +30,33 @@
     "liveSettings": {
       ".read": true,
       ".write": "auth != null || !data.exists()"
+    },
+    "gamePasses": {
+      ".read": true,
+      ".write": "auth != null || !data.exists()"
+    },
+    "gameSettings": {
+      ".read": true,
+      ".write": "auth != null || !data.exists()"
+    },
+    "gameScores": {
+      "$gameId": {
+        ".read": true,
+        ".indexOn": [
+          "score"
+        ],
+        "$entryId": {
+          ".write": "auth != null || !data.exists()",
+          ".validate": "newData.hasChildren(['name','score','ts']) && newData.child('name').isString() && newData.child('name').val().length <= 24 && newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('score').val() < 100000000 && newData.child('ts').isNumber()"
+        }
+      }
+    },
+    "gamePlays": {
+      ".read": true,
+      "$gameId": {
+        ".write": true,
+        ".validate": "newData.isNumber()"
+      }
     }
   }
 }
