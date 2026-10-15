@@ -28,7 +28,7 @@ const LS = {
 };
 const say = (m,t)=>{ try{ toast(m,t); }catch(e){} };
 
-const CATS = ['Arcade','Plateau','Réflexion','Mots & quiz','Réflexes'];
+const CATS = ['Arcade','Sport','Plateau','Cartes & dés','Réflexion','Mots & quiz','Réflexes'];
 const DEFAULT_PASSES = {
   gp1:{ name:'1 jour', days:1, price:100 },
   gp2:{ name:'1 semaine', days:7, price:500 },
@@ -175,8 +175,10 @@ function renderPassCard(){
 function renderFilters(){
   const f = $('gmFilters'); if(!f) return;
   const cats = ['Tous'].concat(CATS.filter(c=>visibleGames().some(g=>g.cat===c)));
-  f.innerHTML = cats.map(c=>`<button class="chip ${c===SCCG.cat?'active':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('');
+  f.innerHTML = '<button class="chip" data-rand="1">🎲 Au hasard</button>' + cats.map(c=>`<button class="chip ${c===SCCG.cat?'active':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('');
   f.querySelectorAll('[data-c]').forEach(b=> b.onclick = ()=>{ SCCG.cat = b.dataset.c; SCCG.renderHub(); });
+  const rb = f.querySelector('[data-rand]');
+  if(rb) rb.onclick = ()=>{ const v = visibleGames(), pl = v.filter(g=>SCCG.canPlay(g)), l = pl.length ? pl : v; if(l.length) SCCG.open(l[rnd(l.length)].id); };
 }
 SCCG.renderHub = function(){
   const grid = $('gmGrid'); if(!grid) return;
@@ -191,7 +193,7 @@ SCCG.renderHub = function(){
     const h = g.hue==null ? 20 : g.hue;
     return `<button class="gm-tile" data-g="${esc(g.id)}">
       <div class="gm-thumb" style="background:linear-gradient(135deg,hsl(${h},62%,40%),hsl(${(h+55)%360},62%,22%));"><span>${g.emoji}</span>
-        ${free ? '<em class="gm-badge free">GRATUIT</em>' : (locked ? '<em class="gm-badge">🔒 Pass</em>' : '')}</div>
+        ${free ? '<em class="gm-badge free">GRATUIT</em>' : (locked ? '<em class="gm-badge">🔒 Pass</em>' : '')}${g.isNew ? '<em class="gm-badge new">NOUVEAU</em>' : ''}</div>
       <strong>${esc(g.name)}</strong><small>${esc(g.desc)}</small>
       <span class="gm-rec">${best!=null && g.score!=='none' ? '🏅 Record : '+esc(fmtScore(g,best)) : ''}</span></button>`;
   }).join('');

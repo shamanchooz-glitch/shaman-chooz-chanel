@@ -389,10 +389,19 @@ Dans 🎬 Studio IA, la section **⚡ Générer la vidéo finale d'un coup** cr�
 - Les liens des vidéos assemblées sont hébergés par JSON2Video : garde une copie des vidéos importantes.
 
 
-## Étape 23 — La salle de jeux (🎮 Jeux) : 40 jeux, sans aucune clé API
+## Étape 23 — La salle de jeux (🎮 Jeux) : 100 jeux, sans aucune clé API
 Un nouvel onglet **🎮 Jeux** est dans la barre du bas. Tous les jeux tournent directement dans le téléphone du visiteur : **rien à brancher, aucune clé, aucun coût de service**.
 
-**Les 40 jeux** — Arcade : Snake, Blocs (Tetris), Oiseau, Casse-briques, Pong, Défense spatiale, Cours & Saute, Tour, Traverse, Météores, Attrape-fruits · Plateau (contre l'IA, de plus en plus forte) : Morpion, Puissance 4, Awalé, Dames · Réflexion : Mémoire, 2048, Démineur, Sudoku, Taquin, Lumières, Code secret, Bataille navale, Tour de Hanoï, Labyrinthe, Mémoire des chiffres · Mots & quiz : Quiz Culture (74 questions), Pendu, Mot secret, Calcul mental, Plus ou moins, Mots mélangés · Réflexes : Tape-taupe, Test de réflexes, Simon, Pierre-Feuille-Ciseaux, Couleurs piégées, Tap-tap, Trouve l'intrus, Tape dans l'ordre. Chaque jeu a un record personnel et un classement public (pseudo + score). Aucun jeu d'argent ni de pari.
+**Les 100 jeux** (repérables par le badge « NOUVEAU » pour les 60 derniers ; bouton « 🎲 Au hasard » et recherche dans la liste) :
+- **Arcade** : Snake, Blocs (Tetris), Oiseau, Casse-briques, Pong, Défense spatiale, Cours & Saute, Tour, Traverse, Météores, Attrape-fruits, Tron, Astéroïdes, Gobeur (type Pac-Man), Saute-nuages, Chasseur, Zigzag, Couteaux, Course, Coupe-fruits, Artillerie
+- **Sport** : Air hockey, Tirs au but, Jongleur, Basket, Tir à l'arc, Billard
+- **Plateau (contre l'IA, de plus en plus forte)** : Morpion, Puissance 4, Awalé, Dames, Othello, Échecs, Gomoku, Allumettes, Jeu des points, Serpents & Échelles
+- **Cartes & dés** : Cartes Couleurs (type Uno), Yams, Jeu du Cochon, Haut ou Bas, Dominos
+- **Réflexion** : Mémoire, 2048, Démineur, Sudoku, Taquin, Lumières, Code secret, Bataille navale, Tour de Hanoï, Labyrinthe, Mémoire des chiffres, Solitaire à pions, Duel de mémoire, Bulles, Bonbons, Grille de blocs, Sokoban, Plomberie, Picross, Glissade, Embouteillage, Le 24, Suites logiques, Éclairs, Taureaux & Vaches
+- **Mots & quiz** : Quiz Culture, Pendu, Mot secret, Calcul mental, Plus ou moins, Mots mélangés, Mots cachés, Orthographe, Drapeaux, Capitales, Animaux, Vrai ou Faux, Quiz Foot, Quiz Sciences, Quiz Histoire, Tables de multiplication
+- **Réflexes** : Tape-taupe, Test de réflexes, Simon, Pierre-Feuille-Ciseaux, Couleurs piégées, Tap-tap, Trouve l'intrus, Tape dans l'ordre, Compte vite, Cibles, Chrono précis, Main sûre, Tuiles piano, Éclate-bulles, Plantation de cacao, Feu tricolore, Pêche
+
+Chaque jeu a un record personnel et un classement public (pseudo + score). Aucun jeu d'argent ni de pari. Les puzzles (Sokoban, Embouteillage, Glissade, Plomberie, Le 24…) sont générés automatiquement et sont toujours résolubles : il y en a donc une infinité.
 
 **Paiement = comme les pass de la chaîne** : le joueur choisit un pass (1 jour / 1 semaine / 1 mois par défaut), paie par Wave / MTN / Moov / Orange Money, entre sa référence, et reçoit un code d'accès (le même code que pour ses vidéos et la chaîne). La commande apparaît dans **Admin > Commandes** ; tu cliques **✓ Valider** et le pass jeux est activé (si le joueur rachète un pass avant la fin du précédent, les durées s'additionnent). Le joueur se connecte ensuite avec son numéro + son code (« J'ai déjà un pass ») et reste connecté sur son téléphone.
 
@@ -404,5 +413,7 @@ Un nouvel onglet **🎮 Jeux** est dans la barre du bas. Tous les jeux tournent 
 **⚠️ À faire une seule fois après la mise en ligne** : republier les règles Firebase (Console Firebase > Realtime Database > Règles > coller le contenu de `database.rules.json` > Publier, comme à l'Étape 9). Le fichier contient maintenant les chemins `gamePasses`, `gameSettings`, `gameScores` et `gamePlays`. Sans ça, les achats de pass fonctionnent mais les classements, les réglages admin des jeux et les statistiques ne s'enregistrent pas.
 
 **Limite honnête** : comme pour les pass de la chaîne, le contrôle d'accès se fait dans le navigateur (pas de serveur de jeu). C'est suffisant pour un usage normal ; une personne très technique pourrait le contourner.
+
+**Les fichiers** : `games-core.js` (moteur, paiement, classements) + `games-board.js`, `games-puzzle.js`, `games-arcade.js`, `games-brain.js`, `games-more1.js` à `games-more6.js` (les jeux) + `games.css`. Si un fichier manque ou n'est pas à jour, la page l'indique et se répare toute seule.
 
 **Ajouter un jeu plus tard** : dans l'un des fichiers `games-*.js`, un jeu est un bloc `SCCG.register({ id, name, emoji, cat, desc, how, create(api){…} })`. Le moteur (`games-core.js`) fournit l'écran plein écran, le score, le record, le classement, le son, la pause et les commandes tactiles.

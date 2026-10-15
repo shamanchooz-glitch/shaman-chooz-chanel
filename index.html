@@ -10,7 +10,7 @@
 <link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="games.css?v=14">
+<link rel="stylesheet" href="games.css?v=15">
 </head>
 <body>
 
@@ -646,11 +646,17 @@
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <script src="ai-config.js"></script>
 <script src="studio-episodes.js"></script>
-<script src="games-core.js?v=14"></script>
+<script src="games-core.js?v=15"></script>
 <script src="games-board.js?v=14"></script>
 <script src="games-puzzle.js?v=14"></script>
 <script src="games-arcade.js?v=14"></script>
 <script src="games-brain.js?v=14"></script>
+<script src="games-more1.js?v=15"></script>
+<script src="games-more2.js?v=15"></script>
+<script src="games-more3.js?v=15"></script>
+<script src="games-more4.js?v=15"></script>
+<script src="games-more5.js?v=15"></script>
+<script src="games-more6.js?v=15"></script>
 <script src="app.js?v=14"></script>
 <script>
 /* Contrôle des fichiers du site : si une mise à jour est restée à moitié (ancien fichier en mémoire ou pas encore envoyé),
@@ -665,6 +671,8 @@
       var has = function(id){ return S.games.some(function(g){ return g.id === id; }); };
       if(!has('morpion')) m.push('games-board.js'); if(!has('sudoku')) m.push('games-puzzle.js');
       if(!has('snake')) m.push('games-arcade.js'); if(!has('quiz')) m.push('games-brain.js');
+      if(!has('othello')) m.push('games-more1.js'); if(!has('asteroides')) m.push('games-more2.js'); if(!has('billard')) m.push('games-more3.js');
+      if(!has('sokoban')) m.push('games-more4.js'); if(!has('drapeaux')) m.push('games-more5.js'); if(!has('cibles')) m.push('games-more6.js');
     }
     return m;
   }
