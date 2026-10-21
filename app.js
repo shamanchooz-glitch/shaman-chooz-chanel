@@ -1172,6 +1172,7 @@ async function renderAdminLiveTab(){
   Object.keys(LIVE_PROVIDERS).forEach(k=>{ document.getElementById('src-'+k).value = getSourceValue(k); });
   document.getElementById('liveOnCheckbox').checked = isLiveOn();
   document.getElementById('fallbackPlaylistCheckbox').checked = LIVE_SETTINGS.fallbackPlaylist !== false;
+  const bsc = document.getElementById('builtinSlidesCheckbox'); if(bsc) bsc.checked = LIVE_SETTINGS.builtinSlides !== false;
   updateLiveProviderUI();
   fillSlotProviderSelect();
   renderAdminSchedule();
@@ -1389,6 +1390,7 @@ async function saveLiveSettings(){
   LIVE_SETTINGS.sources = sources;
   LIVE_SETTINGS.liveOn = document.getElementById('liveOnCheckbox').checked;
   LIVE_SETTINGS.fallbackPlaylist = document.getElementById('fallbackPlaylistCheckbox').checked;
+  const bscSave = document.getElementById('builtinSlidesCheckbox'); if(bscSave) LIVE_SETTINGS.builtinSlides = bscSave.checked;
   LIVE_SETTINGS.currentProgram = document.getElementById('currentProgramInput').value.trim();
   LIVE_SETTINGS.offlineMessage = document.getElementById('offlineMessageInput').value.trim();
   LIVE_SETTINGS.maintenanceMode = document.getElementById('maintenanceModeCheckbox').checked;
@@ -2702,8 +2704,14 @@ function slotActive(s, now){
   if(a1 < b1) return days.includes(d) && m >= a1 && m < b1;
   return (days.includes(d) && m >= a1) || (days.includes(prev) && m < b1);
 }
+/* Boucle effective = programmes de l'admin + diaporamas intégrés (slides-engine.js), sauf si l'admin les a désactivés */
+function effectivePlaylist(){
+  const own = LIVE_SETTINGS.playlist || [];
+  if(LIVE_SETTINGS.builtinSlides === false || !window.SCCS || typeof SCCS.playlist !== 'function') return own;
+  return own.concat(SCCS.playlist());
+}
 function currentPlaylistState(){
-  const items = LIVE_SETTINGS.playlist || [];
+  const items = effectivePlaylist();
   const total = items.reduce((t,i)=>t+(i.sec||0), 0);
   if(!items.length || total <= 0) return null;
   const t = Math.max(0, (Date.now() - (LIVE_SETTINGS.playlistEpoch || 0)) / 1000);
@@ -2741,6 +2749,7 @@ function resolveLiveSource(){
 let hlsInstance = null;
 function stopPlayback(){
   CURRENT_PLAY_KEY = '';
+  if(window.SCCS && SCCS.stop) SCCS.stop();
   const video = document.getElementById('livePlayer');
   const frame = document.getElementById('liveYoutubeFrame');
   if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
@@ -2754,6 +2763,15 @@ function playEmbed(url){
   video.pause(); video.removeAttribute('src'); video.style.display = 'none';
   frame.style.display = 'block';
   frame.src = url;
+}
+function playSlides(id, offset){
+  const video = document.getElementById('livePlayer');
+  const frame = document.getElementById('liveYoutubeFrame');
+  const box = document.querySelector('.live-player-box');
+  if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
+  if(video){ video.pause(); video.removeAttribute('src'); video.style.display = 'none'; }
+  if(frame){ frame.removeAttribute('src'); frame.style.display = 'none'; }
+  if(box && window.SCCS) SCCS.play(box, id, offset);
 }
 function playVideoUrl(url, offset){
   url = resolveMediaUrl(url);
@@ -2829,6 +2847,7 @@ async function checkLiveStatus(){
       if(CURRENT_PLAY_KEY !== key){
         stopPlayback(); CURRENT_PLAY_KEY = key;
         if(st.item.type === 'youtube') playEmbed(youtubeEmbedUrl(st.item.ref, st.offset));
+        else if(st.item.type === 'slides') playSlides(st.item.ref, st.offset);
         else playVideoUrl(st.item.ref, st.offset);
       }
       PLAYLIST_TIMER = setTimeout(()=>{ if(liveAccessGranted()) checkLiveStatus(); }, Math.max(1000, st.remaining * 1000 + 300));
