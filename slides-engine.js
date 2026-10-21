@@ -32,8 +32,16 @@ try{ if(localStorage.getItem('scc_slides_sound') === '0') SCCS.sound = false; }c
 function agence(){
   const A = window.AGENCE || {};
   const ok = v => v && !/REMPLACE/i.test(String(v));
-  return { nom: ok(A.nom) ? String(A.nom) : '', contact: ok(A.contact) ? String(A.contact) : '', slogan: ok(A.slogan) ? String(A.slogan) : 'Recrutement et placement dans tous les secteurs d\'activité' };
+  const phones = (Array.isArray(A.telephones) ? A.telephones : []).filter(ok).map(String);
+  if(!phones.length && ok(A.contact)) phones.push(String(A.contact));
+  return {
+    nom: ok(A.nom) ? String(A.nom) : '', court: ok(A.court) ? String(A.court) : '', pays: ok(A.pays) ? String(A.pays) : '',
+    telephones: phones, email: ok(A.email) ? String(A.email) : '', adresse: ok(A.adresse) ? String(A.adresse) : '',
+    siege: ok(A.siege) ? String(A.siege) : '', ville: ok(A.ville) ? String(A.ville) : '',
+    slogan: ok(A.slogan) ? String(A.slogan) : 'Recrutement et placement dans tous les secteurs d\'activité'
+  };
 }
+const hasContact = ag => !!(ag.telephones.length || ag.email || ag.adresse || ag.siege);
 
 /* ---------- Déclaration d'un diaporama ---------- */
 // SCCS.add(id, titre, categorie, palette, [[emoji, titre, texte], …])
@@ -44,7 +52,7 @@ SCCS.add = function(id, titre, cat, pal, slides){
   const tl = []; let t = 0; const push = (type, dur, data)=>{ tl.push({ type, start:t, dur, data }); t += dur; };
   push('intro', 4.5, {});
   sl.forEach((s,i)=>{ const words = (s.t + ' ' + s.x).trim().split(/\s+/).length; push('slide', clamp(2.4 + words/2.4, 5.5, 13), { s, i }); });
-  push('outro', 5.5, {});
+  push('outro', 5.5, {}); if(sh.agency) push('contact', 15, {});
   sh.tl = tl; sh.dur = t;
   SCCS.shows.push(sh); SCCS.byId[id] = sh;
 };
@@ -99,7 +107,7 @@ function chrome(g, sh, t, idx){
   pill(g, sh.agency ? '💼 Agence' : sh.cat, W - 22, 18, 'right', c[2], c[0]);
   g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, H-38, W, 38);
   g.fillStyle = '#fff'; g.font = f(FONT_B, 16); g.textAlign = 'left'; g.textBaseline = 'middle';
-  const left = sh.agency ? ((ag.nom || 'Notre agence') + '  •  Recrutement & placement') : sh.titre;
+  const left = sh.agency ? ((ag.court || ag.nom || 'Notre agence') + '  •  Recrutement & placement') : sh.titre;
   g.fillText(left.length > 70 ? left.slice(0,68) + '…' : left, 20, H-19);
   const n = sh.slides.length, cur = idx > 0 && idx <= n ? idx : null;
   if(cur){ g.textAlign = 'right'; g.fillText(cur + ' / ' + n, W-20, H-19); }
@@ -150,21 +158,48 @@ function drawSlide(g, sh, item, lt, t){
 }
 
 function drawOutro(g, sh, lt, t){
-  const e = ease(lt/.7), fade = lt < .3 ? lt/.3 : 1, ag = agence();
+  const fade = lt < .3 ? lt/.3 : 1, ag = agence();
   g.save(); g.globalAlpha = fade; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  glow(g, W/2, 150, 150, sh.pal[2], .32);
-  emoji(g, sh.agency ? '🤝' : '🎬', W/2, 140 + Math.sin(t*1.8)*6, 100);
+  glow(g, W/2, 140, 150, sh.pal[2], .32);
+  emoji(g, sh.agency ? '🤝' : '🎬', W/2, 130 + Math.sin(t*1.8)*6, 96);
   g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillStyle = '#fff';
   if(sh.agency){
-    g.font = f(FONT_T, 44); g.fillText('Besoin de talents ? Envie d\'un emploi ?', W/2, 252);
-    g.font = f(FONT_T, 50); g.fillStyle = sh.pal[2]; wrap(g, ag.nom || 'Contactez notre agence', f(FONT_T, 50), 860).slice(0,2).forEach((l,k)=> g.fillText(l, W/2, 318 + k*56));
-    g.font = f(FONT_B, 25); g.fillStyle = '#fff'; g.fillText(ag.slogan, W/2, 392, 880);
-    if(ag.contact){ g.font = f(FONT_T, 32); g.fillStyle = '#fff'; g.fillText('📞 ' + ag.contact, W/2, 448, 880); }
-    else { g.font = f(FONT_B, 24); g.fillStyle = 'rgba(255,255,255,.9)'; g.fillText('Contactez-nous dès aujourd\'hui !', W/2, 448); }
+    g.font = f(FONT_T, 42); g.fillText('Besoin de talents ? Envie d\'un emploi ?', W/2, 240, 900);
+    const lines = wrap(g, ag.nom || 'Contactez notre agence', f(FONT_T, 36), 880).slice(0,3);
+    g.font = f(FONT_T, 36); g.fillStyle = sh.pal[2]; lines.forEach((l,k)=> g.fillText(l, W/2, 298 + k*44));
+    const y = 298 + lines.length*44 + 14;
+    g.font = f(FONT_B, 24); g.fillStyle = '#fff'; g.fillText(ag.slogan, W/2, y, 900);
+    g.font = f(FONT_B, 22); g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText(hasContact(ag) ? 'Nos coordonnées dans un instant…' : 'Contactez-nous dès aujourd\'hui !', W/2, y + 40);
   } else {
     g.font = f(FONT_T, 50); g.fillText('Merci d\'avoir regardé !', W/2, 262);
     g.font = f(FONT_B, 26); g.fillStyle = sh.pal[2]; wrap(g, sh.titre, f(FONT_B, 26), 840).slice(0,2).forEach((l,k)=> g.fillText(l, W/2, 318 + k*36));
     g.fillStyle = '#fff'; g.font = f(FONT_B, 24); g.fillText('Un nouveau programme arrive dans un instant…', W/2, 430);
+  }
+  g.restore();
+}
+/* Page « Contactez-nous » (diaporamas Agence) : nom, numéros, e-mail, adresse postale, siège */
+function drawContact(g, sh, lt, t){
+  const ag = agence(), c = sh.pal, fade = lt < .3 ? lt/.3 : (lt > 14.4 ? clamp((15-lt)/.6,0,1) : 1);
+  g.save(); g.globalAlpha = fade; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#fff'; g.font = f(FONT_T, 40); g.fillText('📞 Contactez-nous', W/2, 98);
+  g.fillStyle = c[2]; g.font = f(FONT_T, 26); wrap(g, ag.nom || 'Notre agence de recrutement et de placement', f(FONT_T, 26), 900).slice(0,2).forEach((l,k)=> g.fillText(l, W/2, 140 + k*32));
+  let y = 214, n = 0; const reveal = ()=> clamp((lt - .5 - (n++)*.55)/.4, 0, 1);
+  const row = (draw)=>{ const al = reveal(); g.globalAlpha = fade*al; draw(al); g.globalAlpha = fade; };
+  if(!hasContact(ag)){
+    g.fillStyle = '#fff'; g.font = f(FONT_B, 28); g.fillText('Contactez-nous dès aujourd\'hui !', W/2, 300);
+  } else {
+    if(ag.telephones.length){
+      row(al=>{
+        if(ag.pays){ g.fillStyle = 'rgba(255,255,255,.8)'; g.font = f(FONT_B, 20); g.fillText(ag.pays, W/2, y); y += 14; }
+        g.fillStyle = '#fff'; g.font = f(FONT_T, 30);
+        const tel = ag.telephones, per = tel.length > 3 ? Math.ceil(tel.length / 2) : tel.length, ls = [];
+        for(let k=0; k<tel.length; k+=per) ls.push((k === 0 ? '📞 ' : '') + tel.slice(k, k+per).join('   •   '));
+        ls.forEach((l,k)=> g.fillText(l, W/2, y + 30 + k*40, 900)); y += 30 + ls.length*40 + 2;
+      });
+    }
+    if(ag.email) row(al=>{ g.fillStyle = '#fff'; g.font = f(FONT_T, 28); g.fillText('✉️ ' + ag.email, W/2, y + 24, 900); y += 40; });
+    if(ag.adresse) row(al=>{ g.fillStyle = '#fff'; g.font = f(FONT_B, 24); g.fillText('📮 Adresse postale : ' + ag.adresse, W/2, y + 22, 900); y += 36; });
+    if(ag.siege) row(al=>{ g.fillStyle = 'rgba(255,255,255,.95)'; g.font = f(FONT_B, 22); const ls = wrap(g, '📍 Siège social : ' + ag.siege, f(FONT_B, 22), 900).slice(0,3); ls.forEach((l,k)=> g.fillText(l, W/2, y + 22 + k*28)); y += 22 + ls.length*28; });
   }
   g.restore();
 }
@@ -175,8 +210,8 @@ SCCS.drawFrame = function(g, id, t){
   t = clamp(t, 0, sh.dur - .001);
   const k = itemAt(sh, t), it = sh.tl[k], lt = t - it.start;
   g.save(); g.clearRect(0,0,W,H); background(g, sh, t);
-  if(it.type === 'intro') drawIntro(g, sh, lt, t); else if(it.type === 'outro') drawOutro(g, sh, lt, t); else drawSlide(g, sh, it, lt, t);
-  chrome(g, sh, t, it.type === 'slide' ? it.data.i + 1 : (it.type === 'outro' ? sh.slides.length : 0));
+  if(it.type === 'intro') drawIntro(g, sh, lt, t); else if(it.type === 'outro') drawOutro(g, sh, lt, t); else if(it.type === 'contact') drawContact(g, sh, lt, t); else drawSlide(g, sh, it, lt, t);
+  chrome(g, sh, t, it.type === 'slide' ? it.data.i + 1 : ((it.type === 'outro' || it.type === 'contact') ? sh.slides.length : 0));
   g.restore();
 };
 
@@ -189,25 +224,33 @@ function pickVoice(){
   }catch(e){ return null; }
 }
 function say(text){
-  if(!SCCS.sound || !('speechSynthesis' in window)) return;
+  if(!('speechSynthesis' in window)) return;
   try{
     speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
     VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE; speechSynthesis.speak(u);
   }catch(e){}
 }
+const spokenMail = m => m.replace('@', ' arobase ').replace(/\./g, ' point ');
 function narration(sh, k){
   const it = sh.tl[k], ag = agence();
   if(it.type === 'intro') return sh.titre + '.';
   if(it.type === 'slide') return it.data.s.t + '. ' + it.data.s.x;
-  return sh.agency ? ('Besoin de talents ? Envie de trouver un emploi ? ' + (ag.nom ? 'Contactez ' + ag.nom + '.' : 'Contactez notre agence.')) : 'Merci d\'avoir regardé. Un nouveau programme arrive dans un instant.';
+  if(it.type === 'contact'){
+    const parts = ['Contactez ' + (ag.court || ag.nom || 'notre agence') + '.'];
+    if(ag.telephones.length) parts.push('Appelez le ' + ag.telephones[0] + '.');
+    if(ag.email) parts.push('Écrivez-nous à ' + spokenMail(ag.email) + '.');
+    if(ag.ville) parts.push('Nous sommes à ' + ag.ville + '.');
+    return parts.join(' ');
+  }
+  return sh.agency ? ('Besoin de talents ? Envie de trouver un emploi ? ' + (ag.court || ag.nom ? 'Contactez ' + (ag.court || ag.nom) + '.' : 'Contactez notre agence.')) : 'Merci d\'avoir regardé. Un nouveau programme arrive dans un instant.';
 }
 
 /* ---------- Musique douce (générée, aucun fichier audio) ---------- */
 let AC = null, MASTER = null, MUSIC = 0;
 const CHORDS = [[220,261.63,329.63],[174.61,220,261.63],[261.63,329.63,392],[196,246.94,293.66]];
 function startMusic(){
-  if(!SCCS.sound) return;
   try{
+    if(MUSIC) return;
     if(!AC){ const C = window.AudioContext || window.webkitAudioContext; if(!C) return; AC = new C(); MASTER = AC.createGain(); MASTER.gain.value = .05; MASTER.connect(AC.destination); }
     if(AC.state === 'suspended') AC.resume();
     let n = 0; const note = ()=>{
@@ -220,36 +263,57 @@ function startMusic(){
 }
 function stopMusic(){ if(MUSIC){ clearInterval(MUSIC); MUSIC = 0; } try{ if(AC){ AC.close(); } }catch(e){} AC = null; MASTER = null; }
 
-/* ---------- Lecteur dans la chaîne ---------- */
-let RAF = 0, WRAP = null, T0 = 0, LASTK = -1;
-SCCS.stop = function(){
-  if(RAF){ cancelAnimationFrame(RAF); RAF = 0; }
-  if(WRAP && WRAP.parentNode) WRAP.parentNode.removeChild(WRAP); WRAP = null; LASTK = -1;
-  try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} stopMusic();
-};
+/* ---------- Lecteurs (plusieurs possibles : écran de la chaîne ET aperçu de l'admin) ----------
+   Un seul lecteur à la fois est « audible » (voix + musique) pour que les sons ne se mélangent pas. */
+const INST = []; let OWNER = null;
+function repaintAll(){ INST.forEach(i=> i.paint && i.paint()); }
+function setOwner(inst){
+  if(OWNER === inst) return; OWNER = inst;
+  if(inst){ startMusic(); inst.lastK = -1; } else { try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} stopMusic(); }
+  repaintAll();
+}
+function stopInst(inst){
+  if(inst.raf){ cancelAnimationFrame(inst.raf); inst.raf = 0; }
+  if(inst.wrap && inst.wrap.parentNode) inst.wrap.parentNode.removeChild(inst.wrap);
+  const k = INST.indexOf(inst); if(k >= 0) INST.splice(k, 1);
+  if(OWNER === inst) setOwner(null);
+}
+/* SCCS.stop()      → arrête tous les lecteurs ;  SCCS.stop(element) → arrête seulement celui de cet élément */
+SCCS.stop = function(host){ INST.slice().forEach(i=>{ if(!host || i.host === host) stopInst(i); }); };
 SCCS.setSound = function(on){
   SCCS.sound = !!on; try{ localStorage.setItem('scc_slides_sound', on ? '1' : '0'); }catch(e){}
-  if(!on){ try{ speechSynthesis.cancel(); }catch(e){} stopMusic(); } else if(WRAP){ startMusic(); LASTK = -1; }
+  const m = INST.find(i=>i.main); if(m) setOwner(on ? m : (OWNER === m ? null : OWNER));
 };
-SCCS.play = function(host, id, offset){
-  SCCS.stop(); const sh = SCCS.byId[id]; if(!sh || !host) return false;
-  const wr = document.createElement('div'); wr.style.cssText = 'position:relative;width:100%;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:16/9;';
+/* SCCS.play(élément, idDiaporama, décalageEnSecondes, {main:true|false})
+   main:true = lecteur des spectateurs (son selon leur préférence) ; main:false = aperçu muet par défaut (admin) */
+SCCS.play = function(host, id, offset, opt){
+  opt = opt || {}; if(host) SCCS.stop(host);
+  const sh = SCCS.byId[id]; if(!sh || !host) return false;
+  const wr = document.createElement('div'); wr.setAttribute('data-slides','1');
+  wr.style.cssText = 'position:relative;width:100%;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:16/9;';
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.style.cssText = 'display:block;width:100%;height:100%;';
-  const btn = document.createElement('button'); btn.type = 'button'; btn.setAttribute('aria-label', 'Activer ou couper le son'); btn.style.cssText = 'position:absolute;left:12px;top:56px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:20px;cursor:pointer;z-index:3;';
-  const paint = ()=>{ btn.textContent = SCCS.sound ? '🔊' : '🔇'; }; paint();
-  btn.onclick = ()=>{ if(SCCS.sound && AC && AC.state === 'suspended'){ AC.resume(); LASTK = -1; return; } SCCS.setSound(!SCCS.sound); paint(); };
-  wr.appendChild(cv); wr.appendChild(btn); host.insertBefore(wr, host.firstChild); WRAP = wr;
-  const g = cv.getContext('2d'); T0 = performance.now() - (offset || 0) * 1000; LASTK = -1;
-  if('speechSynthesis' in window){ try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = ()=>{ VOICE = pickVoice(); }; }catch(e){} }
-  startMusic();
-  const tick = ()=>{
-    if(WRAP !== wr) return;
-    const t = clamp((performance.now() - T0)/1000, 0, sh.dur - .001);
-    try{ SCCS.drawFrame(g, id, t); }catch(e){ console.warn('diaporama', e); }
-    const k = itemAt(sh, t); if(k !== LASTK){ LASTK = k; say(narration(sh, k)); }
-    RAF = requestAnimationFrame(tick);
+  const btn = document.createElement('button'); btn.type = 'button'; btn.setAttribute('aria-label', 'Activer ou couper le son');
+  btn.style.cssText = 'position:absolute;left:12px;top:56px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:20px;cursor:pointer;z-index:3;';
+  const inst = { host, wrap:wr, id, sh, main: opt.main !== false, lastK:-1, raf:0, T0: performance.now() - (offset || 0) * 1000 };
+  inst.paint = ()=>{ btn.textContent = OWNER === inst ? '🔊' : '🔇'; };
+  btn.onclick = ()=>{
+    if(OWNER === inst){
+      if(AC && AC.state === 'suspended'){ AC.resume(); inst.lastK = -1; return; }
+      setOwner(null); if(inst.main){ SCCS.sound = false; try{ localStorage.setItem('scc_slides_sound','0'); }catch(e){} }
+    } else { setOwner(inst); if(inst.main){ SCCS.sound = true; try{ localStorage.setItem('scc_slides_sound','1'); }catch(e){} } }
   };
-  RAF = requestAnimationFrame(tick);
+  wr.appendChild(cv); wr.appendChild(btn); host.insertBefore(wr, host.firstChild); INST.push(inst);
+  const g = cv.getContext('2d');
+  if('speechSynthesis' in window){ try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = ()=>{ VOICE = pickVoice(); }; }catch(e){} }
+  if(inst.main && SCCS.sound) setOwner(inst); else inst.paint();
+  const tick = ()=>{
+    if(INST.indexOf(inst) < 0) return;
+    const t = clamp((performance.now() - inst.T0)/1000, 0, sh.dur - .001);
+    try{ SCCS.drawFrame(g, id, t); }catch(e){ console.warn('diaporama', e); }
+    const k = itemAt(sh, t); if(k !== inst.lastK){ inst.lastK = k; if(OWNER === inst) say(narration(sh, k)); }
+    inst.raf = requestAnimationFrame(tick);
+  };
+  inst.raf = requestAnimationFrame(tick);
   return true;
 };
 })();

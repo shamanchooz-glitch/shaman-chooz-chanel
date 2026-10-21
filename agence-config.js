@@ -1,13 +1,29 @@
 /* ==========================================================
-   COORDONNÉES DE TON AGENCE — à remplir UNE SEULE FOIS
-   Ces informations s'affichent à la fin de chaque diaporama « Agence »
-   (et la voix off prononce le nom de l'agence).
-   Tant que tu laisses « REMPLACE_MOI », les diaporamas affichent simplement
-   « Contactez notre agence » sans nom ni numéro.
-   Garde bien les guillemets " " autour de chaque texte.
+   COORDONNÉES DE L'AGENCE
+   Elles s'affichent à la fin de chaque diaporama « Agence » (page « Contactez-nous »),
+   et la voix off annonce le nom court, le premier numéro et l'e-mail.
+   Pour modifier : change seulement le texte entre guillemets " ".
    ========================================================== */
 window.AGENCE = {
-  nom: "REMPLACE_MOI",            // ex : "MON AGENCE — Recrutement & Placement"
-  contact: "REMPLACE_MOI",        // ex : "07 00 00 00 00  •  WhatsApp"
+  // Nom complet (affiché sur la page « Contactez-nous »)
+  nom: "SHAMAN CHOOZ PRODUCTION LA JOCONDE AGENCE ACADEMIE BARA CENTER ABIDJAN",
+  // Nom court (affiché dans le bandeau du bas et prononcé par la voix off)
+  court: "SHAMAN CHOOZ PRODUCTION",
+
+  pays: "Côte d'Ivoire (+225)",
+  telephones: [
+    "07 48 93 56 86",
+    "05 74 53 36 36",
+    "01 73 77 39 39",
+    "07 49 97 09 18",
+    "27 23 29 25 67"
+  ],
+  email: "shamanchooz@gmail.com",
+  adresse: "01 BP 6610 ABIDJAN 01",
+  siege: "Côte d'Ivoire, Abidjan, Yopougon Niangon Académie, cité Caistab, près du pont Max Gradel",
+
+  // Lieu court prononcé par la voix off
+  ville: "Abidjan, Yopougon Niangon",
+
   slogan: "Recrutement et placement dans tous les secteurs d'activité"
 };

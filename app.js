@@ -1164,6 +1164,7 @@ function activeLivePassOrders(){
   return Object.entries(ORDERS).filter(([,o])=> o.type==='live-pass' && o.status==='paid');
 }
 async function renderAdminLiveTab(){
+  if(window.ADMINPREVIEW) ADMINPREVIEW.mount();
   ORDERS = await DB.get('orders', {});
   renderAdminLiveStats();
   renderAdminLivePasses();
@@ -2749,7 +2750,7 @@ function resolveLiveSource(){
 let hlsInstance = null;
 function stopPlayback(){
   CURRENT_PLAY_KEY = '';
-  if(window.SCCS && SCCS.stop) SCCS.stop();
+  if(window.SCCS && SCCS.stop) SCCS.stop(document.querySelector('#livePlayerWrap .live-player-box'));
   const video = document.getElementById('livePlayer');
   const frame = document.getElementById('liveYoutubeFrame');
   if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
@@ -2767,11 +2768,11 @@ function playEmbed(url){
 function playSlides(id, offset){
   const video = document.getElementById('livePlayer');
   const frame = document.getElementById('liveYoutubeFrame');
-  const box = document.querySelector('.live-player-box');
+  const box = document.querySelector('#livePlayerWrap .live-player-box');
   if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
   if(video){ video.pause(); video.removeAttribute('src'); video.style.display = 'none'; }
   if(frame){ frame.removeAttribute('src'); frame.style.display = 'none'; }
-  if(box && window.SCCS) SCCS.play(box, id, offset);
+  if(box && window.SCCS) SCCS.play(box, id, offset, { main:true });
 }
 function playVideoUrl(url, offset){
   url = resolveMediaUrl(url);
@@ -3110,6 +3111,7 @@ function bindEvents(){
     btn.onclick = ()=>{
       document.querySelectorAll('[data-admintab]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
+      if(btn.dataset.admintab !== 'live' && window.ADMINPREVIEW) ADMINPREVIEW.stop();
       ['stats','orders','catalog','live','games','pricing','assistant','settings'].forEach(name=>{
         const tabEl = document.getElementById('adminTab-'+name);
         if(tabEl) tabEl.style.display = (name===btn.dataset.admintab) ? 'block' : 'none';
