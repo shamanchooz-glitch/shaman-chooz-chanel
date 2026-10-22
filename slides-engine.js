@@ -216,24 +216,18 @@ SCCS.drawFrame = function(g, id, t){
 };
 
 /* ---------- Voix off (voix française du téléphone) ---------- */
-let VOICE = null;
+let VOICE = null, UTT = null, SAY_T = 0;   // UTT : on garde une référence, sinon certains navigateurs « perdent » la phrase en cours de route
 function pickVoice(){
   try{
     const vs = window.speechSynthesis.getVoices().filter(v=>/^fr/i.test(v.lang)); if(!vs.length) return null;
     return vs.find(v=>/google|natural|premium|enhanced/i.test(v.name)) || vs[0];
   }catch(e){ return null; }
 }
-let UTT = null, SAY_T = 0;   // UTT : on garde l'objet en mémoire, sinon Chrome peut l'effacer et couper la voix en plein milieu
 function say(text){
   if(!('speechSynthesis' in window)) return;
   try{
-    const ss = window.speechSynthesis;
-    if(ss.speaking || ss.pending) ss.cancel();
-    if(ss.paused) ss.resume();
-    const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
-    VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE;
-    UTT = u; clearTimeout(SAY_T);
-    SAY_T = setTimeout(()=>{ try{ if(ss.paused) ss.resume(); ss.speak(u); }catch(e){} }, 120);
+    clearTimeout(SAY_T); speechSynthesis.cancel(); const u = UTT = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
+    VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE; SAY_T = setTimeout(()=>{ try{ speechSynthesis.resume(); speechSynthesis.speak(u); }catch(e){} }, 80);
   }catch(e){}
 }
 const spokenMail = m => m.replace('@', ' arobase ').replace(/\./g, ' point ');
@@ -270,7 +264,7 @@ function wakeFallbackStart(){
 }
 function wakeFallbackStop(){ try{ if(NSV) NSV.pause(); }catch(e){} }
 async function wakeAcquire(){
-  WANT_AWAKE = true; clearTimeout(REL_T); if(typeof startWatch === 'function') startWatch();
+  WANT_AWAKE = true; clearTimeout(REL_T);
   if('wakeLock' in navigator){
     if(!WL && document.visibilityState === 'visible'){
       try{ WL = await navigator.wakeLock.request('screen'); WL.addEventListener('release', ()=>{ WL = null; }); }
@@ -280,143 +274,83 @@ async function wakeAcquire(){
 }
 function wakeRelease(){
   WANT_AWAKE = false; clearTimeout(REL_T);
-  REL_T = setTimeout(()=>{ if(WANT_AWAKE) return; try{ if(WL) WL.release(); }catch(e){} WL = null; wakeFallbackStop(); stopWatch(); keepMediaStop(); }, 4000);   // petit délai : le diaporama suivant démarre presque aussitôt
+  REL_T = setTimeout(()=>{ if(WANT_AWAKE) return; try{ if(WL) WL.release(); }catch(e){} WL = null; wakeFallbackStop(); }, 4000);   // petit délai : le diaporama suivant démarre presque aussitôt
 }
 SCCS.awake = ()=> !!WL || (!!NSV && !NSV.paused);
 
-/* ---------- Son toujours actif pendant toute la boucle ----------
-   Principe : le son est « débloqué » UNE SEULE FOIS (premier toucher de l'écran), puis il reste actif tant que
-   la chaîne tourne, d'un diaporama à l'autre, sans rien redemander :
-   - un seul contexte audio, jamais fermé, relancé automatiquement s'il se met en pause ;
-   - une petite piste silencieuse en boucle (comme une vraie lecture média) qui empêche le téléphone de couper le son ;
-   - quand un diaporama se termine et que le suivant démarre, la musique et la voix passent de l'un à l'autre
-     sans coupure (la musique n'est arrêtée que si aucun diaporama ne reprend dans les 2 secondes) ;
-   - un petit « gardien » vérifie toutes les 1,5 s que tout est bien en marche (contexte audio, voix, piste silencieuse). */
-let AC = null, MASTER = null, MUSIC = 0, SPEECH_OK = false, KEEP = null, KEEP_SRC = null, ACTIVATED = false, DOWN_T = 0, WATCH = 0, MS_SET = false;
+/* ---------- Musique douce (générée, aucun fichier audio) ----------
+   Un seul contexte audio, créé dès le premier toucher de l'écran puis conservé : le son reste actif
+   d'un diaporama à l'autre pendant toute la durée de la boucle. */
+let AC = null, MASTER = null, MUSIC = 0, SPEECH_OK = false, MN = 0;
 const CHORDS = [[220,261.63,329.63],[174.61,220,261.63],[261.63,329.63,392],[196,246.94,293.66]];
 function audioCtx(){
   if(AC && AC.state !== 'closed') return AC;
-  AC = null; MASTER = null; KEEP_SRC = null;
   try{
     const C = window.AudioContext || window.webkitAudioContext; if(!C) return null;
     AC = new C(); MASTER = AC.createGain(); MASTER.gain.value = .05; MASTER.connect(AC.destination);
-    AC.onstatechange = ()=>{ if(AC && AC.state !== 'running' && AC.state !== 'closed' && audible()) resumeAudio(); };
+    // Si le navigateur met le son en pause tout seul (autre appli, écran verrouillé…), on le relance dès qu'il le permet
+    AC.onstatechange = ()=>{ if(!AC) return; if(AC.state === 'running'){ if(MUSIC) musicNote(); } else if(OWNER || SOUND_HOLD) resumeAudio(); };
   }catch(e){ AC = null; }
   return AC;
 }
-function resumeAudio(){ try{ if(AC && AC.state !== 'running' && AC.state !== 'closed' && AC.resume){ const p = AC.resume(); if(p && p.catch) p.catch(()=>{}); } }catch(e){} }
-function audible(){ return !!OWNER || !!DOWN_T; }   // un lecteur a le son (ou vient de le passer au suivant)
-/* Source silencieuse dans le contexte audio : empêche le navigateur de le mettre en veille */
-function keepAC(){
-  try{
-    if(!AC || KEEP_SRC) return;
-    const s = AC.createBufferSource(), g = AC.createGain(); s.buffer = AC.createBuffer(1, 2205, 22050); s.loop = true; g.gain.value = 0;
-    s.connect(g); g.connect(AC.destination); s.start(0); KEEP_SRC = s;
-  }catch(e){ KEEP_SRC = null; }
+function resumeAudio(){ try{ if(AC && AC.state !== 'running' && AC.resume){ const p = AC.resume(); if(p && p.catch) p.catch(()=>{}); } }catch(e){} }
+function musicNote(){
+  if(!AC) return;
+  if(AC.state !== 'running'){ resumeAudio(); return; }
+  const ch = CHORDS[MN++ % CHORDS.length], t0 = AC.currentTime;
+  ch.forEach((fr,i)=>{ const o = AC.createOscillator(), g = AC.createGain(); o.type = i === 0 ? 'triangle' : 'sine'; o.frequency.value = fr / (i === 0 ? 2 : 1);
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.5, t0 + 1.2); g.gain.linearRampToValueAtTime(0, t0 + 4.2); o.connect(g); g.connect(MASTER); o.start(t0); o.stop(t0 + 4.3); });
 }
-/* Piste audio silencieuse en boucle (fichier WAV de 1 seconde généré ici, sans rien à envoyer sur GitHub) */
-function silentWav(){
-  const sr = 8000, n = sr, b = new ArrayBuffer(44 + n*2), v = new DataView(b);
-  const w = (o,t)=>{ for(let i=0;i<t.length;i++) v.setUint8(o+i, t.charCodeAt(i)); };
-  w(0,'RIFF'); v.setUint32(4, 36 + n*2, true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
-  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40, n*2, true);
-  return URL.createObjectURL(new Blob([b], { type:'audio/wav' }));
-}
-function keepMedia(){
-  try{
-    if(!KEEP){ KEEP = new Audio(); KEEP.loop = true; KEEP.preload = 'auto'; KEEP.setAttribute('playsinline',''); KEEP.src = silentWav(); }
-    if(KEEP.paused){ const p = KEEP.play(); if(p && p.catch) p.catch(()=>{}); }
-    if(!MS_SET && 'mediaSession' in navigator && window.MediaMetadata){
-      MS_SET = true;
-      navigator.mediaSession.metadata = new MediaMetadata({ title:'SHAMAN CHOOZ CHANEL', artist:'La chaîne en direct', artwork:[{ src:'icon-512.png', sizes:'512x512', type:'image/png' }] });
-      try{ navigator.mediaSession.setActionHandler('play', ()=>{ keepMedia(); resumeAudio(); }); }catch(e){}
-    }
-    if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-  }catch(e){}
-}
-function keepMediaStop(){ try{ if(KEEP) KEEP.pause(); if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; }catch(e){} }
-/* Les vidéos « fichier » de la boucle démarrent muettes (obligation des navigateurs) : une fois le son débloqué, on les remet avec le son, une fois par nouvelle vidéo
-   (le spectateur peut ensuite les couper avec les commandes de la vidéo). */
-function syncVideoSound(){
-  try{
-    const v = document.getElementById('livePlayer'); if(!v || !ACTIVATED) return;
-    const key = v.currentSrc || v.getAttribute('src') || ''; if(!key || v.__sccKey === key) return;
-    v.__sccKey = key; if(SCCS.sound !== false) v.muted = false;
-  }catch(e){}
-}
-function startWatch(){
-  if(WATCH) return;
-  WATCH = setInterval(()=>{
-    if(!WANT_AWAKE){ stopWatch(); return; }
-    if(ACTIVATED && audible()){
-      if(!AC || AC.state === 'closed') audioCtx();
-      resumeAudio(); keepAC(); keepMedia();
-      try{ const ss = window.speechSynthesis; if(ss && ss.paused) ss.resume(); }catch(e){}
-    }
-    syncVideoSound();
-  }, 1500);
-}
-function stopWatch(){ if(WATCH){ clearInterval(WATCH); WATCH = 0; } }
 function startMusic(){
-  const ac = audioCtx(); if(!ac) return; resumeAudio(); keepAC(); if(ACTIVATED) keepMedia();
-  if(MUSIC) return;
-  let n = 0;
-  const note = ()=>{
-    if(!AC) return; if(AC.state !== 'running'){ resumeAudio(); return; }
-    const ch = CHORDS[n++ % CHORDS.length], t0 = AC.currentTime;
-    ch.forEach((fr,i)=>{ const o = AC.createOscillator(), g = AC.createGain(); o.type = i === 0 ? 'triangle' : 'sine'; o.frequency.value = fr / (i === 0 ? 2 : 1);
-      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.5, t0 + 1.2); g.gain.linearRampToValueAtTime(0, t0 + 4.2); o.connect(g); g.connect(MASTER); o.start(t0); o.stop(t0 + 4.3); });
-  };
-  note(); MUSIC = setInterval(note, 4000);
+  if(MUSIC) return; const ac = audioCtx(); if(!ac) return; resumeAudio();
+  musicNote(); MUSIC = setInterval(musicNote, 4000);
 }
 function stopMusic(){ if(MUSIC){ clearInterval(MUSIC); MUSIC = 0; } }
 
 /* Déblocage du son : les navigateurs exigent un toucher de l'utilisateur. On le prend au tout premier
    toucher (par ex. le bouton « Regarder la chaîne »), puis le son et la voix fonctionnent sans rien redemander. */
 function unlock(){
-  ACTIVATED = true;
-  audioCtx(); resumeAudio(); keepAC();
+  audioCtx(); resumeAudio();
   try{ if(!SPEECH_OK && 'speechSynthesis' in window){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); SPEECH_OK = true; } }catch(e){}
-  if(WANT_AWAKE){ wakeAcquire(); keepMedia(); syncVideoSound(); }
+  if(WANT_AWAKE){ wakeAcquire(); }
 }
 ['pointerdown','touchend','click','keydown'].forEach(ev=> document.addEventListener(ev, unlock, { capture:true, passive:true }));
 SCCS.unlock = unlock;
-const revive = ()=>{ if(document.visibilityState === 'visible'){ if(WANT_AWAKE) wakeAcquire(); resumeAudio(); if(WANT_AWAKE && ACTIVATED && audible()) keepMedia(); } };
-document.addEventListener('visibilitychange', revive);
-window.addEventListener('pageshow', revive); window.addEventListener('focus', revive);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible'){ if(WANT_AWAKE) wakeAcquire(); resumeAudio(); } });
 
 /* ---------- Lecteurs (plusieurs possibles : écran de la chaîne ET aperçu de l'admin) ----------
    Un seul lecteur à la fois est « audible » (voix + musique) pour que les sons ne se mélangent pas. */
-const INST = []; let OWNER = null;
+const INST = []; let OWNER = null, SOUND_HOLD = false, HOLD_T = 0;
 function repaintAll(){ INST.forEach(i=> i.paint && i.paint()); }
-/* setOwner(inst)        → ce lecteur reprend le son (la musique en cours continue, sans coupure) ;
-   setOwner(null)        → plus de lecteur audible : l'arrêt de la musique et de la voix est retardé de 2 s, pour laisser le
-                           diaporama suivant reprendre le relais ; setOwner(null, true) → arrêt immédiat (bouton 🔇). */
-function setOwner(inst, now){
-  if(inst){ clearTimeout(DOWN_T); DOWN_T = 0; if(OWNER === inst) return; }
-  else if(!OWNER && !DOWN_T && !now) return;
-  OWNER = inst || null;
-  if(inst){ startMusic(); inst.lastK = -1; }
-  else {
-    const down = ()=>{ DOWN_T = 0; if(OWNER) return; try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} stopMusic(); };
-    clearTimeout(DOWN_T); DOWN_T = 0;
-    if(now) down(); else DOWN_T = setTimeout(down, 2000);
-  }
+function haltSound(){ clearTimeout(SAY_T); try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} stopMusic(); }
+function setOwner(inst){
+  clearTimeout(HOLD_T); SOUND_HOLD = false;
+  if(OWNER === inst) return; OWNER = inst;
+  if(inst){ startMusic(); inst.lastK = -1; } else haltSound();
   repaintAll();
 }
+/* Quand un diaporama se termine et que le spectateur a gardé le son activé, on NE coupe RIEN : la musique continue,
+   et le diaporama suivant reprend la main (comme pour l'écran allumé). Si personne ne reprend dans les 5 secondes
+   (fin de la boucle, autre type de vidéo, sortie de la chaîne), alors seulement on coupe le son. */
 function stopInst(inst){
   if(inst.raf){ cancelAnimationFrame(inst.raf); inst.raf = 0; }
   if(inst.wrap && inst.wrap.parentNode) inst.wrap.parentNode.removeChild(inst.wrap);
   const k = INST.indexOf(inst); if(k >= 0) INST.splice(k, 1);
-  if(OWNER === inst) setOwner(null, !inst.main);   // aperçu admin : arrêt immédiat ; chaîne : relais possible vers le diaporama suivant
+  if(OWNER === inst){
+    if(inst.main && SCCS.sound){
+      OWNER = null; SOUND_HOLD = true; clearTimeout(HOLD_T);
+      HOLD_T = setTimeout(()=>{ if(!OWNER){ SOUND_HOLD = false; haltSound(); repaintAll(); } }, 5000);
+      repaintAll();
+    } else setOwner(null);
+  }
   if(!INST.length) wakeRelease();
 }
 /* SCCS.stop()      → arrête tous les lecteurs ;  SCCS.stop(element) → arrête seulement celui de cet élément */
 SCCS.stop = function(host){ INST.slice().forEach(i=>{ if(!host || i.host === host) stopInst(i); }); };
 SCCS.setSound = function(on){
   SCCS.sound = !!on;
-  const m = INST.find(i=>i.main); if(!m) return;
-  if(on) setOwner(m); else if(OWNER === m) setOwner(null, true);
+  const m = INST.find(i=>i.main); if(m) setOwner(on ? m : (OWNER === m ? null : OWNER));
+  else if(!on && SOUND_HOLD){ clearTimeout(HOLD_T); SOUND_HOLD = false; haltSound(); }
 };
 /* SCCS.play(élément, idDiaporama, décalageEnSecondes, {main:true|false})
    main:true = lecteur des spectateurs (son activé par défaut) ; main:false = aperçu muet par défaut (admin) */
@@ -433,7 +367,7 @@ SCCS.play = function(host, id, offset, opt){
   const inst = { host, wrap:wr, id, sh, main: opt.main !== false, lastK:-1, raf:0, T0: performance.now() - (offset || 0) * 1000 };
   inst.paint = ()=>{ btn.textContent = OWNER === inst ? '🔊' : '🔇'; };
   btn.onclick = ()=>{
-    if(OWNER === inst){ setOwner(null, true); if(inst.main) SCCS.sound = false; }   // couper le son (le temps de cette séance seulement)
+    if(OWNER === inst){ setOwner(null); if(inst.main) SCCS.sound = false; }   // couper le son (le temps de cette séance seulement)
     else { setOwner(inst); if(inst.main) SCCS.sound = true; }
   };
   wr.appendChild(cv); wr.appendChild(btn); wr.appendChild(tip); host.insertBefore(wr, host.firstChild); INST.push(inst);
@@ -446,7 +380,9 @@ SCCS.play = function(host, id, offset, opt){
     const t = clamp((performance.now() - inst.T0)/1000, 0, sh.dur - .001);
     try{ SCCS.drawFrame(g, id, t); }catch(e){ console.warn('diaporama', e); }
     const k = itemAt(sh, t); if(k !== inst.lastK){ inst.lastK = k; if(OWNER === inst) say(narration(sh, k)); }
-    tip.style.display = (OWNER === inst && AC && AC.state !== 'running') ? 'block' : 'none';
+    const dead = OWNER === inst && AC && AC.state !== 'running';
+    if(dead && performance.now() - (inst.lastResume || 0) > 1000){ inst.lastResume = performance.now(); resumeAudio(); }   // tentative automatique, sans toucher l'écran
+    tip.style.display = dead ? 'block' : 'none';
     inst.raf = requestAnimationFrame(tick);
   };
   inst.raf = requestAnimationFrame(tick);
