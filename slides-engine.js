@@ -6,8 +6,8 @@
    Avantages : aucune vidéo lourde à envoyer sur GitHub, démarrage instantané,
    et tout le monde voit la même image en même temps (lecture synchronisée
    avec l'horloge de la boucle de la chaîne).
-   Voix off (voix française du téléphone) + musique douce : le spectateur peut les
-   couper avec le bouton 🔊 en haut à droite de l'image.
+   Voix off (voix française du téléphone) + musique douce : le son reste TOUJOURS activé
+   pendant toute la boucle, comme l'écran reste toujours allumé (voir SON_TOUJOURS_ACTIF).
    Ce fichier ne contient PAS les diaporamas : ils sont dans slides-data-*.js.
    ========================================================== */
 (function(){
@@ -25,8 +25,11 @@ const f = (tpl, s)=> tpl.replace('{s}', s);
 const clamp = (x,a,b)=> Math.max(a, Math.min(b, x));
 const ease = x => { x = clamp(x,0,1); return 1 - Math.pow(1-x, 3); };
 
+/* true  = le son ne peut JAMAIS être coupé sur la chaîne (le bouton 🔊 sert seulement à le relancer ; le volume se règle avec les boutons du téléphone)
+   false = ancien comportement : le spectateur peut couper le son avec 🔊 */
+const SON_TOUJOURS_ACTIF = true;
 const SCCS = window.SCCS = { shows:[], byId:{}, PAL, sound:true };
-try{ localStorage.removeItem('scc_slides_sound'); }catch(e){}   // le son est toujours activé à chaque visite (on peut le couper le temps d'une séance avec 🔊)
+try{ localStorage.removeItem('scc_slides_sound'); }catch(e){}   // le son est toujours activé à chaque visite
 
 /* ---------- Coordonnées de l'agence (modifiables dans agence-config.js) ---------- */
 function agence(){
@@ -341,6 +344,7 @@ function soundRelease(now){
 /* Déblocage du son : les navigateurs exigent un toucher de l'utilisateur. On le prend au tout premier
    toucher (par ex. le bouton « Regarder la chaîne »), puis le son et la voix fonctionnent sans rien redemander. */
 function unlock(){
+  try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}   // iPhone : le son sort même avec l'interrupteur « silencieux »
   audioCtx(); resumeAudio();
   try{ if(!SPEECH_OK && 'speechSynthesis' in window){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); SPEECH_OK = true; } }catch(e){}
   if(WANT_AWAKE){ wakeAcquire(); }
@@ -369,6 +373,7 @@ function stopInst(inst){
 /* SCCS.stop()      → arrête tous les lecteurs ;  SCCS.stop(element) → arrête seulement celui de cet élément */
 SCCS.stop = function(host){ INST.slice().forEach(i=>{ if(!host || i.host === host) stopInst(i); }); };
 SCCS.setSound = function(on){
+  if(SON_TOUJOURS_ACTIF) on = true;
   SCCS.sound = !!on;
   const m = INST.find(i=>i.main); if(m) setOwner(on ? m : (OWNER === m ? null : OWNER), !on);
 };
@@ -386,7 +391,12 @@ SCCS.play = function(host, id, offset, opt){
   tip.style.cssText = 'position:absolute;left:50%;bottom:46px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;padding:8px 14px;border-radius:999px;font:700 13px/1.2 sans-serif;z-index:4;display:none;pointer-events:none;white-space:nowrap;';
   const inst = { host, wrap:wr, id, sh, main: opt.main !== false, lastK:-1, raf:0, T0: performance.now() - (offset || 0) * 1000 };
   inst.paint = ()=>{ btn.textContent = OWNER === inst ? '🔊' : '🔇'; };
+  if(SON_TOUJOURS_ACTIF && inst.main) btn.setAttribute('aria-label', 'Le son reste activé (toucher pour le relancer)');
   btn.onclick = ()=>{
+    if(SON_TOUJOURS_ACTIF && inst.main){   // jamais de coupure : on (re)lance simplement le son
+      SCCS.sound = true; if(OWNER !== inst) setOwner(inst); else { resumeAudio(); soundWatch(); }
+      return;
+    }
     if(OWNER === inst){ if(inst.main) SCCS.sound = false; setOwner(null, true); }   // couper le son (le temps de cette séance seulement)
     else { setOwner(inst); if(inst.main) SCCS.sound = true; }
   };
@@ -399,6 +409,11 @@ SCCS.play = function(host, id, offset, opt){
     if(INST.indexOf(inst) < 0) return;
     const t = clamp((performance.now() - inst.T0)/1000, 0, sh.dur - .001);
     try{ SCCS.drawFrame(g, id, t); }catch(e){ console.warn('diaporama', e); }
+    if(SON_TOUJOURS_ACTIF && inst.main){   // auto-réparation : le son revient tout seul s'il a été perdu
+      SCCS.sound = true;
+      if(!OWNER) setOwner(inst);
+      else if(OWNER === inst && !MUSIC) startMusic();
+    }
     const k = itemAt(sh, t); if(k !== inst.lastK){ inst.lastK = k; if(OWNER === inst) say(narration(sh, k)); }
     tip.style.display = (OWNER === inst && AC && AC.state !== 'running') ? 'block' : 'none';
     inst.raf = requestAnimationFrame(tick);
