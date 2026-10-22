@@ -216,7 +216,7 @@ SCCS.drawFrame = function(g, id, t){
 };
 
 /* ---------- Voix off (voix française du téléphone) ---------- */
-let VOICE = null, UTT = null, SAY_T = 0;   // UTT : on garde une référence, sinon certains navigateurs « perdent » la phrase en cours de route
+let VOICE = null;
 function pickVoice(){
   try{
     const vs = window.speechSynthesis.getVoices().filter(v=>/^fr/i.test(v.lang)); if(!vs.length) return null;
@@ -226,8 +226,8 @@ function pickVoice(){
 function say(text){
   if(!('speechSynthesis' in window)) return;
   try{
-    clearTimeout(SAY_T); speechSynthesis.cancel(); const u = UTT = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
-    VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE; SAY_T = setTimeout(()=>{ try{ speechSynthesis.resume(); speechSynthesis.speak(u); }catch(e){} }, 80);
+    speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
+    VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE; setTimeout(()=>{ try{ speechSynthesis.resume(); speechSynthesis.speak(u); }catch(e){} }, 80);
   }catch(e){}
 }
 const spokenMail = m => m.replace('@', ' arobase ').replace(/\./g, ' point ');
@@ -278,34 +278,65 @@ function wakeRelease(){
 }
 SCCS.awake = ()=> !!WL || (!!NSV && !NSV.paused);
 
-/* ---------- Musique douce (générée, aucun fichier audio) ----------
-   Un seul contexte audio, créé dès le premier toucher de l'écran puis conservé : le son reste actif
-   d'un diaporama à l'autre pendant toute la durée de la boucle. */
-let AC = null, MASTER = null, MUSIC = 0, SPEECH_OK = false, MN = 0;
+/* ---------- Son toujours activé pendant toute la boucle (musique douce + voix) ----------
+   Même principe que l'écran toujours allumé : le son est « tenu » tant que la chaîne tourne.
+   - un seul contexte audio, créé au premier toucher de l'écran puis conservé (jamais fermé) ;
+   - une piste silencieuse en boucle le garde éveillé entre deux diaporamas (sinon certains téléphones le mettent en veille) ;
+   - un petit gardien le relance tout seul s'il passe en pause (changement de vidéo, interruption, etc.) ;
+   - quand un diaporama se termine, la musique n'est PAS coupée : si le suivant démarre dans les 4 secondes,
+     elle continue sans la moindre coupure et sans rien redemander au spectateur. */
+let AC = null, MASTER = null, MUSIC = 0, SPEECH_OK = false, KEEP = null, CH_N = 0, CH_T = -99, SND_WANT = false, SND_T = 0, DOG = 0;
 const CHORDS = [[220,261.63,329.63],[174.61,220,261.63],[261.63,329.63,392],[196,246.94,293.66]];
+const channelOn = ()=>{ const el = document.getElementById('screen-live'); return !!(el && el.classList.contains('active')); };
 function audioCtx(){
-  if(AC && AC.state !== 'closed') return AC;
+  if(AC) return AC;
   try{
     const C = window.AudioContext || window.webkitAudioContext; if(!C) return null;
     AC = new C(); MASTER = AC.createGain(); MASTER.gain.value = .05; MASTER.connect(AC.destination);
-    // Si le navigateur met le son en pause tout seul (autre appli, écran verrouillé…), on le relance dès qu'il le permet
-    AC.onstatechange = ()=>{ if(!AC) return; if(AC.state === 'running'){ if(MUSIC) musicNote(); } else if(OWNER || SOUND_HOLD) resumeAudio(); };
+    AC.onstatechange = ()=>{ if(!AC) return; if(AC.state === 'running'){ if(MUSIC) playChord(); } else if(soundHeld()) resumeAudio(); };
   }catch(e){ AC = null; }
   return AC;
 }
 function resumeAudio(){ try{ if(AC && AC.state !== 'running' && AC.resume){ const p = AC.resume(); if(p && p.catch) p.catch(()=>{}); } }catch(e){} }
-function musicNote(){
-  if(!AC) return;
-  if(AC.state !== 'running'){ resumeAudio(); return; }
-  const ch = CHORDS[MN++ % CHORDS.length], t0 = AC.currentTime;
+/* Piste silencieuse lue en boucle : garde la session audio du téléphone ouverte entre deux diaporamas */
+function keepOn(){
+  try{
+    if(!AC || KEEP) return;
+    const buf = AC.createBuffer(1, 2205, 22050);
+    KEEP = AC.createBufferSource(); KEEP.buffer = buf; KEEP.loop = true; KEEP.connect(AC.destination); KEEP.start(0);
+  }catch(e){ KEEP = null; }
+}
+function keepOff(){ try{ if(KEEP){ KEEP.stop(); KEEP.disconnect(); } }catch(e){} KEEP = null; }
+function playChord(){
+  if(!AC || AC.state !== 'running') return;
+  const t0 = AC.currentTime; if(t0 - CH_T < 2.5) return; CH_T = t0;
+  const ch = CHORDS[CH_N++ % CHORDS.length];
   ch.forEach((fr,i)=>{ const o = AC.createOscillator(), g = AC.createGain(); o.type = i === 0 ? 'triangle' : 'sine'; o.frequency.value = fr / (i === 0 ? 2 : 1);
     g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.5, t0 + 1.2); g.gain.linearRampToValueAtTime(0, t0 + 4.2); o.connect(g); g.connect(MASTER); o.start(t0); o.stop(t0 + 4.3); });
 }
 function startMusic(){
-  if(MUSIC) return; const ac = audioCtx(); if(!ac) return; resumeAudio();
-  musicNote(); MUSIC = setInterval(musicNote, 4000);
+  if(MUSIC) return; const ac = audioCtx(); if(!ac) return; resumeAudio(); keepOn();
+  playChord(); MUSIC = setInterval(playChord, 4000);
 }
 function stopMusic(){ if(MUSIC){ clearInterval(MUSIC); MUSIC = 0; } }
+
+/* « Son tenu » : tant qu'un diaporama joue (ou que la chaîne est ouverte avec le son activé), on garde le contexte audio éveillé */
+function soundHeld(){ return SND_WANT || (SCCS.sound && channelOn()); }
+function soundWatch(){
+  if(!soundHeld()){ if(DOG){ clearInterval(DOG); DOG = 0; } keepOff(); return; }
+  resumeAudio(); keepOn();
+  try{ if('speechSynthesis' in window && speechSynthesis.paused) speechSynthesis.resume(); }catch(e){}
+}
+function soundAcquire(){
+  SND_WANT = true; clearTimeout(SND_T);
+  if(!DOG) DOG = setInterval(soundWatch, 1500);
+  soundWatch();
+}
+function soundRelease(now){
+  SND_WANT = false; clearTimeout(SND_T);
+  const stop = ()=>{ if(SND_WANT) return; stopMusic(); try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} soundWatch(); };
+  if(now) stop(); else SND_T = setTimeout(stop, 4000);   // petit délai : le diaporama suivant démarre presque aussitôt
+}
 
 /* Déblocage du son : les navigateurs exigent un toucher de l'utilisateur. On le prend au tout premier
    toucher (par ex. le bouton « Regarder la chaîne »), puis le son et la voix fonctionnent sans rien redemander. */
@@ -313,44 +344,33 @@ function unlock(){
   audioCtx(); resumeAudio();
   try{ if(!SPEECH_OK && 'speechSynthesis' in window){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); SPEECH_OK = true; } }catch(e){}
   if(WANT_AWAKE){ wakeAcquire(); }
+  if(SND_WANT || DOG) soundWatch();
 }
 ['pointerdown','touchend','click','keydown'].forEach(ev=> document.addEventListener(ev, unlock, { capture:true, passive:true }));
 SCCS.unlock = unlock;
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible'){ if(WANT_AWAKE) wakeAcquire(); resumeAudio(); } });
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible'){ if(WANT_AWAKE) wakeAcquire(); resumeAudio(); if(SND_WANT || DOG) soundWatch(); } });
 
 /* ---------- Lecteurs (plusieurs possibles : écran de la chaîne ET aperçu de l'admin) ----------
    Un seul lecteur à la fois est « audible » (voix + musique) pour que les sons ne se mélangent pas. */
-const INST = []; let OWNER = null, SOUND_HOLD = false, HOLD_T = 0;
+const INST = []; let OWNER = null;
 function repaintAll(){ INST.forEach(i=> i.paint && i.paint()); }
-function haltSound(){ clearTimeout(SAY_T); try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} stopMusic(); }
-function setOwner(inst){
-  clearTimeout(HOLD_T); SOUND_HOLD = false;
+function setOwner(inst, now){   // now:true = coupure immédiate (le spectateur appuie sur 🔇) ; sinon petit délai, comme pour l'écran
   if(OWNER === inst) return; OWNER = inst;
-  if(inst){ startMusic(); inst.lastK = -1; } else haltSound();
+  if(inst){ soundAcquire(); startMusic(); inst.lastK = -1; } else soundRelease(now);
   repaintAll();
 }
-/* Quand un diaporama se termine et que le spectateur a gardé le son activé, on NE coupe RIEN : la musique continue,
-   et le diaporama suivant reprend la main (comme pour l'écran allumé). Si personne ne reprend dans les 5 secondes
-   (fin de la boucle, autre type de vidéo, sortie de la chaîne), alors seulement on coupe le son. */
 function stopInst(inst){
   if(inst.raf){ cancelAnimationFrame(inst.raf); inst.raf = 0; }
   if(inst.wrap && inst.wrap.parentNode) inst.wrap.parentNode.removeChild(inst.wrap);
   const k = INST.indexOf(inst); if(k >= 0) INST.splice(k, 1);
-  if(OWNER === inst){
-    if(inst.main && SCCS.sound){
-      OWNER = null; SOUND_HOLD = true; clearTimeout(HOLD_T);
-      HOLD_T = setTimeout(()=>{ if(!OWNER){ SOUND_HOLD = false; haltSound(); repaintAll(); } }, 5000);
-      repaintAll();
-    } else setOwner(null);
-  }
+  if(OWNER === inst) setOwner(null);
   if(!INST.length) wakeRelease();
 }
 /* SCCS.stop()      → arrête tous les lecteurs ;  SCCS.stop(element) → arrête seulement celui de cet élément */
 SCCS.stop = function(host){ INST.slice().forEach(i=>{ if(!host || i.host === host) stopInst(i); }); };
 SCCS.setSound = function(on){
   SCCS.sound = !!on;
-  const m = INST.find(i=>i.main); if(m) setOwner(on ? m : (OWNER === m ? null : OWNER));
-  else if(!on && SOUND_HOLD){ clearTimeout(HOLD_T); SOUND_HOLD = false; haltSound(); }
+  const m = INST.find(i=>i.main); if(m) setOwner(on ? m : (OWNER === m ? null : OWNER), !on);
 };
 /* SCCS.play(élément, idDiaporama, décalageEnSecondes, {main:true|false})
    main:true = lecteur des spectateurs (son activé par défaut) ; main:false = aperçu muet par défaut (admin) */
@@ -367,7 +387,7 @@ SCCS.play = function(host, id, offset, opt){
   const inst = { host, wrap:wr, id, sh, main: opt.main !== false, lastK:-1, raf:0, T0: performance.now() - (offset || 0) * 1000 };
   inst.paint = ()=>{ btn.textContent = OWNER === inst ? '🔊' : '🔇'; };
   btn.onclick = ()=>{
-    if(OWNER === inst){ setOwner(null); if(inst.main) SCCS.sound = false; }   // couper le son (le temps de cette séance seulement)
+    if(OWNER === inst){ if(inst.main) SCCS.sound = false; setOwner(null, true); }   // couper le son (le temps de cette séance seulement)
     else { setOwner(inst); if(inst.main) SCCS.sound = true; }
   };
   wr.appendChild(cv); wr.appendChild(btn); wr.appendChild(tip); host.insertBefore(wr, host.firstChild); INST.push(inst);
@@ -380,9 +400,7 @@ SCCS.play = function(host, id, offset, opt){
     const t = clamp((performance.now() - inst.T0)/1000, 0, sh.dur - .001);
     try{ SCCS.drawFrame(g, id, t); }catch(e){ console.warn('diaporama', e); }
     const k = itemAt(sh, t); if(k !== inst.lastK){ inst.lastK = k; if(OWNER === inst) say(narration(sh, k)); }
-    const dead = OWNER === inst && AC && AC.state !== 'running';
-    if(dead && performance.now() - (inst.lastResume || 0) > 1000){ inst.lastResume = performance.now(); resumeAudio(); }   // tentative automatique, sans toucher l'écran
-    tip.style.display = dead ? 'block' : 'none';
+    tip.style.display = (OWNER === inst && AC && AC.state !== 'running') ? 'block' : 'none';
     inst.raf = requestAnimationFrame(tick);
   };
   inst.raf = requestAnimationFrame(tick);
