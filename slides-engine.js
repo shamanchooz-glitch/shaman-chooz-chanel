@@ -215,42 +215,78 @@ SCCS.drawFrame = function(g, id, t){
   g.restore();
 };
 
+/* ---------- Journal du son (affiché dans l'admin : Chaîne > Son de la chaîne > Diagnostic) ---------- */
+const SLOG = [];
+function slog(m){ try{ SLOG.push(new Date().toTimeString().slice(0,8) + ' ' + m); if(SLOG.length > 60) SLOG.shift(); }catch(e){} }
+SCCS.diagnostic = function(){
+  let talking = 'non'; try{ if(speechSynthesis.speaking || speechSynthesis.pending) talking = 'oui'; }catch(e){}
+  return ['version du son : 22/10/2026-B', 'moteur audio : ' + (AC ? AC.state : 'pas encore créé'), 'musique : ' + (MUSIC ? 'en route' : 'arrêtée'),
+    'voix en cours : ' + talking, 'voix bloquée : ' + (SPEECH_BLOCKED ? 'oui' : 'non'), 'son demandé : ' + (SCCS.sound ? 'oui' : 'non'),
+    'piste silencieuse : ' + (KEEP ? (KEEP.paused ? 'en pause' : 'active') : 'non créée'), '---',
+    SLOG.length ? SLOG.join('\n') : '(aucun événement pour le moment : regarde la chaîne 2 ou 3 minutes puis reviens ici)'].join('\n');
+};
+
 /* ---------- Voix off (voix française du téléphone) ----------
-   say() coupe la phrase précédente puis lit la nouvelle. Protections :
+   Sur Android, couper une phrase en cours puis en lancer une autre aussitôt fait parfois « avaler » la nouvelle
+   phrase : c'est ce qui arrivait à la fin d'un diaporama (« un nouveau programme arrive… ») → plus de voix dans le suivant.
+   Donc :
+   • on ne coupe JAMAIS la voix si elle ne parle pas, et on laisse finir la phrase en cours à la fin d'un diaporama ;
+   • quand il faut vraiment couper, on attend que le moteur de voix se calme (0,4 s) avant de relancer ;
    • on garde une référence de la phrase en cours (sinon certains navigateurs la coupent en plein milieu) ;
    • si la voix ne démarre pas, on réessaie toute seule (2 fois) ;
-   • si le navigateur la bloque (aucun toucher encore), on retient la phrase et on la relit au prochain toucher. */
-let VOICE = null, UTT = null, SAY_SEQ = 0, SAY_T = 0, LAST_TEXT = '', SPEECH_BLOCKED = false, SPEECH_MISS = 0;
+   • si le navigateur la bloque, on retient la phrase et on la relit au prochain toucher. */
+let VOICE = null, UTT = null, SAY_SEQ = 0, SAY_T = 0, LAST_TEXT = '', SPEECH_BLOCKED = false, SPEECH_MISS = 0, SPEAKING = false;
 function pickVoice(){
   try{
     const vs = window.speechSynthesis.getVoices().filter(v=>/^fr/i.test(v.lang)); if(!vs.length) return null;
     return vs.find(v=>/google|natural|premium|enhanced/i.test(v.name)) || vs[0];
   }catch(e){ return null; }
 }
-function cancelSpeech(){ SAY_SEQ++; clearTimeout(SAY_T); try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} }
+function speechBusy(){ try{ return !!(SPEAKING || speechSynthesis.speaking || speechSynthesis.pending); }catch(e){ return false; } }
+function cancelNow(){ try{ speechSynthesis.cancel(); }catch(e){} SPEAKING = false; }
+function cancelSpeech(){ SAY_SEQ++; clearTimeout(SAY_T); if('speechSynthesis' in window && speechBusy()){ slog('voix : coupée'); cancelNow(); } }
 function speakNow(text, seq, tries){
   if(seq !== SAY_SEQ || !('speechSynthesis' in window)) return;
   try{
     const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
     VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE;
-    u.onstart = ()=>{ u.started = true; SPEECH_MISS = 0; if(seq === SAY_SEQ) SPEECH_BLOCKED = false; };
-    u.onerror = e=>{ if(e && e.error === 'not-allowed' && seq === SAY_SEQ){ SPEECH_BLOCKED = true; clearTimeout(SAY_T); } };
+    u.onstart = ()=>{ u.started = true; SPEAKING = true; SPEECH_MISS = 0; if(seq === SAY_SEQ) SPEECH_BLOCKED = false; slog('voix : démarrée'); };
+    u.onend = ()=>{ if(UTT === u) SPEAKING = false; slog('voix : terminée'); };
+    u.onerror = e=>{
+      if(UTT === u) SPEAKING = false;
+      const er = e && e.error; if(er && er !== 'canceled' && er !== 'interrupted') slog('voix : erreur ' + er);
+      if(er === 'not-allowed' && seq === SAY_SEQ){ SPEECH_BLOCKED = true; clearTimeout(SAY_T); }
+    };
     UTT = u;
     if(speechSynthesis.paused) speechSynthesis.resume();
-    speechSynthesis.speak(u);
+    speechSynthesis.speak(u); slog('voix : lancée (essai ' + (tries + 1) + ')');
     clearTimeout(SAY_T);
     SAY_T = setTimeout(()=>{
       if(seq !== SAY_SEQ || u.started) return;
+      slog('voix : n\'a pas démarré');
       if(++SPEECH_MISS >= 2) SPEECH_BLOCKED = true;      // la voix n'a pas démarré 2 fois de suite → on le signale (« Touche l'écran »)
-      if(tries < 2){ try{ speechSynthesis.cancel(); }catch(e){} SAY_T = setTimeout(()=> speakNow(text, seq, tries + 1), 150); }
+      if(tries < 2){ cancelNow(); SAY_T = setTimeout(()=> speakNow(text, seq, tries + 1), 400); }
     }, 2500);
   }catch(e){}
 }
-function say(text){
+/* say(texte)       → lit la phrase (coupe la précédente si elle parle encore, puis attend 0,4 s).
+   say(texte, true) → 1re phrase d'un nouveau diaporama : on laisse d'abord FINIR la phrase en cours (jusqu'à 3 s). */
+function say(text, soft){
   if(!('speechSynthesis' in window)) return;
   LAST_TEXT = text; const seq = ++SAY_SEQ; clearTimeout(SAY_T);
-  try{ speechSynthesis.cancel(); }catch(e){}
-  SAY_T = setTimeout(()=> speakNow(text, seq, 0), 120);
+  const t0 = performance.now(); let cut = false;
+  slog('voix : demandée « ' + text.slice(0, 28) + (text.length > 28 ? '…' : '') + ' »' + (soft ? ' (après la phrase en cours)' : ''));
+  const step = ()=>{
+    if(seq !== SAY_SEQ) return;
+    if(speechBusy()){
+      const waited = performance.now() - t0;
+      if(soft && waited < 3000){ SAY_T = setTimeout(step, 150); return; }
+      if(!cut){ cut = true; cancelNow(); SAY_T = setTimeout(step, 400); return; }
+      if(waited < 3500){ SAY_T = setTimeout(step, 150); return; }
+    }
+    speakNow(text, seq, 0);
+  };
+  SAY_T = setTimeout(step, 60);
 }
 const spokenMail = m => m.replace('@', ' arobase ').replace(/\./g, ' point ');
 function narration(sh, k){
@@ -319,6 +355,7 @@ function audioCtx(){
     MASTER = AC.createGain(); MASTER.gain.value = .05; MASTER.connect(AC.destination);
     AC.onstatechange = ()=>{
       if(!AC) return;
+      slog('audio : état ' + AC.state);
       if(AC.state === 'running'){ if(MUSIC) noteNow(); }          // le son revient → la musique repart tout de suite
       else if(OWNER) setTimeout(resumeAudio, 300);                 // le téléphone l'a mis en pause → on le relance
     };
@@ -342,9 +379,9 @@ function noteNow(){
 }
 function startMusic(){
   if(MUSIC) return; if(!audioCtx()) return; resumeAudio();
-  noteNow(); MUSIC = setInterval(noteNow, 4000);
+  noteNow(); MUSIC = setInterval(noteNow, 4000); slog('musique : démarrée');
 }
-function stopMusic(){ if(MUSIC){ clearInterval(MUSIC); MUSIC = 0; } }
+function stopMusic(){ if(MUSIC){ clearInterval(MUSIC); MUSIC = 0; slog('musique : arrêtée'); } }
 
 /* Piste silencieuse (1 seconde de silence fabriquée sur place, lue en boucle) : garde la session audio ouverte. */
 function silentWavUrl(){
@@ -400,15 +437,16 @@ const INST = []; let OWNER = null;
 function repaintAll(){ INST.forEach(i=> i.paint && i.paint()); }
 /* setOwner(inst)        → ce lecteur devient « audible » (musique + voix).
    setOwner(null)        → coupe tout de suite (bouton 🔇).
-   setOwner(null, true)  → changement de diaporama : la voix s'arrête mais la musique et le moteur audio restent en route
-                           4 secondes, le temps que le diaporama suivant prenne le relais SANS aucune coupure. */
+   setOwner(null, true)  → changement de diaporama : la phrase en cours se termine, la musique et le moteur audio restent en
+                           route 4 secondes, le temps que le diaporama suivant prenne le relais SANS aucune coupure. */
 function setOwner(inst, handover){
   if(OWNER === inst){ if(inst) clearTimeout(HAND_T); return; }
   OWNER = inst;
   if(inst){ clearTimeout(HAND_T); soundStart(); inst.lastK = -1; }
   else {
-    cancelSpeech(); clearTimeout(HAND_T);
-    if(handover) HAND_T = setTimeout(()=>{ if(!OWNER) soundStop(); }, 4000); else soundStop();
+    clearTimeout(HAND_T);
+    if(handover){ SAY_SEQ++; clearTimeout(SAY_T); HAND_T = setTimeout(()=>{ if(!OWNER){ cancelSpeech(); soundStop(); } }, 4000); }   // la phrase en cours (fin de l'ancien diaporama) peut se terminer
+    else { cancelSpeech(); soundStop(); }
   }
   repaintAll();
 }
@@ -417,6 +455,7 @@ function stopInst(inst){
   if(inst.wrap && inst.wrap.parentNode) inst.wrap.parentNode.removeChild(inst.wrap);
   const k = INST.indexOf(inst); if(k >= 0) INST.splice(k, 1);
   if(OWNER === inst) setOwner(null, inst.main);
+  slog('■ ' + (inst.main ? 'chaîne' : 'aperçu admin') + ' : diaporama arrêté');
   if(!INST.length) wakeRelease();
 }
 /* SCCS.stop()      → arrête tous les lecteurs ;  SCCS.stop(element) → arrête seulement celui de cet élément */
@@ -456,11 +495,12 @@ SCCS.play = function(host, id, offset, opt){
   const g = cv.getContext('2d');
   if('speechSynthesis' in window){ try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = ()=>{ VOICE = pickVoice(); }; }catch(e){} }
   if(inst.main && SCCS.sound) setOwner(inst); else inst.paint();
+  slog('▶ ' + (inst.main ? 'chaîne' : 'aperçu admin') + ' : « ' + sh.titre + ' » (son ' + (OWNER === inst ? 'activé' : 'coupé') + ', moteur ' + (AC ? AC.state : 'pas créé') + ')');
   const tick = ()=>{
     if(INST.indexOf(inst) < 0) return;
     const t = clamp((performance.now() - inst.T0)/1000, 0, sh.dur - .001);
     try{ SCCS.drawFrame(g, id, t); }catch(e){ console.warn('diaporama', e); }
-    const k = itemAt(sh, t); if(k !== inst.lastK){ inst.lastK = k; if(OWNER === inst) say(narration(sh, k)); }
+    const k = itemAt(sh, t); if(k !== inst.lastK){ const first = inst.lastK < 0; inst.lastK = k; if(OWNER === inst) say(narration(sh, k), first); }
     tip.style.display = (OWNER === inst && audioBlocked()) ? 'block' : 'none';
     inst.raf = requestAnimationFrame(tick);
   };

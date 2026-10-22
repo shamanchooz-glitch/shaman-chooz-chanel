@@ -3031,6 +3031,12 @@ function bindEvents(){
   document.getElementById('liveOnCheckbox').addEventListener('change', saveLiveSettings);
   document.getElementById('fallbackPlaylistCheckbox').addEventListener('change', saveLiveSettings);
   const liveSoundEl = document.getElementById('liveSoundCheckbox'); if(liveSoundEl) liveSoundEl.addEventListener('change', saveLiveSound);
+  const liveSoundDiagBtn = document.getElementById('liveSoundDiagBtn');
+  if(liveSoundDiagBtn) liveSoundDiagBtn.onclick = ()=>{
+    const pre = document.getElementById('liveSoundDiag'); if(!pre) return;
+    pre.textContent = (window.SCCS && SCCS.diagnostic) ? SCCS.diagnostic() : "Le moteur du son n'est pas chargé : renvoie le fichier slides-engine.js sur GitHub.";
+    pre.style.display = 'block';
+  };
   document.getElementById('saveSourcesBtn').onclick = saveLiveSettings;
   document.getElementById('studioToggleBtn').onclick = toggleStudio;
   document.getElementById('ogGenerateBtn').onclick = ogGenerate;
