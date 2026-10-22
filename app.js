@@ -1045,8 +1045,8 @@ async function adminLogin(){
       errEl.textContent = messages[e.code] || ('Erreur de connexion : ' + (e.code || e.message));
     }
   } else {
-    if(pw === 'Shaman123chooz') onSuccess();
-    else errEl.textContent = 'Mot de passe incorrect. (Mode démo local : Shaman123chooz)';
+    /* Sécurité : aucun mot de passe n'est écrit dans le site. Sans connexion au serveur, l'accès admin reste fermé. */
+    errEl.textContent = 'Connexion au serveur impossible pour le moment. Vérifie ta connexion internet, recharge la page puis réessaie.';
   }
 }
 /* Convertit un numéro de téléphone (formats variés) en lien WhatsApp cliquable */
@@ -3142,7 +3142,12 @@ function bindEvents(){
     document.getElementById('eyeToggle').textContent = inp.type === 'password' ? '👁' : '🙈';
   };
   document.getElementById('adminPwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') adminLogin(); });
-  document.getElementById('adminLogoutBtn').onclick = ()=>{ ADMIN_LOGGED_IN = false; if(DB.ready) firebase.auth().signOut(); showScreen('catalog'); };
+  const adminLogoutNow = ()=>{ ADMIN_LOGGED_IN = false; if(DB.ready) firebase.auth().signOut(); showScreen('catalog'); };
+  document.getElementById('adminLogoutBtn').onclick = adminLogoutNow;
+  /* Sécurité : l'espace admin se ferme tout seul après 10 minutes sans toucher l'écran (ordinateur partagé ou oublié ouvert) */
+  let adminLastAct = Date.now();
+  ['pointerdown','keydown','touchstart','scroll'].forEach(ev=> document.addEventListener(ev, ()=>{ adminLastAct = Date.now(); }, { passive:true }));
+  setInterval(()=>{ if(ADMIN_LOGGED_IN && Date.now() - adminLastAct > 10*60*1000){ adminLogoutNow(); toast('Espace admin fermé automatiquement (10 min sans activité).', 'ok'); } }, 30000);
 
   document.querySelectorAll('[data-admintab]').forEach(btn=>{
     btn.onclick = ()=>{
