@@ -23,6 +23,17 @@ const FONT_T = '800 {s}px "Baloo 2","Trebuchet MS","Segoe UI",sans-serif';
 const FONT_B = '600 {s}px Inter,"Segoe UI",Roboto,Arial,sans-serif';
 const EMO = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 const f = (tpl, s)=> tpl.replace('{s}', s);
+/* Photo du responsable (photo-shaman.jpg) : affichée en médaillon dans les diaporamas « Agence » */
+const PHOTO = new Image(); PHOTO.src = 'photo-shaman.jpg';
+function portrait(g, x, y, r){
+  if(!PHOTO.complete || !PHOTO.naturalWidth) return false;
+  const nw = PHOTO.naturalWidth, nh = PHOTO.naturalHeight;
+  g.save(); g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.closePath(); g.clip();
+  g.drawImage(PHOTO, nw*.32, nh*.08, nw*.56, nw*.56, x - r, y - r, r*2, r*2);
+  g.restore();
+  g.lineWidth = Math.max(3, r*.07); g.strokeStyle = '#F2B84B'; g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.stroke();
+  return true;
+}
 const clamp = (x,a,b)=> Math.max(a, Math.min(b, x));
 const ease = x => { x = clamp(x,0,1); return 1 - Math.pow(1-x, 3); };
 
@@ -113,13 +124,14 @@ function chrome(g, sh, t, idx){
   const n = sh.slides.length, cur = idx > 0 && idx <= n ? idx : null;
   if(cur){ g.textAlign = 'right'; g.fillText(cur + ' / ' + n, W-20, H-19); }
   const p = clamp(t / sh.dur, 0, 1); g.fillStyle = c[2]; g.fillRect(0, H-4, W*p, 4);
+  if(sh.agency && cur) portrait(g, W-96, H-19, 24);
 }
 
 function drawIntro(g, sh, lt, t){
   const e = ease(lt/.8), fade = lt > 4 ? clamp((4.5-lt)/.5,0,1) : 1;
   g.save(); g.globalAlpha = fade; g.translate(W/2, H/2); g.scale(.85 + .15*e, .85 + .15*e); g.translate(-W/2, -H/2);
   glow(g, W/2, 175, 170, sh.pal[2], .35);
-  g.fillStyle = '#fff'; emoji(g, sh.slides[0] ? sh.slides[0].e : '🎬', W/2, 168 + Math.sin(t*1.8)*6, 120);
+  g.fillStyle = '#fff'; if(!(sh.agency && portrait(g, W/2, 168 + Math.sin(t*1.8)*4, 84))) emoji(g, sh.slides[0] ? sh.slides[0].e : '🎬', W/2, 168 + Math.sin(t*1.8)*6, 120);
   g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   const lines = wrap(g, sh.titre, f(FONT_T, 54), 820).slice(0,3); g.font = f(FONT_T, 54);
   lines.forEach((l,i)=> g.fillText(l, W/2, 290 + i*62));
@@ -162,7 +174,7 @@ function drawOutro(g, sh, lt, t){
   const fade = lt < .3 ? lt/.3 : 1, ag = agence();
   g.save(); g.globalAlpha = fade; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   glow(g, W/2, 140, 150, sh.pal[2], .32);
-  emoji(g, sh.agency ? '🤝' : '🎬', W/2, 130 + Math.sin(t*1.8)*6, 96);
+  if(!(sh.agency && portrait(g, W/2, 128, 64))) emoji(g, sh.agency ? '🤝' : '🎬', W/2, 130 + Math.sin(t*1.8)*6, 96);
   g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillStyle = '#fff';
   if(sh.agency){
     g.font = f(FONT_T, 42); g.fillText('Besoin de talents ? Envie d\'un emploi ?', W/2, 240, 900);
@@ -183,6 +195,7 @@ function drawContact(g, sh, lt, t){
   const ag = agence(), c = sh.pal, fade = lt < .3 ? lt/.3 : (lt > 14.4 ? clamp((15-lt)/.6,0,1) : 1);
   g.save(); g.globalAlpha = fade; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   g.fillStyle = '#fff'; g.font = f(FONT_T, 40); g.fillText('📞 Contactez-nous', W/2, 98);
+  if(sh.agency) portrait(g, W-76, 88, 36);
   g.fillStyle = c[2]; g.font = f(FONT_T, 26); wrap(g, ag.nom || 'Notre agence de recrutement et de placement', f(FONT_T, 26), 900).slice(0,2).forEach((l,k)=> g.fillText(l, W/2, 140 + k*32));
   let y = 214, n = 0; const reveal = ()=> clamp((lt - .5 - (n++)*.55)/.4, 0, 1);
   const row = (draw)=>{ const al = reveal(); g.globalAlpha = fade*al; draw(al); g.globalAlpha = fade; };

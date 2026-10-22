@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v20';
+const CACHE_NAME = 'scc-v21';
 
 const APP_SHELL = [
   './',
@@ -35,12 +35,15 @@ const APP_SHELL = [
   './games-edu3.js',
   './games-edu4.js',
   './games-edu5.js',
+  './games-edu6.js',
   './agence-config.js',
   './slides-engine.js',
   './admin-preview.js',
   './slides-data-agence.js',
   './slides-data-savoirs1.js',
   './slides-data-savoirs2.js',
+  './slides-data-pro.js',
+  './photo-shaman.jpg',
   './firebase-config.js',
   './ai-config.js',
   './manifest.json',
