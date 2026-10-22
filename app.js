@@ -2706,8 +2706,23 @@ function slotActive(s, now){
   return (days.includes(d) && m >= a1) || (days.includes(prev) && m < b1);
 }
 /* Boucle effective = programmes de l'admin + diaporamas intégrés (slides-engine.js), sauf si l'admin les a désactivés */
+const BROKEN_ITEMS = new Set();      // vidéos de la boucle qui ne se chargent pas : ignorées automatiquement pour les spectateurs
+let CURRENT_ITEM_ID = '', BROKEN_TIMER = null;
+function markBroken(item){
+  if(!item || BROKEN_ITEMS.has(item.id)) return;
+  BROKEN_ITEMS.add(item.id); CURRENT_PLAY_KEY = '';
+  try{ checkLiveStatus(); }catch(e){}
+}
+function watchBroken(item){
+  clearTimeout(BROKEN_TIMER); CURRENT_ITEM_ID = item.id;
+  if(item.builtin || item.type !== 'file') return;
+  if(!item.ref){ return markBroken(item); }
+  const video = document.getElementById('livePlayer'); if(!video) return;
+  video.addEventListener('error', ()=>{ if(CURRENT_ITEM_ID === item.id && video.getAttribute('src')) markBroken(item); }, { once:true });
+  BROKEN_TIMER = setTimeout(()=>{ if(CURRENT_ITEM_ID === item.id && video.getAttribute('src') && video.readyState === 0) markBroken(item); }, 20000);
+}
 function effectivePlaylist(){
-  const own = LIVE_SETTINGS.playlist || [];
+  const own = (LIVE_SETTINGS.playlist || []).filter(i=> !BROKEN_ITEMS.has(i.id));
   if(LIVE_SETTINGS.builtinSlides === false || !window.SCCS || typeof SCCS.playlist !== 'function') return own;
   return own.concat(SCCS.playlist());
 }
@@ -2850,6 +2865,7 @@ async function checkLiveStatus(){
         if(st.item.type === 'youtube') playEmbed(youtubeEmbedUrl(st.item.ref, st.offset));
         else if(st.item.type === 'slides') playSlides(st.item.ref, st.offset);
         else playVideoUrl(st.item.ref, st.offset);
+        watchBroken(st.item);
       }
       PLAYLIST_TIMER = setTimeout(()=>{ if(liveAccessGranted()) checkLiveStatus(); }, Math.max(1000, st.remaining * 1000 + 300));
       return;

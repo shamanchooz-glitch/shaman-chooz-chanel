@@ -26,7 +26,7 @@ const clamp = (x,a,b)=> Math.max(a, Math.min(b, x));
 const ease = x => { x = clamp(x,0,1); return 1 - Math.pow(1-x, 3); };
 
 const SCCS = window.SCCS = { shows:[], byId:{}, PAL, sound:true };
-try{ if(localStorage.getItem('scc_slides_sound') === '0') SCCS.sound = false; }catch(e){}
+try{ localStorage.removeItem('scc_slides_sound'); }catch(e){}   // le son est toujours activé à chaque visite (on peut le couper le temps d'une séance avec 🔊)
 
 /* ---------- Coordonnées de l'agence (modifiables dans agence-config.js) ---------- */
 function agence(){
@@ -227,7 +227,7 @@ function say(text){
   if(!('speechSynthesis' in window)) return;
   try{
     speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
-    VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE; speechSynthesis.speak(u);
+    VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE; setTimeout(()=>{ try{ speechSynthesis.speak(u); }catch(e){} }, 80);
   }catch(e){}
 }
 const spokenMail = m => m.replace('@', ' arobase ').replace(/\./g, ' point ');
@@ -245,23 +245,73 @@ function narration(sh, k){
   return sh.agency ? ('Besoin de talents ? Envie de trouver un emploi ? ' + (ag.court || ag.nom ? 'Contactez ' + (ag.court || ag.nom) + '.' : 'Contactez notre agence.')) : 'Merci d\'avoir regardé. Un nouveau programme arrive dans un instant.';
 }
 
-/* ---------- Musique douce (générée, aucun fichier audio) ---------- */
-let AC = null, MASTER = null, MUSIC = 0;
-const CHORDS = [[220,261.63,329.63],[174.61,220,261.63],[261.63,329.63,392],[196,246.94,293.66]];
-function startMusic(){
+/* ---------- Écran toujours allumé pendant les diaporamas ----------
+   1) API « Wake Lock » (Chrome, Edge, Safari récent, Firefox récent) ;
+   2) solution de secours pour les anciens téléphones : une minuscule vidéo invisible en boucle. */
+const NS_MP4 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAM3bW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAmF0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHZbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAoAAAAUABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABhG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAURzdGJsAAAAuHN0c2QAAAAAAAAAAQAAAKhhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAALmF2Y0MBQsAK/+EAFmdCwArcQmwEQAAAAwBAAAADAoPEieABAAVozg8sgAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAAA4sAAAOLAAAABhzdHRzAAAAAAAAAAEAAAAKAAAIAAAAABxzdHNjAAAAAAAAAAEAAAABAAAACgAAAAEAAAA8c3RzegAAAAAAAAAAAAAACgAAAn0AAAAeAAAAHgAAAB4AAAAeAAAAHgAAAB4AAAAeAAAAHgAAAB4AAAAUc3RjbwAAAAAAAAABAAADZwAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAAOTbWRhdAAAAl4GBf//WtxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0xIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDE6MHgxMTEgbWU9aGV4IHN1Ym1lPTcgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MCBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTEgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTIgdGhyZWFkcz0xIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MCB3ZWlnaHRwPTAga2V5aW50PTEga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByYz1jcmYgbWJ0cmVlPTAgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjAwAIAAAAAXZYiEBLyYoAA4oycnJ1111111111114AAAAAaZYiCAX///8PRQABV58nJyddddddddddddeAAAAAaZYiEBf///w9FAAFXnycnJ1111111111114AAAAAaZYiCAX///8PRQABV58nJyddddddddddddeAAAAAaZYiEBf///w9FAAFXnycnJ1111111111114AAAAAaZYiCAX///8PRQABV58nJyddddddddddddeAAAAAaZYiEBf///w9FAAFXnycnJ1111111111114AAAAAaZYiCAX///8PRQABV58nJyddddddddddddeAAAAAaZYiEBf///w9FAAFXnycnJ1111111111114AAAAAaZYiCAX///8PRQABV58nJyddddddddddddeA=', NS_WEBM = 'GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAALCEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggKs7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECfQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYibogi0l6O0S5yBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhAvrwgDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYibogi0l6O0S2fIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDIuMDAwMDAwMDAwAB9DtnVBB+eBAKOqgQAAgPACAJ0BKkAAQAAARwiFhYiFhIgCAgAGcDxCYAqyIPcwAP7/q1CAo5aBAMgA0QEAARAQABgAGFgv9AAIjoAAo5aBAZAA0QEAARAQABgAGFgv9AAIjoAAo5aBAlgA0QEAARAQABgAGFgv9AAIjoAAo5aBAyAA0QEAARAQABgAGFgv9AAIjoAAo5aBA+gA0QEAARAQABgAGFgv9AAIjoAAo5aBBLAA0QEAARAQABgAGFgv9AAIjoAAo5aBBXgA0QEAARAQFGAAYWC/0AAiOgAAo5aBBkAA0QEAARAQABgAGFgv9AAIjoAAo5aBBwgA0QEAARAQABgAGFgv9AAIjoAAHFO7a5G7j7OBALeK94EB8YIBn/CBAw==';
+let WL = null, WANT_AWAKE = false, NSV = null, REL_T = 0;
+function wakeFallbackStart(){
   try{
-    if(MUSIC) return;
-    if(!AC){ const C = window.AudioContext || window.webkitAudioContext; if(!C) return; AC = new C(); MASTER = AC.createGain(); MASTER.gain.value = .05; MASTER.connect(AC.destination); }
-    if(AC.state === 'suspended') AC.resume();
-    let n = 0; const note = ()=>{
-      const ch = CHORDS[n++ % CHORDS.length], t0 = AC.currentTime;
-      ch.forEach((fr,i)=>{ const o = AC.createOscillator(), g = AC.createGain(); o.type = i === 0 ? 'triangle' : 'sine'; o.frequency.value = fr / (i === 0 ? 2 : 1);
-        g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.5, t0 + 1.2); g.gain.linearRampToValueAtTime(0, t0 + 4.2); o.connect(g); g.connect(MASTER); o.start(t0); o.stop(t0 + 4.3); });
-    };
-    note(); MUSIC = setInterval(note, 4000);
+    if(!NSV){
+      NSV = document.createElement('video'); NSV.setAttribute('playsinline',''); NSV.setAttribute('muted',''); NSV.setAttribute('aria-hidden','true'); NSV.muted = true; NSV.loop = true;
+      NSV.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.02;pointer-events:none;z-index:-1;';
+      const a = document.createElement('source'); a.src = 'data:video/mp4;base64,' + NS_MP4; a.type = 'video/mp4';
+      const b = document.createElement('source'); b.src = 'data:video/webm;base64,' + NS_WEBM; b.type = 'video/webm';
+      NSV.appendChild(a); NSV.appendChild(b); document.body.appendChild(NSV);
+    }
+    const pr = NSV.play(); if(pr && pr.catch) pr.catch(()=>{});
   }catch(e){}
 }
-function stopMusic(){ if(MUSIC){ clearInterval(MUSIC); MUSIC = 0; } try{ if(AC){ AC.close(); } }catch(e){} AC = null; MASTER = null; }
+function wakeFallbackStop(){ try{ if(NSV) NSV.pause(); }catch(e){} }
+async function wakeAcquire(){
+  WANT_AWAKE = true; clearTimeout(REL_T);
+  if('wakeLock' in navigator){
+    if(!WL && document.visibilityState === 'visible'){
+      try{ WL = await navigator.wakeLock.request('screen'); WL.addEventListener('release', ()=>{ WL = null; }); }
+      catch(e){ WL = null; wakeFallbackStart(); }
+    }
+  } else wakeFallbackStart();
+}
+function wakeRelease(){
+  WANT_AWAKE = false; clearTimeout(REL_T);
+  REL_T = setTimeout(()=>{ if(WANT_AWAKE) return; try{ if(WL) WL.release(); }catch(e){} WL = null; wakeFallbackStop(); }, 4000);   // petit délai : le diaporama suivant démarre presque aussitôt
+}
+SCCS.awake = ()=> !!WL || (!!NSV && !NSV.paused);
+
+/* ---------- Musique douce (générée, aucun fichier audio) ----------
+   Un seul contexte audio, créé dès le premier toucher de l'écran puis conservé : le son reste actif
+   d'un diaporama à l'autre pendant toute la durée de la boucle. */
+let AC = null, MASTER = null, MUSIC = 0, SPEECH_OK = false;
+const CHORDS = [[220,261.63,329.63],[174.61,220,261.63],[261.63,329.63,392],[196,246.94,293.66]];
+function audioCtx(){
+  if(AC) return AC;
+  try{ const C = window.AudioContext || window.webkitAudioContext; if(!C) return null; AC = new C(); MASTER = AC.createGain(); MASTER.gain.value = .05; MASTER.connect(AC.destination); }catch(e){ AC = null; }
+  return AC;
+}
+function resumeAudio(){ try{ if(AC && AC.state !== 'running' && AC.resume) AC.resume(); }catch(e){} }
+function startMusic(){
+  if(MUSIC) return; const ac = audioCtx(); if(!ac) return; resumeAudio();
+  let n = 0;
+  const note = ()=>{
+    if(!AC || AC.state !== 'running') return;
+    const ch = CHORDS[n++ % CHORDS.length], t0 = AC.currentTime;
+    ch.forEach((fr,i)=>{ const o = AC.createOscillator(), g = AC.createGain(); o.type = i === 0 ? 'triangle' : 'sine'; o.frequency.value = fr / (i === 0 ? 2 : 1);
+      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.5, t0 + 1.2); g.gain.linearRampToValueAtTime(0, t0 + 4.2); o.connect(g); g.connect(MASTER); o.start(t0); o.stop(t0 + 4.3); });
+  };
+  note(); MUSIC = setInterval(note, 4000);
+}
+function stopMusic(){ if(MUSIC){ clearInterval(MUSIC); MUSIC = 0; } }
+
+/* Déblocage du son : les navigateurs exigent un toucher de l'utilisateur. On le prend au tout premier
+   toucher (par ex. le bouton « Regarder la chaîne »), puis le son et la voix fonctionnent sans rien redemander. */
+function unlock(){
+  audioCtx(); resumeAudio();
+  try{ if(!SPEECH_OK && 'speechSynthesis' in window){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); SPEECH_OK = true; } }catch(e){}
+  if(WANT_AWAKE){ wakeAcquire(); }
+}
+['pointerdown','touchend','click','keydown'].forEach(ev=> document.addEventListener(ev, unlock, { capture:true, passive:true }));
+SCCS.unlock = unlock;
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible'){ if(WANT_AWAKE) wakeAcquire(); resumeAudio(); } });
 
 /* ---------- Lecteurs (plusieurs possibles : écran de la chaîne ET aperçu de l'admin) ----------
    Un seul lecteur à la fois est « audible » (voix + musique) pour que les sons ne se mélangent pas. */
@@ -277,15 +327,16 @@ function stopInst(inst){
   if(inst.wrap && inst.wrap.parentNode) inst.wrap.parentNode.removeChild(inst.wrap);
   const k = INST.indexOf(inst); if(k >= 0) INST.splice(k, 1);
   if(OWNER === inst) setOwner(null);
+  if(!INST.length) wakeRelease();
 }
 /* SCCS.stop()      → arrête tous les lecteurs ;  SCCS.stop(element) → arrête seulement celui de cet élément */
 SCCS.stop = function(host){ INST.slice().forEach(i=>{ if(!host || i.host === host) stopInst(i); }); };
 SCCS.setSound = function(on){
-  SCCS.sound = !!on; try{ localStorage.setItem('scc_slides_sound', on ? '1' : '0'); }catch(e){}
+  SCCS.sound = !!on;
   const m = INST.find(i=>i.main); if(m) setOwner(on ? m : (OWNER === m ? null : OWNER));
 };
 /* SCCS.play(élément, idDiaporama, décalageEnSecondes, {main:true|false})
-   main:true = lecteur des spectateurs (son selon leur préférence) ; main:false = aperçu muet par défaut (admin) */
+   main:true = lecteur des spectateurs (son activé par défaut) ; main:false = aperçu muet par défaut (admin) */
 SCCS.play = function(host, id, offset, opt){
   opt = opt || {}; if(host) SCCS.stop(host);
   const sh = SCCS.byId[id]; if(!sh || !host) return false;
@@ -294,15 +345,16 @@ SCCS.play = function(host, id, offset, opt){
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.style.cssText = 'display:block;width:100%;height:100%;';
   const btn = document.createElement('button'); btn.type = 'button'; btn.setAttribute('aria-label', 'Activer ou couper le son');
   btn.style.cssText = 'position:absolute;left:12px;top:56px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:20px;cursor:pointer;z-index:3;';
+  const tip = document.createElement('div'); tip.textContent = '🔊 Touche l\'écran pour activer le son';
+  tip.style.cssText = 'position:absolute;left:50%;bottom:46px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;padding:8px 14px;border-radius:999px;font:700 13px/1.2 sans-serif;z-index:4;display:none;pointer-events:none;white-space:nowrap;';
   const inst = { host, wrap:wr, id, sh, main: opt.main !== false, lastK:-1, raf:0, T0: performance.now() - (offset || 0) * 1000 };
   inst.paint = ()=>{ btn.textContent = OWNER === inst ? '🔊' : '🔇'; };
   btn.onclick = ()=>{
-    if(OWNER === inst){
-      if(AC && AC.state === 'suspended'){ AC.resume(); inst.lastK = -1; return; }
-      setOwner(null); if(inst.main){ SCCS.sound = false; try{ localStorage.setItem('scc_slides_sound','0'); }catch(e){} }
-    } else { setOwner(inst); if(inst.main){ SCCS.sound = true; try{ localStorage.setItem('scc_slides_sound','1'); }catch(e){} } }
+    if(OWNER === inst){ setOwner(null); if(inst.main) SCCS.sound = false; }   // couper le son (le temps de cette séance seulement)
+    else { setOwner(inst); if(inst.main) SCCS.sound = true; }
   };
-  wr.appendChild(cv); wr.appendChild(btn); host.insertBefore(wr, host.firstChild); INST.push(inst);
+  wr.appendChild(cv); wr.appendChild(btn); wr.appendChild(tip); host.insertBefore(wr, host.firstChild); INST.push(inst);
+  wakeAcquire();
   const g = cv.getContext('2d');
   if('speechSynthesis' in window){ try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = ()=>{ VOICE = pickVoice(); }; }catch(e){} }
   if(inst.main && SCCS.sound) setOwner(inst); else inst.paint();
@@ -311,6 +363,7 @@ SCCS.play = function(host, id, offset, opt){
     const t = clamp((performance.now() - inst.T0)/1000, 0, sh.dur - .001);
     try{ SCCS.drawFrame(g, id, t); }catch(e){ console.warn('diaporama', e); }
     const k = itemAt(sh, t); if(k !== inst.lastK){ inst.lastK = k; if(OWNER === inst) say(narration(sh, k)); }
+    tip.style.display = (OWNER === inst && AC && AC.state !== 'running') ? 'block' : 'none';
     inst.raf = requestAnimationFrame(tick);
   };
   inst.raf = requestAnimationFrame(tick);

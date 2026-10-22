@@ -17,7 +17,7 @@ const clock = ms => new Date(ms).toLocaleTimeString('fr-FR', { hour:'2-digit', m
 const dur = s => { s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), r = s%60; return h ? h + ' h ' + String(m).padStart(2,'0') : (m ? m + ' min' + (r ? ' ' + r + ' s' : '') : r + ' s'); };
 const mmss = s => { s = Math.max(0, Math.round(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
 
-let timer = null, curKey = '', hls = null, cfRes = null, cfAt = 0, cfBusy = false, lastProg = 0, lastPk = '';
+let timer = null, curKey = '', hls = null, cfRes = null, cfAt = 0, cfBusy = false, lastProg = 0, lastPk = '', testUntil = 0, ownSig = null;
 
 /* ---------- Style (injecté ici : pas de fichier CSS en plus) ---------- */
 (function(){
@@ -38,6 +38,15 @@ let timer = null, curKey = '', hls = null, cfRes = null, cfAt = 0, cfBusy = fals
 .pv-time{ font-weight:800; font-variant-numeric:tabular-nums; }
 .pv-dur{ opacity:.7; font-size:12px; white-space:nowrap; }
 .pv-tag{ font-size:11px; opacity:.7; display:block; font-weight:600; }
+.pv-own{ margin-top:12px; border-top:1px solid var(--line,#e7dccb); padding-top:10px; }
+.pv-own h4{ margin:0 0 4px; font-size:15px; }
+.pv-own-row{ display:grid; grid-template-columns:1fr auto; gap:6px 8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line,#e7dccb); font-size:13.5px; }
+.pv-own-row b{ display:block; word-break:break-word; }
+.pv-own-row small{ opacity:.7; }
+.pv-mini{ display:flex; gap:6px; }
+.pv-mini button{ padding:8px 10px; border-radius:10px; border:2px solid var(--line,#e7dccb); background:var(--card,#fff); font-weight:800; font-size:13px; cursor:pointer; color:inherit; touch-action:manipulation; }
+.pv-mini button.del{ border-color:#c0392b; color:#c0392b; }
+.pv-danger{ width:100%; margin-top:10px; padding:12px; border-radius:12px; border:2px solid #c0392b; background:transparent; color:#c0392b; font-weight:800; font-size:14px; cursor:pointer; }
 .pv-bar{ height:5px; border-radius:3px; background:rgba(0,0,0,.12); margin:6px 0 0; overflow:hidden; }
 .pv-bar i{ display:block; height:100%; background:#C97B3E; width:0; }
 .live-player-box .fs-exit{ display:none; position:absolute; top:12px; right:12px; z-index:9; padding:10px 14px; border-radius:12px; border:none; background:rgba(0,0,0,.65); color:#fff; font-weight:800; font-size:14px; cursor:pointer; }
@@ -98,10 +107,21 @@ A.mount = function(){
         <h4>📅 Programme de la chaîne</h4>
         <p class="hint" id="adminProgramInfo" style="margin:0 0 6px;"></p>
         <div id="adminProgramList"></div>
+      </div>
+      <div class="pv-own">
+        <h4>🎞️ Mes films & séries (hors diaporamas)</h4>
+        <p class="hint" id="adminOwnInfo" style="margin:0 0 6px;"></p>
+        <div id="adminOwnList"></div>
+        <button class="pv-danger" id="adminOwnClear" type="button" style="display:none;">🧹 Retirer tous ces programmes de la boucle (garder seulement les diaporamas)</button>
       </div>`;
     tab.insertBefore(sec, tab.firstChild);
     $('adminPreviewFs').onclick = ()=> A.fullscreen($('adminPreviewBox'));
-    $('adminPreviewRefresh').onclick = ()=>{ stopPlayer(); curKey = ''; cfRes = null; cfAt = 0; tick(); };
+    $('adminPreviewRefresh').onclick = ()=>{ testUntil = 0; stopPlayer(); curKey = ''; cfRes = null; cfAt = 0; ownSig = null; tick(); };
+    $('adminOwnClear').onclick = async ()=>{
+      const n = (LIVE_SETTINGS.playlist || []).length; if(!n) return;
+      if(!confirm('Retirer les ' + n + ' programme(s) de ta liste (films, séries, vidéos) de la boucle ?\n\nIl ne restera que les diaporamas intégrés. Tu pourras toujours en rajouter ensuite.')) return;
+      await savePlaylist([]); afterOwnChange(); if(window.toast) toast('Boucle nettoyée : il ne reste que les diaporamas.', 'ok');
+    };
   }
   A.start();
 };
@@ -151,6 +171,8 @@ function tick(){
   if(!box || !tab) return A.stop();
   if(!A.isFullscreen(box) && tab.offsetParent === null) return A.stop();   // onglet caché : on arrête l'aperçu
   const status = $('adminPreviewStatus'), bar = $('adminPreviewBar'), ind = $('adminPreviewIndicator');
+  renderOwn();
+  if(testUntil){ if(Date.now() < testUntil){ try{ renderProgram(currentPlaylistState()); }catch(e){} return; } testUntil = 0; curKey = ''; stopPlayer(); }
   if(LIVE_SETTINGS.maintenanceMode){
     if(curKey !== 'maint'){ stopPlayer(); curKey = 'maint'; }
     idle('🛠️ ' + esc(LIVE_SETTINGS.maintenanceMessage || 'La chaîne est en maintenance : les clients voient ce message.')); status.textContent = 'Mode maintenance activé.'; bar.style.width = '0'; renderProgram(null); return;
@@ -185,6 +207,34 @@ function tick(){
   if(curKey !== 'off'){ stopPlayer(); curKey = 'off'; }
   idle(res.msg ? '⚠️ ' + esc(res.msg) : '⏸️ ' + esc(LIVE_SETTINGS.offlineMessage || 'Hors antenne pour le moment.'));
   status.textContent = 'Rien n\'est diffusé : ajoute des programmes à la boucle ou active les diaporamas intégrés.'; bar.style.width = '0'; renderProgram(null);
+}
+
+/* ---------- Mes films & séries : voir, tester, retirer ---------- */
+function afterOwnChange(){ testUntil = 0; curKey = ''; stopPlayer(); ownSig = null; lastPk = ''; renderOwn(); try{ if(typeof renderAdminPlaylist === 'function') renderAdminPlaylist(); }catch(e){} tick(); }
+function renderOwn(){
+  const list = $('adminOwnList'), info = $('adminOwnInfo'), clr = $('adminOwnClear'); if(!list) return;
+  const own = LIVE_SETTINGS.playlist || [];
+  const sig = own.map(i=>i.id + ':' + i.sec).join('|'); if(sig === ownSig) return; ownSig = sig;
+  if(!own.length){ info.textContent = 'Aucun film ou série dans ta liste : seuls les diaporamas intégrés tournent dans la boucle. ✅'; list.innerHTML = ''; clr.style.display = 'none'; return; }
+  info.innerHTML = '<b>' + own.length + '</b> programme(s) ajouté(s) par toi passent avant les diaporamas. Un programme à fond noir ? Teste-le avec ▶, puis retire-le avec 🗑️.';
+  clr.style.display = 'block';
+  list.innerHTML = own.map((it,i)=>`<div class="pv-own-row"><div><b>${i+1}. ${esc(it.title)}</b><small>${it.type === 'youtube' ? 'YouTube' : 'Lien direct'} • ${dur(it.sec || 0)}${it.ref ? '' : ' • ⚠️ lien vide'}</small></div><div class="pv-mini"><button data-own-test="${i}" type="button">▶ Tester</button><button class="del" data-own-del="${i}" type="button">🗑️</button></div></div>`).join('');
+  list.querySelectorAll('[data-own-test]').forEach(b=> b.onclick = ()=> testItem(parseInt(b.dataset.ownTest)));
+  list.querySelectorAll('[data-own-del]').forEach(b=> b.onclick = async ()=>{
+    const i = parseInt(b.dataset.ownDel), it = (LIVE_SETTINGS.playlist || [])[i]; if(!it) return;
+    if(!confirm('Retirer « ' + it.title + ' » de la boucle ?')) return;
+    const l = (LIVE_SETTINGS.playlist || []).slice(); l.splice(i, 1); await savePlaylist(l); afterOwnChange();
+  });
+}
+function testItem(i){
+  const it = (LIVE_SETTINGS.playlist || [])[i]; if(!it) return;
+  testUntil = Date.now() + 45000; stopPlayer(); curKey = 'test';
+  $('adminPreviewIndicator').style.display = 'none';
+  if(!it.ref){ idle('⚠️ Ce programme n\'a pas de lien : il sera toujours noir. Retire-le avec 🗑️.'); }
+  else if(it.type === 'youtube') playEmbed(youtubeEmbedUrl(it.ref, 0));
+  else playVideo(it.ref, 0);
+  $('adminPreviewStatus').innerHTML = '🔍 <b>Test</b> : ' + esc(it.title) + ' — s\'il reste noir, retire-le avec 🗑️. (Le test dure 45 s, ou clique « Recharger l\'aperçu ».)';
+  $('adminPreviewBox').scrollIntoView({ behavior:'smooth', block:'center' });
 }
 
 /* ---------- Programme (heures de passage) ---------- */
