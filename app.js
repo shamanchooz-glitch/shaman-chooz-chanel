@@ -1174,6 +1174,7 @@ async function renderAdminLiveTab(){
   document.getElementById('liveOnCheckbox').checked = isLiveOn();
   document.getElementById('fallbackPlaylistCheckbox').checked = LIVE_SETTINGS.fallbackPlaylist !== false;
   const bsc = document.getElementById('builtinSlidesCheckbox'); if(bsc) bsc.checked = LIVE_SETTINGS.builtinSlides !== false;
+  const lsc = document.getElementById('liveSoundCheckbox'); if(lsc) lsc.checked = LIVE_SETTINGS.soundAlways !== false;   // son activé par défaut
   updateLiveProviderUI();
   fillSlotProviderSelect();
   renderAdminSchedule();
@@ -1392,12 +1393,22 @@ async function saveLiveSettings(){
   LIVE_SETTINGS.liveOn = document.getElementById('liveOnCheckbox').checked;
   LIVE_SETTINGS.fallbackPlaylist = document.getElementById('fallbackPlaylistCheckbox').checked;
   const bscSave = document.getElementById('builtinSlidesCheckbox'); if(bscSave) LIVE_SETTINGS.builtinSlides = bscSave.checked;
+  const lscSave = document.getElementById('liveSoundCheckbox'); if(lscSave) LIVE_SETTINGS.soundAlways = lscSave.checked;
   LIVE_SETTINGS.currentProgram = document.getElementById('currentProgramInput').value.trim();
   LIVE_SETTINGS.offlineMessage = document.getElementById('offlineMessageInput').value.trim();
   LIVE_SETTINGS.maintenanceMode = document.getElementById('maintenanceModeCheckbox').checked;
   LIVE_SETTINGS.maintenanceMessage = document.getElementById('maintenanceMessageInput').value.trim();
   await DB.set('liveSettings', LIVE_SETTINGS);
   toast('Réglages de la chaîne enregistrés.', 'ok');
+}
+// Réglage « Son de la chaîne » : enregistré tout de suite (sans passer par le bouton Enregistrer)
+async function saveLiveSound(){
+  const c = document.getElementById('liveSoundCheckbox'); if(!c) return;
+  LIVE_SETTINGS.soundAlways = c.checked;
+  try{
+    await DB.set('liveSettings', LIVE_SETTINGS);
+    toast(c.checked ? "🔊 Son activé par défaut sur la chaîne." : "🔇 Son coupé par défaut sur la chaîne (les spectateurs peuvent l'activer avec 🔊).", 'ok');
+  }catch(e){ toast("Le réglage du son n'a pas pu être enregistré. Réessaie.", 'err'); }
 }
 
 /* ---------- Studio IA (admin) : générateurs de vidéo IA avec crédits gratuits ---------- */
@@ -2787,7 +2798,10 @@ function playSlides(id, offset){
   if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
   if(video){ video.pause(); video.removeAttribute('src'); video.style.display = 'none'; }
   if(frame){ frame.removeAttribute('src'); frame.style.display = 'none'; }
-  if(box && window.SCCS) SCCS.play(box, id, offset, { main:true });
+  if(box && window.SCCS){
+    if(SCCS.configure) SCCS.configure({ sound: LIVE_SETTINGS.soundAlways !== false });   // réglage « Son » des paramètres de la chaîne (activé par défaut)
+    SCCS.play(box, id, offset, { main:true });
+  }
 }
 function playVideoUrl(url, offset){
   url = resolveMediaUrl(url);
@@ -3016,6 +3030,7 @@ function bindEvents(){
   document.getElementById('liveProviderSelect').addEventListener('change', updateLiveProviderUI);
   document.getElementById('liveOnCheckbox').addEventListener('change', saveLiveSettings);
   document.getElementById('fallbackPlaylistCheckbox').addEventListener('change', saveLiveSettings);
+  const liveSoundEl = document.getElementById('liveSoundCheckbox'); if(liveSoundEl) liveSoundEl.addEventListener('change', saveLiveSound);
   document.getElementById('saveSourcesBtn').onclick = saveLiveSettings;
   document.getElementById('studioToggleBtn').onclick = toggleStudio;
   document.getElementById('ogGenerateBtn').onclick = ogGenerate;
