@@ -56,11 +56,11 @@ function agence(){
 const hasContact = ag => !!(ag.telephones.length || ag.email || ag.adresse || ag.siege);
 
 /* ---------- Déclaration d'un diaporama ---------- */
-// SCCS.add(id, titre, categorie, palette, [[emoji, titre, texte], …])
-SCCS.add = function(id, titre, cat, pal, slides){
+// SCCS.add(id, titre, categorie, palette, [[emoji, titre, texte], …], { photo:true })   ← 6e paramètre facultatif : affiche ta photo même si ce n'est pas un diaporama « Agence »
+SCCS.add = function(id, titre, cat, pal, slides, opt){
   if(SCCS.byId[id]){ console.warn('Diaporama en double ignoré :', id); return; }
   const sl = slides.map(s=>({ e:s[0], t:s[1], x:s[2] || '' }));
-  const sh = { id, titre, cat, pal: PAL[pal] || PAL.bleu, slides: sl, agency: cat === 'Agence' };
+  const sh = { id, titre, cat, pal: PAL[pal] || PAL.bleu, slides: sl, agency: cat === 'Agence', photo: !!(opt && opt.photo) };
   const tl = []; let t = 0; const push = (type, dur, data)=>{ tl.push({ type, start:t, dur, data }); t += dur; };
   push('intro', 4.5, {});
   sl.forEach((s,i)=>{ const words = (s.t + ' ' + s.x).trim().split(/\s+/).length; push('slide', clamp(2.4 + words/2.4, 5.5, 13), { s, i }); });
@@ -70,13 +70,27 @@ SCCS.add = function(id, titre, cat, pal, slides){
 };
 SCCS.duration = id => SCCS.byId[id] ? SCCS.byId[id].dur : 0;
 
-/* Ordre de la boucle : 1 diaporama « Agence » pour 2 diaporamas culture/divertissement (ordre fixe → identique pour tous). */
+/* Ordre de la boucle : les diaporamas « Agence » (pubs) et les autres (culture, maison, commerce, divertissement…) sont mélangés
+   régulièrement sur TOUTE la boucle, au prorata de leur nombre : on ne voit jamais 200 pubs à la suite.
+   Chaque famille est elle aussi répartie sur toute la boucle (un thème à tour de rôle). L'ordre est fixe → identique pour tous. */
+function roundRobin(list, key){
+  const groups = [], map = {};
+  list.forEach(s=>{ const k = key(s); if(!map[k]){ map[k] = []; groups.push(map[k]); } map[k].push(s); });
+  const out = []; let left = list.length;
+  for(let r = 0; left > 0; r++) groups.forEach(g=>{ if(r < g.length){ out.push(g[r]); left--; } });
+  return out;
+}
+function spread(list, key){
+  const cnt = {}, size = {};
+  list.forEach(s=>{ const k = key(s); size[k] = (size[k] || 0) + 1; });
+  return list.map((s,i)=>{ const k = key(s), j = cnt[k] = (cnt[k] || 0) + 1; return { s, w:(j - .5) / size[k], i }; })
+    .sort((a,b)=> a.w - b.w || a.i - b.i).map(x=>x.s);
+}
 SCCS.playlist = function(){
-  const ag = SCCS.shows.filter(s=>s.agency), ot = SCCS.shows.filter(s=>!s.agency), out = [];
+  const ag = spread(SCCS.shows.filter(s=>s.agency), s=> s.id.split('-')[0]), ot = roundRobin(SCCS.shows.filter(s=>!s.agency), s=> s.cat), out = [];
   let i = 0, j = 0;
-  while(i < ot.length || j < ag.length){
-    for(let k=0;k<2 && i<ot.length;k++) out.push(ot[i++]);
-    if(j < ag.length) out.push(ag[j++]);
+  while(i < ag.length || j < ot.length){
+    if(j >= ot.length || (i < ag.length && i / ag.length <= j / ot.length)) out.push(ag[i++]); else out.push(ot[j++]);
   }
   return out.map(s=>({ id:'s:' + s.id, title:'🎬 ' + s.titre, type:'slides', ref:s.id, sec:Math.ceil(s.dur), builtin:true }));
 };
@@ -124,14 +138,14 @@ function chrome(g, sh, t, idx){
   const n = sh.slides.length, cur = idx > 0 && idx <= n ? idx : null;
   if(cur){ g.textAlign = 'right'; g.fillText(cur + ' / ' + n, W-20, H-19); }
   const p = clamp(t / sh.dur, 0, 1); g.fillStyle = c[2]; g.fillRect(0, H-4, W*p, 4);
-  if(sh.agency && cur) portrait(g, W-96, H-19, 24);
+  if((sh.agency || sh.photo) && cur) portrait(g, W-96, H-19, 24);
 }
 
 function drawIntro(g, sh, lt, t){
   const e = ease(lt/.8), fade = lt > 4 ? clamp((4.5-lt)/.5,0,1) : 1;
   g.save(); g.globalAlpha = fade; g.translate(W/2, H/2); g.scale(.85 + .15*e, .85 + .15*e); g.translate(-W/2, -H/2);
   glow(g, W/2, 175, 170, sh.pal[2], .35);
-  g.fillStyle = '#fff'; if(!(sh.agency && portrait(g, W/2, 168 + Math.sin(t*1.8)*4, 84))) emoji(g, sh.slides[0] ? sh.slides[0].e : '🎬', W/2, 168 + Math.sin(t*1.8)*6, 120);
+  g.fillStyle = '#fff'; if(!((sh.agency || sh.photo) && portrait(g, W/2, 168 + Math.sin(t*1.8)*4, 84))) emoji(g, sh.slides[0] ? sh.slides[0].e : '🎬', W/2, 168 + Math.sin(t*1.8)*6, 120);
   g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   const lines = wrap(g, sh.titre, f(FONT_T, 54), 820).slice(0,3); g.font = f(FONT_T, 54);
   lines.forEach((l,i)=> g.fillText(l, W/2, 290 + i*62));
@@ -174,7 +188,7 @@ function drawOutro(g, sh, lt, t){
   const fade = lt < .3 ? lt/.3 : 1, ag = agence();
   g.save(); g.globalAlpha = fade; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   glow(g, W/2, 140, 150, sh.pal[2], .32);
-  if(!(sh.agency && portrait(g, W/2, 128, 64))) emoji(g, sh.agency ? '🤝' : '🎬', W/2, 130 + Math.sin(t*1.8)*6, 96);
+  if(!((sh.agency || sh.photo) && portrait(g, W/2, 128, 64))) emoji(g, sh.agency ? '🤝' : '🎬', W/2, 130 + Math.sin(t*1.8)*6, 96);
   g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillStyle = '#fff';
   if(sh.agency){
     g.font = f(FONT_T, 42); g.fillText('Besoin de talents ? Envie d\'un emploi ?', W/2, 240, 900);
