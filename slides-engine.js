@@ -191,7 +191,7 @@ function drawOutro(g, sh, lt, t){
   if(!((sh.agency || sh.photo) && portrait(g, W/2, 128, 64))) emoji(g, sh.agency ? '🤝' : '🎬', W/2, 130 + Math.sin(t*1.8)*6, 96);
   g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillStyle = '#fff';
   if(sh.agency){
-    g.font = f(FONT_T, 42); g.fillText('Besoin de talents ? Envie d\'un emploi ?', W/2, 240, 900);
+    g.font = f(FONT_T, 42); g.fillText('Besoin de travailler ? Envie d\'un emploi ?', W/2, 240, 900);
     const lines = wrap(g, ag.nom || 'Contactez notre agence', f(FONT_T, 36), 880).slice(0,3);
     g.font = f(FONT_T, 36); g.fillStyle = sh.pal[2]; lines.forEach((l,k)=> g.fillText(l, W/2, 298 + k*44));
     const y = 298 + lines.length*44 + 14;
@@ -279,7 +279,7 @@ function narration(sh, k){
     if(ag.ville) parts.push('Nous sommes à ' + ag.ville + '.');
     return parts.join(' ');
   }
-  return sh.agency ? ('Besoin de talents ? Envie de trouver un emploi ? ' + (ag.court || ag.nom ? 'Contactez ' + (ag.court || ag.nom) + '.' : 'Contactez notre agence.')) : 'Merci d\'avoir regardé. Un nouveau programme arrive dans un instant.';
+  return sh.agency ? ('Besoin de travailler ? Envie de trouver un emploi ? ' + (ag.court || ag.nom ? 'Contactez ' + (ag.court || ag.nom) + '.' : 'Contactez notre agence.')) : 'Merci d\'avoir regardé. Un nouveau programme arrive dans un instant.';
 }
 
 /* ---------- Écran toujours allumé pendant les diaporamas ----------
