@@ -20,10 +20,10 @@ window.AGENCE = {
   ],
   email: "shamanchooz@gmail.com",
   adresse: "01 BP 6610 ABIDJAN 01",
-  siege: "Côte d'Ivoire, Abidjan, Yopougon Académie, cité Caistab, près du pont Max Gradel",
+  siege: "Côte d'Ivoire, Abidjan, Yopougon Niangon Académie, cité Caistab, près du pont Max Gradel",
 
   // Lieu court prononcé par la voix off
-  ville: "Abidjan, Yopougon Académie",
+  ville: "Abidjan, Yopougon Niangon",
 
   slogan: "Recrutement et placement dans tous les secteurs d'activité"
 };

@@ -276,7 +276,7 @@ function narration(sh, k){
     const parts = ['Contactez ' + (ag.court || ag.nom || 'notre agence') + '.'];
     if(ag.telephones.length) parts.push('Appelez le ' + ag.telephones[0] + '.');
     if(ag.email) parts.push('Écrivez-nous à ' + spokenMail(ag.email) + '.');
-    if(ag.ville) parts.push('Nous sommes à ' + ag.ville + '.');
+    if(ag.ville) parts.push('Nous sommes à ' + String(ag.ville).replace(/Yopougon Niangon( Académie)?/gi, 'Yopougon Académie') + '.');
     return parts.join(' ');
   }
   return sh.agency ? ('Besoin de travailler ? Envie de trouver un emploi ? ' + (ag.court || ag.nom ? 'Contactez ' + (ag.court || ag.nom) + '.' : 'Contactez notre agence.')) : 'Merci d\'avoir regardé. Un nouveau programme arrive dans un instant.';

@@ -82,5 +82,16 @@ function adminState(){
   const el = $('faState'); if(!el) return; const f = free();
   el.textContent = f ? '🎁 État actuel : GRATUIT' + (f.until ? ' jusqu\'au ' + when(f.until) : ' (jusqu\'à ce que tu le coupes)') : '🔒 État actuel : PAYANT';
 }
-setInterval(() => { adminBuild(); adminState(); }, 2000);
+/* ---- Œil 👁 pour voir / cacher le mot de passe admin (évite les fautes de frappe) ---- */
+function eyes(){
+  ['newPwInput','adminPwInput'].forEach(id => {
+    const i = $(id); if(!i || i.dataset.eye) return; i.dataset.eye = '1';
+    const w = document.createElement('div'); w.style.cssText = 'position:relative'; i.parentNode.insertBefore(w, i); w.appendChild(i); i.style.paddingRight = '52px';
+    const b = document.createElement('button'); b.type = 'button'; b.title = 'Voir / cacher le mot de passe'; b.textContent = '👁';
+    b.style.cssText = 'position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:22px;cursor:pointer;padding:6px';
+    b.onclick = () => { const show = i.type === 'password'; i.type = show ? 'text' : 'password'; b.textContent = show ? '🙈' : '👁'; };
+    w.appendChild(b);
+  });
+}
+setInterval(() => { adminBuild(); adminState(); eyes(); }, 2000);
 })();
