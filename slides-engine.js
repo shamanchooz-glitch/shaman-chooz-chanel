@@ -259,7 +259,7 @@ function say(text){
     const ss = speechSynthesis; clearTimeout(SAY_T);
     const busy = ss.speaking || ss.pending;
     if(busy) ss.cancel();                                   // on ne coupe que s'il y a vraiment une phrase en cours
-    const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
+    const u = new SpeechSynthesisUtterance(String(text).replace(/CHOOZ/gi, 'TCHOUZE')); u.lang = 'fr-FR'; u.rate = .98; u.volume = 1;
     VOICE = VOICE || pickVoice(); if(VOICE) u.voice = VOICE;
     u.onend = ()=>{ if(CUR_UTT === u) CUR_UTT = null; };
     u.onerror = e=>{ if(CUR_UTT === u) CUR_UTT = null; if(e && e.error === 'not-allowed') SPEECH_OK = false; };   // refusée : on redébloquera au prochain toucher
