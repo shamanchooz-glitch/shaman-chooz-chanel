@@ -84,8 +84,8 @@ function adminState(){
 }
 /* ---- Œil 👁 pour voir / cacher le mot de passe admin (évite les fautes de frappe) ---- */
 function eyes(){
-  ['newPwInput'].forEach(id => {
-    const i = $(id); if(!i || i.dataset.eye) return; i.dataset.eye = '1';
+  ['newPwInput', 'clientCodeInput', 'liveCodeInput', 'gmLoginCode'].forEach(id => {
+    const i = $(id); if(!i || i.dataset.eye) return; i.dataset.eye = '1'; i.type = 'password'; i.setAttribute('autocomplete', 'off');
     const w = document.createElement('div'); w.style.cssText = 'position:relative'; i.parentNode.insertBefore(w, i); w.appendChild(i); i.style.paddingRight = '52px';
     const b = document.createElement('button'); b.type = 'button'; b.title = 'Voir / cacher le mot de passe'; b.textContent = '👁';
     b.style.cssText = 'position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:22px;cursor:pointer;padding:6px';

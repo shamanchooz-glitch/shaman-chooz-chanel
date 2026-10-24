@@ -14,7 +14,7 @@ window.SCC_GAMES_BUILD = 14; // numéro de version : vérifié par la page
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const el = (tag, cls, html)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(html!=null) e.innerHTML=html; return e; };
-const digits = s => String(s||'').replace(/\D/g,'');
+const digits = s => (window.phoneKey ? phoneKey(s) : String(s||'').replace(/\D/g,''));
 const fmtN = n => Number(n).toLocaleString('fr-FR');
 const clone = o => JSON.parse(JSON.stringify(o));
 const rnd = n => Math.floor(Math.random()*n);

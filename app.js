@@ -876,14 +876,15 @@ async function submitOrder(){
    toutes ses commandes) ; sinon on en génère un nouveau. */
 async function getOrCreateAccessCode(phone){
   const orders = await DB.get('orders', {});
-  const existing = Object.values(orders).find(o => o.buyerPhone === phone && o.accessCode);
+  const existing = Object.values(orders).find(o => !_isPass(o) && phoneKey(o.buyerPhone) === phoneKey(phone) && o.accessCode);
   if(existing) return existing.accessCode;
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 /* ===== CODE D'ACCÈS CHAÎNE + JEUX (séparé du code « Mes vidéos ») =====
    Un seul code (passCode) ouvre la chaîne ET la salle de jeux, et se change depuis l'un ou l'autre. */
-const _digits = s => String(s||'').replace(/\D/g,'');
+const phoneKey = p => { const d = String(p||'').replace(/\D/g,''); return d.length > 10 ? d.slice(-10) : d; };   /* « 07 48 93 56 86 » = « +225 0748935686 » */
+const _digits = phoneKey;
 function _isPass(o){ return !!o && (o.type==='live-pass' || o.type==='game-pass'); }
 function passCodeOf(o){ return String((o && (o.passCode || o.accessCode)) || ''); }
 async function getOrCreatePassCode(phone){
@@ -918,10 +919,14 @@ async function uiChangePassCode(phone, code){
    avec un nouveau code. Retourne le nouveau code, ou null si le code actuel était incorrect. */
 async function changeAccessCode(phone, oldCode){
   const orders = await DB.get('orders', {});
-  const mineIds = Object.entries(orders).filter(([,o]) => o.buyerPhone === phone && o.accessCode === oldCode).map(([id])=>id);
-  if(mineIds.length === 0) return null;
-  const newCode = String(Math.floor(100000 + Math.random() * 900000));
-  for(const id of mineIds){ await DB.update(`orders/${id}`, { accessCode: newCode }); }
+  const mine = Object.entries(orders).filter(([,o]) => phoneKey(o.buyerPhone) === phoneKey(phone) && o.accessCode === oldCode);
+  if(mine.length === 0) return null;
+  let newCode; do{ newCode = String(Math.floor(100000 + Math.random() * 900000)); }while(newCode === oldCode);
+  for(const [id,o] of mine){
+    const upd = { accessCode: newCode };
+    if(_isPass(o) && !o.passCode) upd.passCode = oldCode;   /* le code du pass (chaîne + jeux) reste inchangé */
+    await DB.update(`orders/${id}`, upd);
+  }
   return newCode;
 }
 
@@ -953,7 +958,7 @@ async function lookupClientOrders(){
   const list = document.getElementById('clientOrdersList');
   const changeBtn = document.getElementById('changeCodeBtn');
   if(!phone || !code){ list.innerHTML=''; changeBtn.style.display='none'; return; }
-  const mine = Object.entries(ORDERS).filter(([,o])=> o.buyerPhone === phone && o.accessCode === code);
+  const mine = Object.entries(ORDERS).filter(([,o])=> !_isPass(o) && phoneKey(o.buyerPhone) === phoneKey(phone) && o.accessCode === code);
   if(mine.length===0){
     list.innerHTML = `<div class="empty-state"><div class="big">📭</div>Aucune commande trouvée pour ce numéro et ce code. Vérifie les deux informations (le code t'a été communiqué après ta commande).</div>`;
     changeBtn.style.display='none';
@@ -2721,14 +2726,15 @@ async function liveLogin(){
   const errEl = document.getElementById('liveLoginError');
   errEl.textContent = '';
   ORDERS = await DB.get('orders', {});
-  const validPass = Object.values(ORDERS).find(o =>
-    o.type==='live-pass' && _digits(o.buyerPhone)===_digits(phone) && passCodeOf(o)===code && o.status==='paid' && o.liveExpiresAt > Date.now()
-  );
+  const expOf = o => o.type==='live-pass' ? o.liveExpiresAt : o.gameExpiresAt;   /* le pass jeux ouvre aussi la chaîne */
+  const validPass = Object.values(ORDERS).filter(o =>
+    _isPass(o) && _digits(o.buyerPhone)===_digits(phone) && passCodeOf(o)===code && o.status==='paid' && expOf(o) > Date.now()
+  ).sort((a,b) => expOf(b) - expOf(a))[0];
   if(!validPass){
     errEl.textContent = "Aucun pass actif trouvé pour ce numéro et ce code. Vérifie les informations, ou achète un pass ci-dessous.";
     return;
   }
-  LIVE_SESSION = { phone, code, expiresAt: validPass.liveExpiresAt };
+  LIVE_SESSION = { phone, code, expiresAt: expOf(validPass) };
   logPassEvent(phone, 'login', 'chaîne');
   document.getElementById('liveAccessWrap').style.display = 'none';
   document.getElementById('livePlayerWrap').style.display = 'block';
