@@ -1,0 +1,38 @@
+{
+  "name": "SHAMAN CHOOZ CHANEL — En direct",
+  "short_name": "Chaîne SHAMAN",
+  "description": "Regarde la chaîne SHAMAN CHOOZ en direct, 24h/24.",
+  "start_url": "index.html?app=chaine",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#FAF6F0",
+  "theme_color": "#FAF6F0",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "id": "./index.html?app=chaine"
+}

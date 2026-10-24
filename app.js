@@ -894,11 +894,12 @@ async function getOrCreatePassCode(phone){
   return known ? passCodeOf(known) : String(Math.floor(100000 + Math.random() * 900000));
 }
 function logPassEvent(phone, action, service){ try{ DB.push('passEvents', { phone:String(phone), action, service, ts:Date.now() }); }catch(e){} }
-async function changePassCode(phone, oldCode){
+async function changePassCode(phone, oldCode, wanted){
   const orders = await DB.get('orders', {});
   const mine = Object.entries(orders||{}).filter(([id,o]) => _isPass(o) && _digits(o.buyerPhone)===_digits(phone));
   if(!mine.some(([id,o]) => passCodeOf(o)===String(oldCode))) return null;
-  let nc; do{ nc = String(Math.floor(100000 + Math.random() * 900000)); }while(nc===String(oldCode));
+  let nc = wanted ? String(wanted) : null;
+  if(!nc){ do{ nc = String(Math.floor(100000 + Math.random() * 900000)); }while(nc===String(oldCode)); }
   const ts = Date.now();
   for(const [id] of mine) await DB.update(`orders/${id}`, { passCode:nc, passCodeChangedAt:ts });
   logPassEvent(phone, 'change-code', 'chaîne+jeux');
@@ -908,10 +909,29 @@ async function changePassCode(phone, oldCode){
 }
 async function uiChangePassCode(phone, code){
   if(!phone || !code) return toast("Connecte-toi d'abord avec ton pass.", 'err');
-  if(!confirm("Générer un nouveau code d'accès ? L'ancien ne fonctionnera plus, ni pour la chaîne ni pour les jeux.")) return;
-  let nc = null; try{ nc = await changePassCode(phone, code); }catch(e){}
-  if(!nc) return toast('Impossible de changer le code : reconnecte-toi puis réessaie.', 'err');
-  showAccessCodeConfirmation(nc, 'pass-change');
+  const prev = document.getElementById('codeChangeOverlay'); if(prev) prev.remove();
+  const ov = document.createElement('div'); ov.id = 'codeChangeOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:#fff;color:#222;border-radius:18px;padding:18px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)">
+    <h3 style="margin:0 0 6px">🔑 Changer mon code d'accès</h3>
+    <p style="margin:0 0 12px;font-size:14px;opacity:.8">Choisis ton nouveau code (6 chiffres). Il sert pour la chaîne et pour les jeux, et remplace l'ancien tout de suite.</p>
+    <div style="position:relative"><input id="ccNew" type="password" inputmode="numeric" maxlength="6" placeholder="Nouveau code (6 chiffres)" autocomplete="off" style="width:100%;box-sizing:border-box;padding:14px 54px 14px 14px;border-radius:12px;border:1px solid #ccc;font-size:18px;letter-spacing:3px">
+    <button id="ccEye" type="button" title="Voir / cacher" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:22px;cursor:pointer;padding:6px">👁</button></div>
+    <p id="ccErr" style="color:#c0392b;min-height:20px;margin:8px 0;font-size:14px"></p>
+    <button id="ccOk" class="btn btn-primary" style="margin:0 0 8px">Mettre à jour</button><button id="ccNo" class="btn btn-ghost" style="margin:0">Annuler</button></div>`;
+  document.body.appendChild(ov);
+  const $c = id => document.getElementById(id), inp = $c('ccNew'); inp.focus();
+  $c('ccEye').onclick = () => { const show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; $c('ccEye').textContent = show ? '🙈' : '👁'; };
+  $c('ccNo').onclick = () => ov.remove();
+  $c('ccOk').onclick = async () => {
+    const v = inp.value.trim(), err = $c('ccErr');
+    if(!/^\d{6}$/.test(v)) return err.textContent = 'Le code doit contenir exactement 6 chiffres.';
+    if(v === String(code)) return err.textContent = "Choisis un code différent de l'ancien.";
+    $c('ccOk').disabled = true; err.textContent = '';
+    let nc = null; try{ nc = await changePassCode(phone, code, v); }catch(e){}
+    if(!nc){ $c('ccOk').disabled = false; return err.textContent = 'Impossible de changer le code : reconnecte-toi puis réessaie.'; }
+    ov.remove(); showAccessCodeConfirmation(nc, 'pass-change');
+  };
 }
 
 /* Permet à un client de changer son code d'accès (ex: s'il pense qu'un tiers l'a vu).

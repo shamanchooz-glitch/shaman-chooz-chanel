@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SHAMAN CHOOZ CHANEL</title>
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json" id="mf">
+<script>if(/[?&]app=chaine/.test(location.search)){document.getElementById("mf").href="manifest-chaine.json";}</script>
 <meta name="theme-color" content="#FAF6F0">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
@@ -693,7 +694,7 @@
 <script src="slides-data-metiers2.js?v=1"></script>
 <script src="games-edu10.js?v=1"></script>
 <script src="admin-preview.js?v=2"></script>
-<script src="app.js?v=21"></script>
+<script src="app.js?v=22"></script>
 <script src="chaine-lecteur.js?v=2"></script>
 <script src="chaine-acces.js?v=5"></script>
 <script src="slides-data-metiers3.js?v=1"></script>
@@ -701,6 +702,8 @@
 <script src="slides-data-travaux.js?v=1"></script>
 <script src="games-edu12.js?v=1"></script>
 <script src="chaine-spectateurs.js?v=1"></script>
+<script src="qr-lib.js?v=1"></script>
+<script src="chaine-installer.js?v=1"></script>
 <script>
 /* Contrôle des fichiers du site : si une mise à jour est restée à moitié (ancien fichier en mémoire ou pas encore envoyé),
    la page se répare toute seule une fois, puis prévient clairement au lieu de rester vide. */
