@@ -283,6 +283,8 @@ function narration(sh, k){
   return sh.agency ? ('Besoin de travailler ? Envie de trouver un emploi ? ' + (ag.court || ag.nom ? 'Contactez ' + (ag.court || ag.nom) + '.' : 'Contactez notre agence.')) : 'Merci d\'avoir regardé. Un nouveau programme arrive dans un instant.';
 }
 
+SCCS.narration = narration;   /* utilisé par le studio de voix off (espace admin) */
+
 /* ---------- Écran toujours allumé pendant les diaporamas ----------
    1) API « Wake Lock » (Chrome, Edge, Safari récent, Firefox récent) ;
    2) solution de secours pour les anciens téléphones : une minuscule vidéo invisible en boucle. */

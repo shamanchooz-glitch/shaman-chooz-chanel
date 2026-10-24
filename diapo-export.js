@@ -14,9 +14,9 @@ function pickMime(){
   const c = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
   return c.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
 }
-function music(ac, dest, dur){                    /* musique douce : nappes d'accords lents, avec fondu d'entrée et de sortie */
+function music(ac, dest, dur, lvl){                    /* musique douce : nappes d'accords lents, avec fondu d'entrée et de sortie */
   const out = ac.createGain(), t0 = ac.currentTime; out.connect(dest);
-  out.gain.setValueAtTime(0, t0); out.gain.linearRampToValueAtTime(.16, t0 + 2); out.gain.setValueAtTime(.16, Math.max(t0 + 2, t0 + dur - 2)); out.gain.linearRampToValueAtTime(0, t0 + dur);
+  out.gain.setValueAtTime(0, t0); out.gain.linearRampToValueAtTime(lvl || .16, t0 + 2); out.gain.setValueAtTime(lvl || .16, Math.max(t0 + 2, t0 + dur - 2)); out.gain.linearRampToValueAtTime(0, t0 + dur);
   const ch = [[261.6, 329.6, 392], [220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 392]], step = 8;
   for(let s = 0; s * step < dur; s++) ch[s % 4].forEach((f, i) => {
     const o = ac.createOscillator(), g = ac.createGain(), st = t0 + s * step; o.type = i ? 'sine' : 'triangle'; o.frequency.value = f;
@@ -81,4 +81,5 @@ function build(){
   };
 }
 setInterval(build, 2000);
+window.SCC_EXPORT = { music, pickMime, slug, fmt, esc, W, H };
 })();

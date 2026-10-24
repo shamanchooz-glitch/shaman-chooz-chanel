@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v36';
+const CACHE_NAME = 'scc-v37';
 
 const APP_SHELL = [
   './',
@@ -29,6 +29,7 @@ const APP_SHELL = [
   './qr-lib.js',
   './chaine-installer.js',
   './diapo-export.js',
+  './voixoff-studio.js',
   './manifest-chaine.json',
   './games-core.js',
   './games-board.js',

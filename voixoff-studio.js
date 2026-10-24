@@ -1,0 +1,113 @@
+/* STUDIO VOIX OFF — espace administrateur (onglet de la chaîne en direct). Fabrique un fichier vidéo AVEC voix off, à envoyer à un client.
+   Deux voix, sans clé API :
+   1) 🤖 Voix IA française (Piper, licence MIT) : tourne dans le navigateur, hors ligne après le 1er chargement (~70 Mo, gardé en mémoire de l'appareil).
+   2) 🎙 Ma voix : le micro enregistre ta voix pendant que le diaporama défile, avec le texte à lire à l'écran.
+   Sources d'image : un diaporama de la liste (synchronisation voix/diapositives automatique) ou une vidéo sans voix off importée (+ texte à dire). Nécessite diapo-export.js. */
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+let busy = false, TTS = null, last = null;
+const spoken = t => String(t).replace(/SHAMAN\s+CHOOZ\s+PRODUCTION/gi, window.SCC_NOM_PARLE || 'Shaman Tchouze Production').replace(/CHOOZ/gi, 'Tchouze');
+const X = () => window.SCC_EXPORT;
+const status = m => { const s = $('voStat'); if(s) s.innerHTML = m; };
+const prog = p => { const b = $('voBar'); if(b){ b.style.display = 'block'; b.value = Math.round(p * 100); } };
+
+async function loadTTS(){
+  if(window.__sccPiper) return window.__sccPiper; if(TTS) return TTS;
+  const urls = ['https://esm.sh/@mintplex-labs/piper-tts-web@1.0.4', 'https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.4/+esm']; let err;
+  for(const u of urls){ try{ TTS = await import(u); return TTS; }catch(e){ err = e; } }
+  throw new Error('Moteur de voix introuvable : une connexion Internet est nécessaire au 1er chargement. (' + (err && err.message || err) + ')');
+}
+async function voiceId(t){ try{ const v = Object.keys(await t.voices()).filter(k => /^fr_FR/.test(k)); return v.find(k => /siwis-medium/.test(k)) || v.find(k => /medium/.test(k)) || v[0] || 'fr_FR-siwis-medium'; }catch(e){ return 'fr_FR-siwis-medium'; } }
+async function prepare(){
+  const t = await loadTTS(), id = await voiceId(t);
+  if(t.download) await t.download(id, p => { if(p && p.total){ prog(p.loaded / p.total); status('⬇ Téléchargement de la voix : ' + Math.round(p.loaded * 100 / p.total) + ' % (une seule fois)'); } });
+  return { t, id };
+}
+async function speak(ctx, text){ const w = await ctx.t.predict({ text:spoken(text), voiceId:ctx.id }); const ac = new AudioContext(); const b = await ac.decodeAudioData(await w.arrayBuffer()); ac.close(); return b; }
+
+/* Enregistre : draw(T, g) dessine l'image à l'instant T ; voices = [{buf, at}] ; mic = flux micro facultatif */
+async function rec(total, draw, voices, music, mic, onP){
+  const { W, H, pickMime, slug } = X(), cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'), stream = cv.captureStream(30), ac = new (window.AudioContext || window.webkitAudioContext)(), dest = ac.createMediaStreamDestination();
+  if(ac.state === 'suspended') await ac.resume();
+  draw(0, g); const t0a = ac.currentTime + .15;
+  voices.forEach(v => { const s = ac.createBufferSource(); s.buffer = v.buf; s.connect(dest); s.start(t0a + v.at); });
+  if(mic){ ac.createMediaStreamSource(mic).connect(dest); }
+  if(music) X().music(ac, dest, total, .07);
+  dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+  const mime = pickMime(), chunks = [], r = new MediaRecorder(stream, mime ? { mimeType:mime, videoBitsPerSecond:2500000 } : {});
+  r.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); }; const done = new Promise(res => { r.onstop = res; });
+  r.start(500); const t0 = performance.now() + 150;
+  await new Promise(res => {
+    const f = () => { const T = Math.max(0, (performance.now() - t0) / 1000); if(T >= total){ clearInterval(iv); draw(total - .02, g); onP(1); res(); return false; } draw(T, g); onP(T / total); return true; };
+    const iv = setInterval(f, 200); (function raf(){ if(f()) requestAnimationFrame(raf); })();
+  });
+  await new Promise(r2 => setTimeout(r2, 500)); r.stop(); await done; try{ ac.close(); }catch(e){}
+  const type = (r.mimeType || mime || 'video/webm').split(';')[0], ext = type.includes('mp4') ? 'mp4' : 'webm';
+  return { blob:new Blob(chunks, { type }), ext };
+}
+
+async function run(){
+  if(busy) return; const M = $('voMode').value, id = $('voShow').value, sh = SCCS.byId[id], mus = $('voMus').checked, file = $('voFile').files[0];
+  if(!sh && !file) return alert('Choisis un diaporama.');
+  if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return alert('Ce navigateur ne sait pas enregistrer de vidéo. Utilise Google Chrome sur ordinateur ou Android.');
+  busy = true; $('voGo').disabled = true; $('voDone').style.display = 'none';
+  try{
+    let total, draw, voices = [], mic = null, title = sh ? sh.titre : file.name.replace(/\.[^.]+$/, '');
+    if(M === 'ia'){
+      status('🔧 Préparation de la voix…'); const ctx = await prepare();
+      if(file){                                                                       /* vidéo importée + texte à dire */
+        const txt = $('voTxt').value.trim(); if(!txt) throw new Error('Écris le texte à dire (zone « Texte à dire »).');
+        const v = document.createElement('video'); v.src = URL.createObjectURL(file); v.muted = true; v.playsInline = true; await new Promise((ok, ko) => { v.onloadedmetadata = ok; v.onerror = () => ko(new Error('Vidéo illisible.')); });
+        const parts = txt.split(/(?<=[.!?])\s+/).filter(Boolean); let at = .4;
+        for(let i = 0; i < parts.length; i++){ status('🔊 Création de la voix ' + (i + 1) + '/' + parts.length); prog((i + 1) / parts.length); const b = await speak(ctx, parts[i]); voices.push({ buf:b, at }); at += b.duration + .35; }
+        total = Math.max(v.duration, at + .5); let started = false;
+        draw = (T, g) => { if(!started && T > 0){ started = true; v.play().catch(() => {}); } const { W, H } = X(), r = Math.min(W / v.videoWidth, H / v.videoHeight); g.fillStyle = '#000'; g.fillRect(0, 0, W, H); g.drawImage(v, (W - v.videoWidth * r) / 2, (H - v.videoHeight * r) / 2, v.videoWidth * r, v.videoHeight * r); };
+      } else {                                                                        /* diaporama : voix synchronisée sur chaque diapositive */
+        const sched = []; let S = 0;
+        for(let k = 0; k < sh.tl.length; k++){
+          status('🔊 Création de la voix ' + (k + 1) + '/' + sh.tl.length); prog((k + 1) / sh.tl.length);
+          const it = sh.tl[k], b = await speak(ctx, SCCS.narration(sh, k)), d = Math.max(it.dur, b.duration + .9);
+          sched.push({ it, S, d }); voices.push({ buf:b, at:S + .3 }); S += d;
+        }
+        total = S; draw = (T, g) => { let s = sched[sched.length - 1]; for(const e of sched) if(T < e.S + e.d){ s = e; break; } SCCS.drawFrame(g, id, s.it.start + Math.min(Math.max(0, T - s.S), s.it.dur - .02)); };
+      }
+    } else {                                                                          /* Ma voix (micro) */
+      if(!sh) throw new Error('Pour enregistrer ta voix, choisis un diaporama dans la liste.');
+      status('🎙 Autorise le micro…'); mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true } });
+      total = sh.dur; $('voPrompt').style.display = 'block';
+      draw = (T, g) => { let k = sh.tl.findIndex(e => T >= e.start && T < e.start + e.dur); if(k < 0) k = sh.tl.length - 1; SCCS.drawFrame(g, id, Math.min(T, sh.dur - .02)); const left = Math.ceil(sh.tl[k].start + sh.tl[k].dur - T); $('voPrompt').innerHTML = '🎙 <b>Parle maintenant</b> (' + left + ' s)<br><span style="font-size:18px">' + X().esc(SCCS.narration(sh, k)) + '</span>'; };
+    }
+    status('🔴 Enregistrement de la vidéo… garde cette page ouverte'); prog(0);
+    const out = await rec(total, draw, voices, mus, mic, prog); if(mic) mic.getTracks().forEach(t => t.stop());
+    last = { blob:out.blob, name:X().slug(title) + '-voix-off.' + out.ext, title };
+    const d = $('voDone'); d.innerHTML = '✅ <b>' + X().esc(title) + '</b> avec voix off est prête (' + (out.blob.size / 1048576).toFixed(1) + ' Mo, ' + out.ext.toUpperCase() + ').<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn btn-primary" id="voSave" style="margin:0;width:auto">⬇ Télécharger</button><button class="btn btn-ghost" id="voSend" style="margin:0;width:auto">📤 Envoyer (WhatsApp…)</button></div>';
+    d.style.display = 'block'; status('');
+    $('voSave').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(last.blob); a.download = last.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); };
+    $('voSend').onclick = async () => { const f = new File([last.blob], last.name, { type:last.blob.type }); try{ if(navigator.canShare && navigator.canShare({ files:[f] })) await navigator.share({ files:[f], title }); else alert('Touche « Télécharger », puis envoie le fichier depuis WhatsApp.'); }catch(e){} };
+    $('voSave').click();
+  }catch(err){ status('⚠️ ' + X().esc(err && err.message || err)); if(M !== 'ia') alert(err && err.message || err); }
+  $('voPrompt').style.display = 'none'; $('voGo').disabled = false; busy = false;
+}
+
+function build(){
+  const host = $('adminTab-live'); if(!host || $('voBox') || !window.SCC_EXPORT || typeof SCCS === 'undefined') return;
+  const b = document.createElement('details'); b.id = 'voBox'; b.style.cssText = 'margin:0 0 16px;padding:14px;border-radius:14px;background:rgba(127,127,127,.12)';
+  b.innerHTML = '<summary style="cursor:pointer;font-weight:800">🔊 Studio voix off : vidéo avec voix à envoyer</summary>'
+   + '<p class="hint" style="margin:10px 0">Choisis un diaporama (ou importe une vidéo sans voix off) : le studio fabrique une vidéo avec la voix, à envoyer au client.</p>'
+   + '<input id="voQ" class="input" type="search" placeholder="🔎 Chercher un diaporama…" style="margin-bottom:8px"><select id="voShow" class="input" style="margin-bottom:8px"></select>'
+   + '<select id="voMode" class="input" style="margin-bottom:8px"><option value="ia">🤖 Voix IA française (automatique)</option><option value="mic">🎙 Ma voix (micro)</option></select>'
+   + '<details style="margin-bottom:8px"><summary class="hint" style="cursor:pointer">📂 Importer une vidéo sans voix off (facultatif)</summary><input id="voFile" type="file" accept="video/*" style="margin:8px 0;width:100%"><textarea id="voTxt" class="input" rows="4" placeholder="Texte à dire sur cette vidéo (voix IA)"></textarea></details>'
+   + '<label style="display:block;margin:6px 0 10px"><input type="checkbox" id="voMus" checked> 🎵 Musique douce en fond</label>'
+   + '<button class="btn btn-primary" id="voGo" style="margin:0 0 8px">🎬 Créer la vidéo avec voix off</button>'
+   + '<p id="voStat" class="hint" style="margin:6px 0"></p><progress id="voBar" max="100" value="0" style="width:100%;display:none"></progress>'
+   + '<div id="voPrompt" style="display:none;margin:8px 0;padding:12px;border-radius:12px;background:#fff;color:#222;font-size:16px;text-align:center"></div>'
+   + '<div id="voDone" style="display:none;margin:8px 0;padding:10px;border-radius:10px;background:rgba(60,160,90,.2)"></div>';
+  host.appendChild(b);
+  const fill = () => { const q = ($('voQ').value || '').toLowerCase(); $('voShow').innerHTML = SCCS.shows.filter(s => !q || s.titre.toLowerCase().includes(q)).slice(0, 120).map(s => '<option value="' + X().esc(s.id) + '">' + X().esc(s.titre) + ' (' + X().fmt(s.dur) + ')</option>').join(''); };
+  $('voQ').oninput = fill; fill(); $('voGo').onclick = run;
+  $('voShow').onchange = () => { const s = SCCS.byId[$('voShow').value]; if(s && !$('voTxt').value) $('voTxt').placeholder = 'Texte à dire (voix IA). Exemple pour ce diaporama : ' + SCCS.narration(s, 1).slice(0, 80) + '…'; };
+}
+setInterval(build, 2000);
+})();
