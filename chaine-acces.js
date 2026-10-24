@@ -84,7 +84,7 @@ function adminState(){
 }
 /* ---- Œil 👁 pour voir / cacher le mot de passe admin (évite les fautes de frappe) ---- */
 function eyes(){
-  ['newPwInput','adminPwInput'].forEach(id => {
+  ['newPwInput'].forEach(id => {
     const i = $(id); if(!i || i.dataset.eye) return; i.dataset.eye = '1';
     const w = document.createElement('div'); w.style.cssText = 'position:relative'; i.parentNode.insertBefore(w, i); w.appendChild(i); i.style.paddingRight = '52px';
     const b = document.createElement('button'); b.type = 'button'; b.title = 'Voir / cacher le mot de passe'; b.textContent = '👁';
@@ -93,5 +93,20 @@ function eyes(){
     w.appendChild(b);
   });
 }
-setInterval(() => { adminBuild(); adminState(); eyes(); }, 2000);
+/* ---- Changer son code d'accès depuis l'écran de la chaîne (même code pour la chaîne et les jeux) ---- */
+function codeBtn(){
+  const err = $('liveLoginError'); if(!err || $('liveChangeCodeBtn')) return;
+  const b = document.createElement('button'); b.id = 'liveChangeCodeBtn'; b.type = 'button'; b.className = 'btn btn-ghost'; b.style.marginTop = '10px';
+  b.textContent = '🔑 Changer mon code d\'accès';
+  const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Entre ton numéro et ton code actuel ci-dessus, puis touche ce bouton. Le nouveau code sert aussi pour la salle de jeux.';
+  err.insertAdjacentElement('afterend', h); err.insertAdjacentElement('afterend', b);
+  b.onclick = async () => {
+    const phone = $('livePhoneInput').value.trim(), code = $('liveCodeInput').value.trim();
+    if(!phone || !code) return say('Entre d\'abord ton numéro et ton code actuel, puis touche ce bouton.', 'err');
+    let nc = null; try{ nc = await changeAccessCode(phone, code); }catch(e){}
+    if(!nc) return say('Numéro ou code incorrect : vérifie-les puis réessaie.', 'err');
+    $('liveCodeInput').value = nc; try{ showAccessCodeConfirmation(nc, 'change'); }catch(e){ say('Nouveau code : ' + nc); }
+  };
+}
+setInterval(() => { adminBuild(); adminState(); eyes(); codeBtn(); }, 2000);
 })();
