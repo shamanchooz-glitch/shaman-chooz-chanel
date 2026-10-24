@@ -93,20 +93,51 @@ function eyes(){
     w.appendChild(b);
   });
 }
-/* ---- Changer son code d'accès depuis l'écran de la chaîne (même code pour la chaîne et les jeux) ---- */
+/* ---- Bouton « Changer mon code d'accès » juste sous « Plein écran » (une fois connecté avec un pass) ---- */
 function codeBtn(){
-  const err = $('liveLoginError'); if(!err || $('liveChangeCodeBtn')) return;
-  const b = document.createElement('button'); b.id = 'liveChangeCodeBtn'; b.type = 'button'; b.className = 'btn btn-ghost'; b.style.marginTop = '10px';
-  b.textContent = '🔑 Changer mon code d\'accès';
-  const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Entre ton numéro et ton code actuel ci-dessus, puis touche ce bouton. Le nouveau code sert aussi pour la salle de jeux.';
-  err.insertAdjacentElement('afterend', h); err.insertAdjacentElement('afterend', b);
-  b.onclick = async () => {
-    const phone = $('livePhoneInput').value.trim(), code = $('liveCodeInput').value.trim();
-    if(!phone || !code) return say('Entre d\'abord ton numéro et ton code actuel, puis touche ce bouton.', 'err');
-    let nc = null; try{ nc = await changeAccessCode(phone, code); }catch(e){}
-    if(!nc) return say('Numéro ou code incorrect : vérifie-les puis réessaie.', 'err');
-    $('liveCodeInput').value = nc; try{ showAccessCodeConfirmation(nc, 'change'); }catch(e){ say('Nouveau code : ' + nc); }
-  };
+  const fs = $('liveFsBtn'); if(!fs) return;
+  let b = $('liveChangeCodeBtn');
+  if(!b){
+    b = document.createElement('button'); b.id = 'liveChangeCodeBtn'; b.type = 'button'; b.className = fs.className; b.style.cssText = fs.style.cssText;
+    b.textContent = '🔑 Changer mon code d\'accès';
+    b.onclick = () => { try{ uiChangePassCode(LIVE_SESSION.phone, LIVE_SESSION.code); }catch(e){ say('Connecte-toi d\'abord avec ton pass.', 'err'); } };
+    fs.insertAdjacentElement('afterend', b);
+  }
+  b.style.display = (typeof LIVE_SESSION !== 'undefined' && LIVE_SESSION && !LIVE_SESSION.free) ? '' : 'none';
 }
+
+/* ---- Admin : codes chaîne + jeux de tous les clients, et journal des connexions / changements ---- */
+const dg = s => String(s || '').replace(/\D/g, '');
+const dt = ts => ts ? new Date(ts).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+let passBusy = false;
+function passBuild(){
+  const host = $('adminTab-live'); if(!host || $('passAdminBox')) return;
+  const b = document.createElement('div'); b.id = 'passAdminBox';
+  b.style.cssText = 'margin:0 0 16px;padding:14px;border-radius:14px;background:rgba(127,127,127,.12)';
+  b.innerHTML = '<p class="field-label" style="margin:0">🔑 Codes d\'accès chaîne + jeux</p><p class="hint" id="paSum" style="margin:6px 0"></p><div id="paList"></div><p class="field-label" style="margin:14px 0 4px">🕘 Dernières connexions et changements</p><div id="paEv" class="hint"></div>';
+  const vb = $('viewersBox'); if(vb) vb.insertAdjacentElement('afterend', b); else host.insertBefore(b, host.firstChild);
+}
+async function passRefresh(){
+  const box = $('passAdminBox'); if(!box || !box.offsetParent || passBusy) return; passBusy = true;
+  try{
+    const [orders, ev] = await Promise.all([DB.get('orders', {}), DB.get('passEvents', {}).catch(() => ({}))]);
+    const by = {}, now = Date.now();
+    Object.values(orders || {}).forEach(o => {
+      if(!o || (o.type !== 'live-pass' && o.type !== 'game-pass') || o.status !== 'paid') return;
+      const k = dg(o.buyerPhone), r = by[k] = by[k] || { name:'', phone:o.buyerPhone, code:'', ch:0, jx:0, chg:0 };
+      r.name = o.buyerName || r.name; r.phone = o.buyerPhone;
+      if(!r.code || (o.passCodeChangedAt || 0) >= r.chg){ r.code = o.passCode || o.accessCode || r.code; r.chg = o.passCodeChangedAt || r.chg; }
+      if(o.type === 'live-pass') r.ch = Math.max(r.ch, o.liveExpiresAt || 0); else r.jx = Math.max(r.jx, o.gameExpiresAt || 0);
+    });
+    const rows = Object.values(by).sort((a, b) => Math.max(b.ch, b.jx) - Math.max(a.ch, a.jx));
+    const act = (t) => t > now ? '✅ jusqu\'au ' + dt(t) : (t ? '⌛ expiré le ' + dt(t) : '—');
+    $('paSum').textContent = rows.length + ' client(s) avec pass · chaîne active : ' + rows.filter(r => r.ch > now).length + ' · jeux actifs : ' + rows.filter(r => r.jx > now || r.ch > now).length;
+    $('paList').innerHTML = rows.slice(0, 40).map(r => '<div style="padding:8px 0;border-top:1px solid rgba(127,127,127,.25);font-size:14px"><b>' + esc(r.name || 'Sans nom') + '</b> · ' + esc(r.phone) + '<br>🔑 <b style="letter-spacing:1px">' + esc(r.code) + '</b>' + (r.chg ? ' <span class="hint">(changé le ' + dt(r.chg) + ')</span>' : '') + '<br>📺 Chaîne : ' + act(r.ch) + '<br>🎮 Jeux : ' + act(Math.max(r.jx, r.ch)) + '</div>').join('') || '<p class="hint">Aucun pass payé pour l\'instant.</p>';
+    const L = { login:'connexion', 'change-code':'changement de code' };
+    $('paEv').innerHTML = Object.values(ev || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 15).map(e => dt(e.ts) + ' · ' + esc(e.phone) + ' · ' + (L[e.action] || esc(e.action)) + ' (' + esc(e.service) + ')').join('<br>') || 'Rien pour l\'instant.';
+  }catch(e){ const l = $('paSum'); if(l) l.textContent = '⚠️ Lecture impossible : vérifie les règles Firebase (passEvents).'; }
+  passBusy = false;
+}
+setInterval(() => { passBuild(); passRefresh(); }, 6000);
 setInterval(() => { adminBuild(); adminState(); eyes(); codeBtn(); }, 2000);
 })();

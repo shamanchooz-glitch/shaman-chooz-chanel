@@ -48,6 +48,7 @@ SCCG.register = function(def){
 };
 const findGame = id => SCCG.games.find(g=>g.id===id);
 const isFree = def => !!SCCG.settings.free[def.id];
+SCCG.syncCode = (phone, nc)=>{ if(SCCG.session && digits(SCCG.session.phone)===digits(phone)){ SCCG.session.code = String(nc); LS.set('scc_g_session', SCCG.session); } };
 SCCG.hasAccess = ()=> !!(SCCG.session && SCCG.session.expiresAt > Date.now());
 SCCG.canPlay = def => isFree(def) || SCCG.hasAccess();
 
@@ -95,9 +96,9 @@ async function verify(phone, code){
   const orders = await DB.get('orders', {});
   const now = Date.now(); let best = null;
   Object.values(orders||{}).forEach(o=>{
-    if(o.type==='game-pass' && o.status==='paid' && digits(o.buyerPhone)===digits(phone)
-       && String(o.accessCode)===String(code) && o.gameExpiresAt > now){
-      if(!best || o.gameExpiresAt > best.expiresAt) best = { phone, code:String(code), name:o.buyerName||'', expiresAt:o.gameExpiresAt };
+    const exp = o.type==='game-pass' ? o.gameExpiresAt : (o.type==='live-pass' ? o.liveExpiresAt : 0);   /* le pass chaîne ouvre aussi les jeux */
+    if(exp > now && o.status==='paid' && digits(o.buyerPhone)===digits(phone) && passCodeOf(o)===String(code)){
+      if(!best || exp > best.expiresAt) best = { phone, code:String(code), name:o.buyerName||'', expiresAt:exp };
     }
   });
   return best;
@@ -160,7 +161,7 @@ function renderPassCard(){
     const s = SCCG.session, d = new Date(s.expiresAt);
     box.innerHTML = `<div class="gm-pass-card"><p class="gm-pc-title">✅ Pass Jeux actif</p>
       <p class="gm-pc-sub">Tous les jeux sont débloqués jusqu'au ${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} (reste ${timeLeftText(s.expiresAt-Date.now())}).</p>
-      <div class="gm-pass-actions"><button data-a="more">+ Prolonger</button><button class="ghost" data-a="out">Se déconnecter</button></div></div>`;
+      <div class="gm-pass-actions"><button data-a="more">+ Prolonger</button><button class="ghost" data-a="code">🔑 Changer mon code</button><button class="ghost" data-a="out">Se déconnecter</button></div></div>`;
   } else {
     box.innerHTML = `<div class="gm-pass-card off"><p class="gm-pc-title">🎟️ Pass Jeux — tous les jeux, sans limite</p>
       <p class="gm-pc-sub">Quelques jeux sont gratuits. Pour jouer à tous les autres, prends un pass${from!=null?` à partir de <b>${fmtN(from)} FCFA</b>`:''} : paiement mobile money, comme pour les pass de la chaîne.</p>
@@ -169,6 +170,7 @@ function renderPassCard(){
   box.querySelectorAll('[data-a]').forEach(b=> b.onclick = ()=>{
     const a = b.dataset.a;
     if(a==='out'){ setSession(null); SCCG.renderHub(); say('Déconnecté.', 'ok'); }
+    else if(a==='code'){ uiChangePassCode(SCCG.session.phone, SCCG.session.code); }
     else openPassSheet(null);
   });
 }
@@ -249,14 +251,14 @@ function openPassSheet(def){
     if(!p) return say('Choisis un pass', 'err');
     if(!selPay) return say('Choisis un moyen de paiement', 'err');
     if(!name || !phone || !ref) return say('Remplis tous les champs', 'err');
-    const accessCode = await getOrCreateAccessCode(phone);
+    const accessCode = await getOrCreateAccessCode(phone), passCode = await getOrCreatePassCode(phone);
     await DB.push('orders', {
-      type:'game-pass', passId:selPass, passName:p.name, passDays:p.days,
+      type:'game-pass', passCode, passId:selPass, passName:p.name, passDays:p.days,
       title:`Pass Jeux (${p.name})`, price:p.price,
       payMethod:selPay, buyerName:name, buyerPhone:phone, ref, accessCode,
       status:'pending', createdAt:Date.now()
     });
-    showGameCode(accessCode);
+    showGameCode(passCode);
   };
   $('gmLoginBtn').onclick = async ()=>{
     const phone = $('gmLoginPhone').value.trim(), code = $('gmLoginCode').value.trim(), err = $('gmLoginErr');
@@ -265,7 +267,7 @@ function openPassSheet(def){
     let r = null;
     try{ r = await verify(phone, code); }catch(e){}
     if(!r){ err.textContent = "Aucun pass jeux actif trouvé pour ce numéro et ce code. Si tu viens de payer, attends la validation (quelques minutes) puis réessaie."; return; }
-    setSession(r); closeSheet(); SCCG.renderHub(); say('Pass activé ! Bon jeu 🎮', 'ok');
+    setSession(r); logPassEvent(phone, 'login', 'jeux'); closeSheet(); SCCG.renderHub(); say('Pass activé ! Bon jeu 🎮', 'ok');
     const g = SCCG.pendingGame; SCCG.pendingGame = null; if(g) SCCG.open(g);
   };
   $('sheetOverlay').classList.add('open'); sheet.classList.add('open');

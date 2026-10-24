@@ -27,3 +27,6 @@ window.AGENCE = {
 
   slogan: "Recrutement et placement dans tous les secteurs d'activité"
 };
+
+/* Prononciation du nom de l'agence par la voix (écriture à l'écran inchangée). Modifie l'orthographe ici pour changer la prononciation. */
+window.SCC_NOM_PARLE = 'Shaman Tchouze Production';

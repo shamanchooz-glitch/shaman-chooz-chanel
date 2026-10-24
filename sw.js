@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v32';
+const CACHE_NAME = 'scc-v33';
 
 const APP_SHELL = [
   './',
@@ -18,6 +18,7 @@ const APP_SHELL = [
   './style.css',
   './games.css',
   './app.js',
+  './test-voix.html',
   './chaine-lecteur.js',
   './chaine-acces.js',
   './slides-data-metiers3.js',

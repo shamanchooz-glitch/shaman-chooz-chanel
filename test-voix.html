@@ -1,0 +1,10 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Test de la voix</title>
+<style>body{font:16px system-ui,sans-serif;max-width:560px;margin:20px auto;padding:0 14px}textarea,select,button{width:100%;box-sizing:border-box;padding:12px;margin:8px 0;font:inherit;border-radius:10px;border:1px solid #bbb}button{background:#d98a4c;color:#fff;border:0;font-weight:700}</style></head><body>
+<h2>🔊 Test de la voix</h2><p>Écris la prononciation du nom, choisis une voix française, puis écoute. Recopie ensuite l'orthographe qui sonne le mieux dans <b>agence-config.js</b> (ligne <code>SCC_NOM_PARLE</code>).</p>
+<textarea id="t" rows="3">Contactez Shaman Tchouze Production.</textarea><select id="v"></select><button id="go">▶ Écouter</button><p id="n"></p>
+<script>
+const sel=document.getElementById('v');
+function load(){const vs=speechSynthesis.getVoices().filter(x=>/^fr/i.test(x.lang));sel.innerHTML=vs.map((x,i)=>`<option value="${i}">${x.name} (${x.lang})</option>`).join('')||'<option>Aucune voix française trouvée</option>';sel._vs=vs;document.getElementById('n').textContent=vs.length+' voix française(s) sur cet appareil.';}
+load();speechSynthesis.onvoiceschanged=load;
+document.getElementById('go').onclick=()=>{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(document.getElementById('t').value);u.lang='fr-FR';const v=(sel._vs||[])[sel.value];if(v)u.voice=v;speechSynthesis.speak(u);};
+</script></body></html>
