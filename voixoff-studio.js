@@ -17,25 +17,34 @@ const prog = p => { const b = $('voBar'); if(b){ b.style.display = 'block'; b.va
 
 /* ---- Voix claire : eSpeak (meSpeak.js), petit programme 100 % navigateur, sans clé, sans gros téléchargement ---- */
 let ME = null;
+const MB = 'https://cdn.jsdelivr.net/npm/mespeak@2.0.2/', MU = 'https://unpkg.com/mespeak@2.0.2/', MG = 'https://cdn.jsdelivr.net/gh/btopro/mespeak@master/';
+async function getJSON(urls, ok, what){            /* essaie plusieurs adresses jusqu'à trouver un fichier valide */
+  const errs = [];
+  for(const u of urls){
+    try{ const r = await guard(fetch(u), 45000, 'trop lent'); if(!r.ok){ errs.push(u.replace(/^https:\/\/[^/]+\//, '') + ' → ' + r.status); continue; } const j = await r.json(); if(ok(j)) return j; errs.push(u.replace(/^https:\/\/[^/]+\//, '') + ' → invalide'); }
+    catch(e){ if(/Annulé/.test(e.message)) throw e; errs.push(u.replace(/^https:\/\/[^/]+\//, '') + ' → ' + (e.message || e)); }
+  }
+  throw new Error(what + ' introuvable (' + errs.join(' ; ') + ')');
+}
 async function loadMe(){
   if(window.__sccMeSpeak) return window.__sccMeSpeak; if(ME) return ME;
-  const base = 'https://cdn.jsdelivr.net/npm/mespeak@2.0.2/'; let m = null, err;
-  for(const u of [base + '+esm', 'https://esm.sh/mespeak@2.0.2']){ try{ const mod = await import(u); m = mod.default || mod.meSpeak || mod; if(m && m.speak) break; m = null; }catch(e){ err = e; } }
-  if(!m){ try{ m = await loadMeCJS(base); if(!(m && m.speak)) m = null; }catch(e){ err = e; } }   /* 3e méthode : lecture directe du fichier */
+  let m = null, err;
+  for(const u of [MB + '+esm', 'https://esm.sh/mespeak@2.0.2']){ try{ const mod = await import(u); m = mod.default || mod.meSpeak || mod; if(m && m.speak) break; m = null; }catch(e){ err = e; } }
   if(!m) throw new Error('Voix claire introuvable : une connexion Internet est nécessaire au 1er chargement. ' + (err && err.message || ''));
-  try{ if(m.isConfigLoaded && !m.isConfigLoaded()) m.loadConfig(await (await fetch(base + 'mespeak_config.json')).json()); }catch(e){}
-  m.loadVoice(await (await fetch(base + 'voices/fr.json')).json());
+  if(!m.isConfigLoaded()){        /* cette version n'a AUCUNE configuration par défaut : il faut la charger, sinon la voix reste muette */
+    const f = ['mespeak_config.json', 'src/mespeak_config.json', 'docs/mespeak_config.json'];
+    const cfg = await getJSON([MG + 'mespeak_config.json'].concat(f.map(x => MB + x), f.map(x => MU + x)), j => j && typeof j.config === 'string' && typeof j.phontab === 'string' && typeof j.phondata === 'string', 'Configuration de la voix');
+    m.loadConfig(cfg);
+  }
+  if(!m.getDefaultVoice()){
+    const v = await getJSON([MB + 'voices/fr.json', MU + 'voices/fr.json', MG + 'voices/fr.json'], j => j && typeof j.voice_id === 'string' && typeof j.voice === 'string', 'Voix française');
+    m.loadVoice(v);
+  }
+  if(!m.isConfigLoaded() || !m.getDefaultVoice()) throw new Error('La voix claire n\'a pas pu être configurée (config : ' + m.isConfigLoaded() + ', voix : ' + (m.getDefaultVoice() || 'aucune') + ').');
   return (ME = m);
 }
-async function loadMeCJS(base){
-  const pk = await (await fetch(base + 'package.json')).json(), main = String(pk.main || 'index.js').replace(/^\.\//, ''), dir = base + main.replace(/[^/]*$/, '');
-  const code = await (await fetch(base + main)).text(), mods = {};
-  for(const mm of code.matchAll(/require\(\s*["']([^"']+\.json)["']\s*\)/g)){ const p = mm[1]; if(!mods[p]) mods[p] = await (await fetch(new URL(p, dir).href)).json(); }
-  const module = { exports:{} }; new Function('module', 'exports', 'require', code)(module, module.exports, p => { if(p in mods) return mods[p]; throw new Error('module ' + p); });
-  return module.exports;
-}
 async function prepareClair(){
-  const m = await guard(loadMe(), 90000, 'Le chargement de la voix claire est trop long : vérifie ta connexion Internet.');
+  const m = await guard(loadMe(), 120000, 'Le chargement de la voix claire est trop long : vérifie ta connexion Internet.');
   if(!m.speak('Bonjour.', { rawdata:true })) throw new Error('La voix claire ne se lance pas sur cet appareil.');
   return { predict: async x => { const r = m.speak(x, { rawdata:true, voice:'fr', speed:150, pitch:55, amplitude:100, wordgap:1 }); if(!r) throw new Error('La voix claire a renvoyé un son vide.'); return new Blob([r], { type:'audio/wav' }); } };
 }
