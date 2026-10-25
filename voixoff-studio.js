@@ -15,6 +15,31 @@ const X = () => window.SCC_EXPORT;
 const status = m => { curMsg = m; const s = $('voStat'); if(s) s.innerHTML = m + (busy && t00 ? ' <b>— ' + Math.round((Date.now() - t00) / 1000) + ' s</b>' : ''); };
 const prog = p => { const b = $('voBar'); if(b){ b.style.display = 'block'; b.value = Math.round(p * 100); } };
 
+/* ---- Voix claire : eSpeak (meSpeak.js), petit programme 100 % navigateur, sans clé, sans gros téléchargement ---- */
+let ME = null;
+async function loadMe(){
+  if(window.__sccMeSpeak) return window.__sccMeSpeak; if(ME) return ME;
+  const base = 'https://cdn.jsdelivr.net/npm/mespeak@2.0.2/'; let m = null, err;
+  for(const u of [base + '+esm', 'https://esm.sh/mespeak@2.0.2']){ try{ const mod = await import(u); m = mod.default || mod.meSpeak || mod; if(m && m.speak) break; m = null; }catch(e){ err = e; } }
+  if(!m){ try{ m = await loadMeCJS(base); if(!(m && m.speak)) m = null; }catch(e){ err = e; } }   /* 3e méthode : lecture directe du fichier */
+  if(!m) throw new Error('Voix claire introuvable : une connexion Internet est nécessaire au 1er chargement. ' + (err && err.message || ''));
+  try{ if(m.isConfigLoaded && !m.isConfigLoaded()) m.loadConfig(await (await fetch(base + 'mespeak_config.json')).json()); }catch(e){}
+  m.loadVoice(await (await fetch(base + 'voices/fr.json')).json());
+  return (ME = m);
+}
+async function loadMeCJS(base){
+  const pk = await (await fetch(base + 'package.json')).json(), main = String(pk.main || 'index.js').replace(/^\.\//, ''), dir = base + main.replace(/[^/]*$/, '');
+  const code = await (await fetch(base + main)).text(), mods = {};
+  for(const mm of code.matchAll(/require\(\s*["']([^"']+\.json)["']\s*\)/g)){ const p = mm[1]; if(!mods[p]) mods[p] = await (await fetch(new URL(p, dir).href)).json(); }
+  const module = { exports:{} }; new Function('module', 'exports', 'require', code)(module, module.exports, p => { if(p in mods) return mods[p]; throw new Error('module ' + p); });
+  return module.exports;
+}
+async function prepareClair(){
+  const m = await guard(loadMe(), 90000, 'Le chargement de la voix claire est trop long : vérifie ta connexion Internet.');
+  if(!m.speak('Bonjour.', { rawdata:true })) throw new Error('La voix claire ne se lance pas sur cet appareil.');
+  return { predict: async x => { const r = m.speak(x, { rawdata:true, voice:'fr', speed:150, pitch:55, amplitude:100, wordgap:1 }); if(!r) throw new Error('La voix claire a renvoyé un son vide.'); return new Blob([r], { type:'audio/wav' }); } };
+}
+
 const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';   /* fichiers techniques du moteur vocal (le CDN par défaut de la bibliothèque ne les héberge pas tous) */
 async function loadTTS(){
   if(window.__sccPiper) return window.__sccPiper; if(TTS) return TTS;
@@ -73,9 +98,15 @@ async function run(){
   try{
     let total, draw, voices = [], mic = null, title = sh ? sh.titre : file.name.replace(/\.[^.]+$/, '');
     if(M === 'ia'){
-      status('🔧 Préparation de la voix…'); const ctx = await guard(prepare($('voQual').value), 600000, 'Le téléchargement de la voix est trop long : vérifie ta connexion.');
-      status('🔥 Démarrage du moteur de voix (1re fois : plusieurs minutes sur un téléphone, patiente)…'); prog(0.05);
-      await guard(speak(ctx, 'Bonjour.'), 300000, 'Le moteur de voix ne démarre pas sur cet appareil (plus de 5 minutes).');
+      const eng = $('voQual').value; let ctx = null;
+      if(eng !== 'clair'){
+        try{
+          status('🔧 Préparation de la voix IA naturelle…'); ctx = await guard(prepare(eng), 300000, 'Le téléchargement de la voix IA est trop long.');
+          status('🔥 Démarrage de la voix IA naturelle…'); prog(0.05);
+          await guard(speak(ctx, 'Bonjour.'), window.SCC_VOIX_DEMARRAGE || 90000, 'La voix IA naturelle ne démarre pas sur cet appareil.');
+        }catch(e){ if(/Annulé/.test(e.message)) throw e; ctx = null; status('⚠️ ' + X().esc(e.message) + ' Je passe automatiquement à la voix claire…'); await new Promise(r => setTimeout(r, 1500)); }
+      }
+      if(!ctx){ status('🔧 Préparation de la voix claire…'); ctx = await prepareClair(); }
       if(file){                                                                       /* vidéo importée + texte à dire */
         const txt = $('voTxt').value.trim(); if(!txt) throw new Error('Écris le texte à dire (zone « Texte à dire »).');
         const v = document.createElement('video'); v.src = URL.createObjectURL(file); v.muted = true; v.playsInline = true; await new Promise((ok, ko) => { v.onloadedmetadata = ok; v.onerror = () => ko(new Error('Vidéo illisible.')); });
@@ -106,7 +137,7 @@ async function run(){
     $('voSave').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(last.blob); a.download = last.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); };
     $('voSend').onclick = async () => { const f = new File([last.blob], last.name, { type:last.blob.type }); try{ if(navigator.canShare && navigator.canShare({ files:[f] })) await navigator.share({ files:[f], title }); else alert('Touche « Télécharger », puis envoie le fichier depuis WhatsApp.'); }catch(e){} };
     $('voSave').click();
-  }catch(err){ const msg = X().esc(err && err.message || err); status('⚠️ ' + msg + (M === 'ia' && !/Annulé/.test(msg) ? '<br>👉 Essaie <b>« Voix IA rapide »</b> sur un ordinateur avec Chrome, ou choisis <b>« 🎙 Ma voix (micro) »</b> : elle marche sur tous les appareils.' : '')); if(M !== 'ia') alert(err && err.message || err); }
+  }catch(err){ const msg = X().esc(err && err.message || err); status('⚠️ ' + msg + (M === 'ia' && !/Annulé/.test(msg) ? '<br>👉 Choisis <b>« 🎙 Ma voix (micro) »</b> : elle marche sur tous les appareils.' : '')); if(M !== 'ia') alert(err && err.message || err); }
   clearInterval(tick); $('voStop').style.display = 'none'; $('voPrompt').style.display = 'none'; $('voGo').disabled = false; busy = false; t00 = 0;
 }
 
@@ -116,8 +147,8 @@ function build(){
   b.innerHTML = '<summary style="cursor:pointer;font-weight:800">🔊 Studio voix off : vidéo avec voix à envoyer</summary>'
    + '<p class="hint" style="margin:10px 0">Choisis un diaporama (ou importe une vidéo sans voix off) : le studio fabrique une vidéo avec la voix, à envoyer au client.</p>'
    + '<input id="voQ" class="input" type="search" placeholder="🔎 Chercher un diaporama…" style="margin-bottom:8px"><select id="voShow" class="input" style="margin-bottom:8px"></select>'
-   + '<select id="voQual" class="input" style="margin-bottom:8px"><option value="low">Voix IA rapide (légère, conseillée sur téléphone)</option><option value="medium">Voix IA naturelle (plus lourde, conseillée sur ordinateur)</option></select>'
-   + '<select id="voMode" class="input" style="margin-bottom:8px"><option value="ia">🤖 Voix IA française (automatique)</option><option value="mic">🎙 Ma voix (micro)</option></select>'
+   + '<select id="voQual" class="input" style="margin-bottom:8px"><option value="clair">🔊 Voix claire (fiable, tous appareils) — conseillée</option><option value="low">🤖 Voix IA naturelle rapide (essai, peut ne pas démarrer)</option><option value="medium">🤖 Voix IA naturelle (essai, ordinateur)</option></select>'
+   + '<select id="voMode" class="input" style="margin-bottom:8px"><option value="ia">🔊 Voix automatique française</option><option value="mic">🎙 Ma voix (micro)</option></select>'
    + '<details style="margin-bottom:8px"><summary class="hint" style="cursor:pointer">📂 Importer une vidéo sans voix off (facultatif)</summary><input id="voFile" type="file" accept="video/*" style="margin:8px 0;width:100%"><textarea id="voTxt" class="input" rows="4" placeholder="Texte à dire sur cette vidéo (voix IA)"></textarea></details>'
    + '<label style="display:block;margin:6px 0 10px"><input type="checkbox" id="voMus" checked> 🎵 Musique douce en fond</label>'
    + '<button class="btn btn-primary" id="voGo" style="margin:0 0 8px">🎬 Créer la vidéo avec voix off</button>'
@@ -128,7 +159,6 @@ function build(){
   host.appendChild(b);
   const fill = () => { const q = ($('voQ').value || '').toLowerCase(); $('voShow').innerHTML = SCCS.shows.filter(s => !q || s.titre.toLowerCase().includes(q)).slice(0, 120).map(s => '<option value="' + X().esc(s.id) + '">' + X().esc(s.titre) + ' (' + X().fmt(s.dur) + ')</option>').join(''); };
   $('voQ').oninput = fill; fill(); $('voGo').onclick = run; $('voStop').onclick = () => { if(cancelFn) cancelFn(); };
-  if(!(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (navigator.deviceMemory && navigator.deviceMemory <= 4))) $('voQual').value = 'medium';
   $('voShow').onchange = () => { const s = SCCS.byId[$('voShow').value]; if(s && !$('voTxt').value) $('voTxt').placeholder = 'Texte à dire (voix IA). Exemple pour ce diaporama : ' + SCCS.narration(s, 1).slice(0, 80) + '…'; };
 }
 setInterval(build, 2000);
