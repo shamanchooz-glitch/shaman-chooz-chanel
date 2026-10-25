@@ -34,7 +34,7 @@
 //   https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video   (qualité supérieure, plus cher)
 // Pour revenir au modèle par défaut, supprime simplement cette variable.
 // Numéro de version du Worker (le site le compare pour te dire si le Worker est à jour).
-const WORKER_VERSION = "2026-10-04-a";
+const WORKER_VERSION = "2026-10-25-a";
 const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video";
 const JSON2VIDEO_API = "https://api.json2video.com/v2/movies";
 
@@ -50,6 +50,12 @@ function json(data, status = 200){
     status,
     headers: { "Content-Type": "application/json", ...corsHeaders() }
   });
+}
+
+function toB64(buf){
+  const u = new Uint8Array(buf); let s = "";
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s);
 }
 
 export default {
@@ -276,6 +282,44 @@ ${snapshot}`;
       }
     }
 
-    return json({ ok: true, version: WORKER_VERSION, keys: { fal: Boolean(env.FAL_KEY), json2video: Boolean(env.JSON2VIDEO_KEY) }, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
+    /* ---------- 6) Voix off NATURELLE (Cloudflare Workers AI · MeloTTS) — gratuite, aucune clé à copier ---------- */
+    /* Même liaison « Workers AI » (nom : AI) et même variable FIREBASE_API_KEY que le robot assistant (README, étape 18). */
+    /* Gratuit : 10 000 unités par jour (≈ 500 minutes de voix par jour), remises à zéro chaque jour. */
+    if (url.pathname === "/admin/tts" && request.method === "POST") {
+      if (!env.AI || !env.FIREBASE_API_KEY) return json({ configured: false });
+      let body;
+      try { body = await request.json(); } catch (e) { return json({ error: "bad_request" }, 400); }
+
+      // Seul l'administrateur connecté peut fabriquer des voix (évite que d'autres usent ton quota gratuit).
+      let user = null;
+      try {
+        const v = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FIREBASE_API_KEY}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: String(body.idToken || "") })
+        });
+        const vd = await v.json();
+        user = vd?.users?.[0] || null;
+      } catch (e) { user = null; }
+      if (!user || (env.ADMIN_EMAIL && String(user.email || "").trim().toLowerCase() !== String(env.ADMIN_EMAIL).trim().toLowerCase())) {
+        return json({ configured: true, error: "unauthorized" }, 401);
+      }
+
+      const text = String(body.text || "").trim().slice(0, 800);
+      if (!text) return json({ configured: true, error: "bad_request" }, 400);
+      try {
+        const out = await env.AI.run("@cf/myshell-ai/melotts", { prompt: text, lang: "fr" });
+        let audio = typeof out === "string" ? out : out?.audio;
+        if (!audio && out) {
+          const buf = out instanceof ArrayBuffer ? out : (ArrayBuffer.isView(out) ? out.buffer : (out instanceof ReadableStream ? await new Response(out).arrayBuffer() : null));
+          if (buf) audio = toB64(buf);
+        }
+        if (!audio) return json({ configured: true, error: "ai_failed", message: "Le moteur de voix n'a rien renvoyé." }, 500);
+        return json({ configured: true, audio });
+      } catch (e) {
+        return json({ configured: true, error: "ai_failed", message: String(e?.message || e) }, 500);
+      }
+    }
+
+    return json({ ok: true, version: WORKER_VERSION, keys: { fal: Boolean(env.FAL_KEY), json2video: Boolean(env.JSON2VIDEO_KEY), tts: Boolean(env.AI) }, message: "SHAMAN CHOOZ CHANEL — relais vidéo IA actif (Kling + JSON2Video + traduction + chaîne live)." });
   }
 };

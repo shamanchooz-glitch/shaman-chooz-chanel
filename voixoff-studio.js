@@ -1,5 +1,5 @@
 /* STUDIO VOIX OFF — espace administrateur (onglet de la chaîne en direct). Fabrique un fichier vidéo AVEC voix off, à envoyer à un client.
-   Deux voix, sans clé API :
+   Voix naturelle par défaut : MeloTTS via ton Worker Cloudflare (gratuit, aucune clé à copier). Secours sans clé API :
    1) 🤖 Voix IA française (Piper, licence MIT) : tourne dans le navigateur, hors ligne après le 1er chargement (~70 Mo, gardé en mémoire de l'appareil).
    2) 🎙 Ma voix : le micro enregistre ta voix pendant que le diaporama défile, avec le texte à lire à l'écran.
    Sources d'image : un diaporama de la liste (synchronisation voix/diapositives automatique) ou une vidéo sans voix off importée (+ texte à dire). Nécessite diapo-export.js. */
@@ -47,6 +47,26 @@ async function prepareClair(){
   const m = await guard(loadMe(), 120000, 'Le chargement de la voix claire est trop long : vérifie ta connexion Internet.');
   if(!m.speak('Bonjour.', { rawdata:true })) throw new Error('La voix claire ne se lance pas sur cet appareil.');
   return { predict: async x => { const r = m.speak(x, { rawdata:true, voice:'fr', speed:150, pitch:55, amplitude:100, wordgap:1 }); if(!r) throw new Error('La voix claire a renvoyé un son vide.'); return new Blob([r], { type:'audio/wav' }); } };
+}
+
+/* ---- Voix naturelle : MeloTTS (Cloudflare Workers AI) via ton Worker — gratuite, AUCUNE clé à copier ---- */
+async function prepareCloud(){
+  const cfg = (typeof AI_CONFIG !== 'undefined') ? AI_CONFIG : null;
+  if(!cfg || !cfg.workerUrl || cfg.workerUrl === 'REMPLACE_MOI') throw new Error('Le relais Cloudflare (workerUrl dans ai-config.js) n\'est pas configuré.');
+  const predict = async x => {
+    if(typeof firebase === 'undefined' || !firebase.auth().currentUser) throw new Error('Connecte-toi en administrateur, puis réessaie.');
+    const idToken = await firebase.auth().currentUser.getIdToken();
+    const r = await guard(fetch(cfg.workerUrl + '/admin/tts', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ idToken, text:x }) }), 60000, 'La voix naturelle ne répond pas.');
+    const j = await r.json().catch(() => ({}));
+    if(j.ok && j.version && !j.audio) throw new Error('Le Worker Cloudflare n\'a pas encore la nouvelle version : colle le nouveau fichier cloudflare-worker.js dans Cloudflare, puis « Déployer ».');
+    if(j.configured === false) throw new Error('Il manque, dans le Worker Cloudflare, la liaison « Workers AI » (nom : AI) ou la variable FIREBASE_API_KEY (voir README, étape 18).');
+    if(j.error === 'unauthorized') throw new Error('Le Worker ne reconnaît pas ce compte administrateur.');
+    if(!r.ok || !j.audio) throw new Error('Voix naturelle indisponible : ' + (j.message || j.error || r.status));
+    const bin = atob(j.audio), u = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return new Blob([u], { type:'audio/mpeg' });
+  };
+  await predict('Bonjour.');            /* essai : s'il manque quelque chose, le message est clair et immédiat */
+  return { predict };
 }
 
 const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';   /* fichiers techniques du moteur vocal (le CDN par défaut de la bibliothèque ne les héberge pas tous) */
@@ -108,7 +128,8 @@ async function run(){
     let total, draw, voices = [], mic = null, title = sh ? sh.titre : file.name.replace(/\.[^.]+$/, '');
     if(M === 'ia'){
       const eng = $('voQual').value; let ctx = null;
-      if(eng !== 'clair'){
+      if(eng === 'cloud'){ status('🔧 Connexion à la voix naturelle…'); ctx = await guard(prepareCloud(), 90000, 'La voix naturelle ne répond pas.'); prog(0.05); }
+      else if(eng !== 'clair'){
         try{
           status('🔧 Préparation de la voix IA naturelle…'); ctx = await guard(prepare(eng), 300000, 'Le téléchargement de la voix IA est trop long.');
           status('🔥 Démarrage de la voix IA naturelle…'); prog(0.05);
@@ -156,7 +177,7 @@ function build(){
   b.innerHTML = '<summary style="cursor:pointer;font-weight:800">🔊 Studio voix off : vidéo avec voix à envoyer</summary>'
    + '<p class="hint" style="margin:10px 0">Choisis un diaporama (ou importe une vidéo sans voix off) : le studio fabrique une vidéo avec la voix, à envoyer au client.</p>'
    + '<input id="voQ" class="input" type="search" placeholder="🔎 Chercher un diaporama…" style="margin-bottom:8px"><select id="voShow" class="input" style="margin-bottom:8px"></select>'
-   + '<select id="voQual" class="input" style="margin-bottom:8px"><option value="clair">🔊 Voix claire (fiable, tous appareils) — conseillée</option><option value="low">🤖 Voix IA naturelle rapide (essai, peut ne pas démarrer)</option><option value="medium">🤖 Voix IA naturelle (essai, ordinateur)</option></select>'
+   + '<select id="voQual" class="input" style="margin-bottom:8px"><option value="cloud">🎙 Voix naturelle française (gratuite, sans clé) — conseillée</option><option value="clair">🔊 Voix robot de secours (tous appareils)</option><option value="low">🤖 Voix IA naturelle rapide (essai, peut ne pas démarrer)</option><option value="medium">🤖 Voix IA naturelle (essai, ordinateur)</option></select>'
    + '<select id="voMode" class="input" style="margin-bottom:8px"><option value="ia">🔊 Voix automatique française</option><option value="mic">🎙 Ma voix (micro)</option></select>'
    + '<details style="margin-bottom:8px"><summary class="hint" style="cursor:pointer">📂 Importer une vidéo sans voix off (facultatif)</summary><input id="voFile" type="file" accept="video/*" style="margin:8px 0;width:100%"><textarea id="voTxt" class="input" rows="4" placeholder="Texte à dire sur cette vidéo (voix IA)"></textarea></details>'
    + '<label style="display:block;margin:6px 0 10px"><input type="checkbox" id="voMus" checked> 🎵 Musique douce en fond</label>'
