@@ -6,10 +6,13 @@
 (function(){
 'use strict';
 const $ = id => document.getElementById(id);
-let busy = false, TTS = null, last = null;
+let busy = false, TTS = null, last = null, cancelFn = null, cancelP = null, tick = null, t00 = 0, curMsg = '';
+const LIM = () => window.SCC_VOIX_LIMITE || 150000;                 /* temps maximum pour une phrase (ms) */
+const guard = (p, ms, msg) => Promise.race([p, cancelP, new Promise((_, ko) => setTimeout(() => ko(new Error(msg)), ms))]);
+const log = m => { const l = $('voLog'); if(l) l.textContent = 'Détail du moteur : ' + String(m).slice(0, 90); };
 const spoken = t => String(t).replace(/SHAMAN\s+CHOOZ\s+PRODUCTION/gi, window.SCC_NOM_PARLE || 'Shaman Tchouze Production').replace(/CHOOZ/gi, 'Tchouze');
 const X = () => window.SCC_EXPORT;
-const status = m => { const s = $('voStat'); if(s) s.innerHTML = m; };
+const status = m => { curMsg = m; const s = $('voStat'); if(s) s.innerHTML = m + (busy && t00 ? ' <b>— ' + Math.round((Date.now() - t00) / 1000) + ' s</b>' : ''); };
 const prog = p => { const b = $('voBar'); if(b){ b.style.display = 'block'; b.value = Math.round(p * 100); } };
 
 const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';   /* fichiers techniques du moteur vocal (le CDN par défaut de la bibliothèque ne les héberge pas tous) */
@@ -26,7 +29,7 @@ async function prepare(q){
   const t = await loadTTS(), id = await voiceId(t, q);
   const dlp = p => { if(p && p.total){ prog(p.loaded / p.total); status('⬇ Téléchargement de la voix : ' + Math.round(p.loaded * 100 / p.total) + ' % (une seule fois, patiente)'); } };
   if(t.TtsSession){
-    const s = new t.TtsSession({ voiceId:id, allowLocalModels:true, fallbackStrategy:'cdn', wasmPaths:{ onnxWasm:ORT }, progress:dlp, logger:m => console.log('Voix IA :', m) });
+    const s = new t.TtsSession({ voiceId:id, allowLocalModels:true, fallbackStrategy:'cdn', wasmPaths:{ onnxWasm:ORT }, progress:dlp, logger:m => { console.log('Voix IA :', m); log(m); } });
     if(typeof s.init === 'function') await s.init();
     return { predict: x => s.predict(x) };
   }
@@ -34,7 +37,7 @@ async function prepare(q){
   return { predict: x => t.predict({ text:x, voiceId:id }) };
 }
 async function speak(ctx, text){
-  let w; try{ w = await ctx.predict(spoken(text)); }catch(e){ w = await ctx.predict(spoken(text)); }   /* un 2e essai en cas de petit incident */
+  let w; try{ w = await guard(ctx.predict(spoken(text)), LIM(), 'La voix ne répond plus (plus de ' + Math.round(LIM() / 1000) + ' s pour une phrase).'); }catch(e){ if(/Annulé/.test(e.message) || /ne répond plus/.test(e.message)) throw e; w = await guard(ctx.predict(spoken(text)), LIM(), 'La voix ne répond plus.'); }
   const ac = new AudioContext(); const b = await ac.decodeAudioData(await w.arrayBuffer()); ac.close(); return b;
 }
 
@@ -64,11 +67,15 @@ async function run(){
   if(busy) return; const M = $('voMode').value, id = $('voShow').value, sh = SCCS.byId[id], mus = $('voMus').checked, file = $('voFile').files[0];
   if(!sh && !file) return alert('Choisis un diaporama.');
   if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return alert('Ce navigateur ne sait pas enregistrer de vidéo. Utilise Google Chrome sur ordinateur ou Android.');
-  busy = true; $('voGo').disabled = true; $('voDone').style.display = 'none';
+  busy = true; $('voGo').disabled = true; $('voDone').style.display = 'none'; $('voStop').style.display = 'block'; t00 = Date.now(); $('voLog').textContent = '';
+  cancelP = new Promise((_, ko) => { cancelFn = () => ko(new Error('Annulé.')); }); cancelP.catch(() => {});
+  tick = setInterval(() => status(curMsg), 1000);
   try{
     let total, draw, voices = [], mic = null, title = sh ? sh.titre : file.name.replace(/\.[^.]+$/, '');
     if(M === 'ia'){
-      status('🔧 Préparation de la voix…'); const ctx = await prepare($('voQual').value);
+      status('🔧 Préparation de la voix…'); const ctx = await guard(prepare($('voQual').value), 600000, 'Le téléchargement de la voix est trop long : vérifie ta connexion.');
+      status('🔥 Démarrage du moteur de voix (1re fois : plusieurs minutes sur un téléphone, patiente)…'); prog(0.05);
+      await guard(speak(ctx, 'Bonjour.'), 300000, 'Le moteur de voix ne démarre pas sur cet appareil (plus de 5 minutes).');
       if(file){                                                                       /* vidéo importée + texte à dire */
         const txt = $('voTxt').value.trim(); if(!txt) throw new Error('Écris le texte à dire (zone « Texte à dire »).');
         const v = document.createElement('video'); v.src = URL.createObjectURL(file); v.muted = true; v.playsInline = true; await new Promise((ok, ko) => { v.onloadedmetadata = ok; v.onerror = () => ko(new Error('Vidéo illisible.')); });
@@ -99,8 +106,8 @@ async function run(){
     $('voSave').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(last.blob); a.download = last.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); };
     $('voSend').onclick = async () => { const f = new File([last.blob], last.name, { type:last.blob.type }); try{ if(navigator.canShare && navigator.canShare({ files:[f] })) await navigator.share({ files:[f], title }); else alert('Touche « Télécharger », puis envoie le fichier depuis WhatsApp.'); }catch(e){} };
     $('voSave').click();
-  }catch(err){ status('⚠️ ' + X().esc(err && err.message || err)); if(M !== 'ia') alert(err && err.message || err); }
-  $('voPrompt').style.display = 'none'; $('voGo').disabled = false; busy = false;
+  }catch(err){ const msg = X().esc(err && err.message || err); status('⚠️ ' + msg + (M === 'ia' && !/Annulé/.test(msg) ? '<br>👉 Essaie <b>« Voix IA rapide »</b> sur un ordinateur avec Chrome, ou choisis <b>« 🎙 Ma voix (micro) »</b> : elle marche sur tous les appareils.' : '')); if(M !== 'ia') alert(err && err.message || err); }
+  clearInterval(tick); $('voStop').style.display = 'none'; $('voPrompt').style.display = 'none'; $('voGo').disabled = false; busy = false; t00 = 0;
 }
 
 function build(){
@@ -114,12 +121,13 @@ function build(){
    + '<details style="margin-bottom:8px"><summary class="hint" style="cursor:pointer">📂 Importer une vidéo sans voix off (facultatif)</summary><input id="voFile" type="file" accept="video/*" style="margin:8px 0;width:100%"><textarea id="voTxt" class="input" rows="4" placeholder="Texte à dire sur cette vidéo (voix IA)"></textarea></details>'
    + '<label style="display:block;margin:6px 0 10px"><input type="checkbox" id="voMus" checked> 🎵 Musique douce en fond</label>'
    + '<button class="btn btn-primary" id="voGo" style="margin:0 0 8px">🎬 Créer la vidéo avec voix off</button>'
-   + '<p id="voStat" class="hint" style="margin:6px 0"></p><progress id="voBar" max="100" value="0" style="width:100%;display:none"></progress>'
+   + '<button class="btn btn-ghost" id="voStop" style="margin:0 0 8px;display:none">⏹ Arrêter</button>'
+   + '<p id="voStat" class="hint" style="margin:6px 0"></p><p id="voLog" class="hint" style="margin:0 0 6px;font-size:12px;opacity:.7"></p><progress id="voBar" max="100" value="0" style="width:100%;display:none"></progress>'
    + '<div id="voPrompt" style="display:none;margin:8px 0;padding:12px;border-radius:12px;background:#fff;color:#222;font-size:16px;text-align:center"></div>'
    + '<div id="voDone" style="display:none;margin:8px 0;padding:10px;border-radius:10px;background:rgba(60,160,90,.2)"></div>';
   host.appendChild(b);
   const fill = () => { const q = ($('voQ').value || '').toLowerCase(); $('voShow').innerHTML = SCCS.shows.filter(s => !q || s.titre.toLowerCase().includes(q)).slice(0, 120).map(s => '<option value="' + X().esc(s.id) + '">' + X().esc(s.titre) + ' (' + X().fmt(s.dur) + ')</option>').join(''); };
-  $('voQ').oninput = fill; fill(); $('voGo').onclick = run;
+  $('voQ').oninput = fill; fill(); $('voGo').onclick = run; $('voStop').onclick = () => { if(cancelFn) cancelFn(); };
   if(!(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (navigator.deviceMemory && navigator.deviceMemory <= 4))) $('voQual').value = 'medium';
   $('voShow').onchange = () => { const s = SCCS.byId[$('voShow').value]; if(s && !$('voTxt').value) $('voTxt').placeholder = 'Texte à dire (voix IA). Exemple pour ce diaporama : ' + SCCS.narration(s, 1).slice(0, 80) + '…'; };
 }
