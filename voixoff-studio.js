@@ -12,19 +12,31 @@ const X = () => window.SCC_EXPORT;
 const status = m => { const s = $('voStat'); if(s) s.innerHTML = m; };
 const prog = p => { const b = $('voBar'); if(b){ b.style.display = 'block'; b.value = Math.round(p * 100); } };
 
+const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';   /* fichiers techniques du moteur vocal (le CDN par défaut de la bibliothèque ne les héberge pas tous) */
 async function loadTTS(){
   if(window.__sccPiper) return window.__sccPiper; if(TTS) return TTS;
-  const urls = ['https://esm.sh/@mintplex-labs/piper-tts-web@1.0.4', 'https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.4/+esm']; let err;
+  const urls = ['https://esm.sh/@realtimex/piper-tts-web@1.1.1', 'https://cdn.jsdelivr.net/npm/@realtimex/piper-tts-web@1.1.1/+esm']; let err;
   for(const u of urls){ try{ TTS = await import(u); return TTS; }catch(e){ err = e; } }
   throw new Error('Moteur de voix introuvable : une connexion Internet est nécessaire au 1er chargement. (' + (err && err.message || err) + ')');
 }
-async function voiceId(t){ try{ const v = Object.keys(await t.voices()).filter(k => /^fr_FR/.test(k)); return v.find(k => /siwis-medium/.test(k)) || v.find(k => /medium/.test(k)) || v[0] || 'fr_FR-siwis-medium'; }catch(e){ return 'fr_FR-siwis-medium'; } }
-async function prepare(){
-  const t = await loadTTS(), id = await voiceId(t);
-  if(t.download) await t.download(id, p => { if(p && p.total){ prog(p.loaded / p.total); status('⬇ Téléchargement de la voix : ' + Math.round(p.loaded * 100 / p.total) + ' % (une seule fois)'); } });
-  return { t, id };
+async function voiceId(t, q){
+  try{ const v = Object.keys(await t.voices()).filter(k => /^fr_FR/.test(k)); return v.find(k => k.endsWith('siwis-' + q)) || v.find(k => k.endsWith('-' + q)) || v[0] || ('fr_FR-siwis-' + q); }catch(e){ return 'fr_FR-siwis-' + q; }
 }
-async function speak(ctx, text){ const w = await ctx.t.predict({ text:spoken(text), voiceId:ctx.id }); const ac = new AudioContext(); const b = await ac.decodeAudioData(await w.arrayBuffer()); ac.close(); return b; }
+async function prepare(q){
+  const t = await loadTTS(), id = await voiceId(t, q);
+  const dlp = p => { if(p && p.total){ prog(p.loaded / p.total); status('⬇ Téléchargement de la voix : ' + Math.round(p.loaded * 100 / p.total) + ' % (une seule fois, patiente)'); } };
+  if(t.TtsSession){
+    const s = new t.TtsSession({ voiceId:id, allowLocalModels:true, fallbackStrategy:'cdn', wasmPaths:{ onnxWasm:ORT }, progress:dlp, logger:m => console.log('Voix IA :', m) });
+    if(typeof s.init === 'function') await s.init();
+    return { predict: x => s.predict(x) };
+  }
+  if(t.download) await t.download(id, dlp);
+  return { predict: x => t.predict({ text:x, voiceId:id }) };
+}
+async function speak(ctx, text){
+  let w; try{ w = await ctx.predict(spoken(text)); }catch(e){ w = await ctx.predict(spoken(text)); }   /* un 2e essai en cas de petit incident */
+  const ac = new AudioContext(); const b = await ac.decodeAudioData(await w.arrayBuffer()); ac.close(); return b;
+}
 
 /* Enregistre : draw(T, g) dessine l'image à l'instant T ; voices = [{buf, at}] ; mic = flux micro facultatif */
 async function rec(total, draw, voices, music, mic, onP){
@@ -56,7 +68,7 @@ async function run(){
   try{
     let total, draw, voices = [], mic = null, title = sh ? sh.titre : file.name.replace(/\.[^.]+$/, '');
     if(M === 'ia'){
-      status('🔧 Préparation de la voix…'); const ctx = await prepare();
+      status('🔧 Préparation de la voix…'); const ctx = await prepare($('voQual').value);
       if(file){                                                                       /* vidéo importée + texte à dire */
         const txt = $('voTxt').value.trim(); if(!txt) throw new Error('Écris le texte à dire (zone « Texte à dire »).');
         const v = document.createElement('video'); v.src = URL.createObjectURL(file); v.muted = true; v.playsInline = true; await new Promise((ok, ko) => { v.onloadedmetadata = ok; v.onerror = () => ko(new Error('Vidéo illisible.')); });
@@ -97,6 +109,7 @@ function build(){
   b.innerHTML = '<summary style="cursor:pointer;font-weight:800">🔊 Studio voix off : vidéo avec voix à envoyer</summary>'
    + '<p class="hint" style="margin:10px 0">Choisis un diaporama (ou importe une vidéo sans voix off) : le studio fabrique une vidéo avec la voix, à envoyer au client.</p>'
    + '<input id="voQ" class="input" type="search" placeholder="🔎 Chercher un diaporama…" style="margin-bottom:8px"><select id="voShow" class="input" style="margin-bottom:8px"></select>'
+   + '<select id="voQual" class="input" style="margin-bottom:8px"><option value="low">Voix IA rapide (légère, conseillée sur téléphone)</option><option value="medium">Voix IA naturelle (plus lourde, conseillée sur ordinateur)</option></select>'
    + '<select id="voMode" class="input" style="margin-bottom:8px"><option value="ia">🤖 Voix IA française (automatique)</option><option value="mic">🎙 Ma voix (micro)</option></select>'
    + '<details style="margin-bottom:8px"><summary class="hint" style="cursor:pointer">📂 Importer une vidéo sans voix off (facultatif)</summary><input id="voFile" type="file" accept="video/*" style="margin:8px 0;width:100%"><textarea id="voTxt" class="input" rows="4" placeholder="Texte à dire sur cette vidéo (voix IA)"></textarea></details>'
    + '<label style="display:block;margin:6px 0 10px"><input type="checkbox" id="voMus" checked> 🎵 Musique douce en fond</label>'
@@ -107,6 +120,7 @@ function build(){
   host.appendChild(b);
   const fill = () => { const q = ($('voQ').value || '').toLowerCase(); $('voShow').innerHTML = SCCS.shows.filter(s => !q || s.titre.toLowerCase().includes(q)).slice(0, 120).map(s => '<option value="' + X().esc(s.id) + '">' + X().esc(s.titre) + ' (' + X().fmt(s.dur) + ')</option>').join(''); };
   $('voQ').oninput = fill; fill(); $('voGo').onclick = run;
+  if(!(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (navigator.deviceMemory && navigator.deviceMemory <= 4))) $('voQual').value = 'medium';
   $('voShow').onchange = () => { const s = SCCS.byId[$('voShow').value]; if(s && !$('voTxt').value) $('voTxt').placeholder = 'Texte à dire (voix IA). Exemple pour ce diaporama : ' + SCCS.narration(s, 1).slice(0, 80) + '…'; };
 }
 setInterval(build, 2000);
