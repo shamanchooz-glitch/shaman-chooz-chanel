@@ -363,3 +363,12 @@ body{top:0 !important;}
   background:linear-gradient(135deg,var(--yellow),var(--pink));
 }
 #botSendBtn:disabled{ opacity:.5; }
+
+/* ---------- Autocomplétion des champs de recherche (autocomplete.js) ---------- */
+.acx{position:fixed;z-index:99999;display:none;max-height:min(46vh,320px);overflow-y:auto;background:var(--card,#fff);border:1px solid var(--border,#e3d9c8);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.acx.on{display:block}
+.acx-i{padding:12px 14px;font-size:15px;color:var(--text,#2B2318);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid rgba(0,0,0,.06)}
+.acx-i:last-child{border-bottom:0}
+.acx-i b{font-weight:800}
+.acx-i.ph::before{content:'🔎 ';opacity:.55}
+.acx-i.sel,.acx-i:hover{background:rgba(212,160,23,.16)}
