@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v49';
+const CACHE_NAME = 'scc-v50';
 
 const APP_SHELL = [
   './',

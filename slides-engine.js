@@ -70,29 +70,48 @@ SCCS.add = function(id, titre, cat, pal, slides, opt){
 };
 SCCS.duration = id => SCCS.byId[id] ? SCCS.byId[id].dur : 0;
 
-/* Ordre de la boucle : les diaporamas « Agence » (pubs) et les autres (culture, maison, commerce, divertissement…) sont mélangés
-   régulièrement sur TOUTE la boucle, au prorata de leur nombre : on ne voit jamais 200 pubs à la suite.
-   Chaque famille est elle aussi répartie sur toute la boucle (un thème à tour de rôle). L'ordre est fixe → identique pour tous. */
-function roundRobin(list, key){
-  const groups = [], map = {};
-  list.forEach(s=>{ const k = key(s); if(!map[k]){ map[k] = []; groups.push(map[k]); } map[k].push(s); });
-  const out = []; let left = list.length;
-  for(let r = 0; left > 0; r++) groups.forEach(g=>{ if(r < g.length){ out.push(g[r]); left--; } });
-  return out;
-}
-function spread(list, key){
-  const cnt = {}, size = {};
-  list.forEach(s=>{ const k = key(s); size[k] = (size[k] || 0) + 1; });
-  return list.map((s,i)=>{ const k = key(s), j = cnt[k] = (cnt[k] || 0) + 1; return { s, w:(j - .5) / size[k], i }; })
-    .sort((a,b)=> a.w - b.w || a.i - b.i).map(x=>x.s);
-}
-SCCS.playlist = function(){
-  const ag = spread(SCCS.shows.filter(s=>s.agency), s=> s.id.split('-')[0]), ot = roundRobin(SCCS.shows.filter(s=>!s.agency), s=> s.cat), out = [];
-  let i = 0, j = 0;
-  while(i < ag.length || j < ot.length){
-    if(j >= ot.length || (i < ag.length && i / ag.length <= j / ot.length)) out.push(ag[i++]); else out.push(ot[j++]);
+/* Ordre de la boucle (v12) — objectif : sur n'importe quelle heure de diffusion, le spectateur voit des vidéos TOUTES DIFFÉRENTES.
+   1) Chaque « gabarit » (même suite de titres de diapos : « Pourquoi nous le faisons / Offrir une vraie chance… ») est réparti
+      régulièrement sur TOUTE la boucle, avec un décalage propre à chaque gabarit : ni début de boucle surchargé, ni fin pauvre en variété.
+   2) Une passe de lissage choisit ensuite chaque diffusion en évitant de rapprocher : même contenu / même titre (≥ 5 h d'écart),
+      même gabarit (≥ 1 h), même famille d'identifiants (pas deux d'affilée), même catégorie (hors « Agence »).
+   L'ordre est entièrement déterministe → identique pour tous les spectateurs, et chaque diaporama passe exactement une fois par tour. */
+function hash32(str){ let h = 2166136261; for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; }
+const norm = x => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
+function buildOrder(){
+  const info = SCCS.shows.map(s => ({
+    s, fam: s.id.split('-')[0], cat: s.cat, ag: !!s.agency,
+    gab: s.slides.map(x => norm(x.t)).join('/'), tit: norm(s.titre), con: s.slides.map(x => norm(x.t + '|' + x.x)).join('§')
+  }));
+  const groups = {};
+  info.forEach(o => (groups[o.gab] = groups[o.gab] || []).push(o));
+  Object.keys(groups).forEach(k => { const g = groups[k], phi = hash32(k); g.forEach((o, j) => { o.pos = (j + phi) / g.length; o.tie = hash32(o.s.id); }); });
+  const rem = info.slice().sort((a, b) => a.pos - b.pos || a.tie - b.tie), out = [], N = info.length;
+  const size = { con:{}, tit:{}, gab:{}, fam:{} };
+  info.forEach(o => { ['con', 'tit', 'gab', 'fam'].forEach(k => { size[k][o[k]] = (size[k][o[k]] || 0) + 1; }); });
+  const last = { con:{}, tit:{}, gab:{}, fam:{}, cat:{} }, WIN = 90;
+  /* distance d'écart exigée = la plus grande possible, mais jamais plus que ce que la taille du groupe permet (sinon on ne pourrait pas la tenir) */
+  const pen = (k, o, p, lim, w) => { const l = Math.min(lim, .7 * N / size[k][o[k]]); if(l < 2) return 0; const d = o[k] in last[k] ? p - last[k][o[k]] : 1e9; return d < l ? w * (1 - d / l) + w * .25 : 0; };
+  while(rem.length){
+    const p = out.length; let best = 0, bestPen = Infinity;
+    for(let c = 0, n = Math.min(WIN, rem.length); c < n; c++){
+      const o = rem[c];
+      const v = c * .5 + pen('con', o, p, 300, 1000) + pen('tit', o, p, 300, 800) + pen('gab', o, p, 60, 500) + pen('fam', o, p, 5, 250)
+              + (o.ag ? 0 : (o.cat in last.cat && p - last.cat[o.cat] < 3 ? 120 * (1 - (p - last.cat[o.cat]) / 3) + 30 : 0));
+      if(v < bestPen){ bestPen = v; best = c; }
+    }
+    const o = rem.splice(best, 1)[0]; out.push(o);
+    last.con[o.con] = last.tit[o.tit] = last.gab[o.gab] = last.fam[o.fam] = last.cat[o.cat] = p;
   }
-  return out.map(s=>({ id:'s:' + s.id, title:'🎬 ' + s.titre, type:'slides', ref:s.id, sec:Math.ceil(s.dur), builtin:true }));
+  return out.map(o => o.s);
+}
+let PL_CACHE = null, PL_N = -1;      /* l'ordre est calculé une seule fois (et recalculé si des diaporamas s'ajoutent) : la lecture le consulte souvent */
+SCCS.playlist = function(){
+  if(!PL_CACHE || PL_N !== SCCS.shows.length){
+    PL_CACHE = buildOrder().map(s => ({ id:'s:' + s.id, title:'🎬 ' + s.titre, type:'slides', ref:s.id, sec:Math.ceil(s.dur), builtin:true }));
+    PL_N = SCCS.shows.length;
+  }
+  return PL_CACHE.slice();
 };
 
 /* ---------- Dessin ---------- */
