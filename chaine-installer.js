@@ -41,7 +41,7 @@ function qrPng(){
   return cv.toDataURL('image/png');
 }
 const copy = async () => { try{ await navigator.clipboard.writeText(LINK); say('🔗 Lien copié !'); }catch(e){ prompt('Copie ce lien :', LINK); } };
-const share = () => { const t = 'Regarde SHAMAN CHOOZ CHANEL en direct : ' + LINK; if(navigator.share) navigator.share({ title:'SHAMAN CHOOZ CHANEL', text:'Regarde la chaîne en direct', url:LINK }).catch(() => {}); else window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); };
+const share = () => { const t = 'Regarde SHAMAN CHOOZ CHANEL en direct : ' + LINK; if(navigator.share) navigator.share({ title:'SHAMAN CHOOZ CHANEL', text:'Regarde SHAMAN CHOOZ CHANEL, la chaîne en direct :', url:LINK }).catch(() => {}); else window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); };
 
 /* ---- Installer ---- */
 async function install(){
@@ -52,23 +52,23 @@ async function install(){
 
 /* ---- Carte pour les spectateurs (sur l'écran de la chaîne) : QR code + lien + partager + installer ---- */
 function viewerCard(){
-  const sub = document.querySelector('#screen-live .section-sub'); if(!sub || $('chInstall')) return;
+  const scr = $('screen-live'); if(!scr || $('chInstall')) return;
   const c = document.createElement('div'); c.id = 'chInstall';
-  c.style.cssText = 'margin:12px 0;padding:14px;border-radius:14px;background:rgba(217,138,76,.16);border:1px solid rgba(217,138,76,.5);text-align:center';
-  c.innerHTML = '<p style="margin:0 0 6px;font-weight:800">📲 La chaîne dans ta poche</p>'
-   + '<p class="hint" style="margin:0 0 10px">Scanne le QR code ou clique sur le lien : la chaîne s\'ouvre directement. Partage-le à tes parents, amis et visiteurs.</p>'
+  c.style.cssText = 'margin:28px 0 12px;padding:16px;border-radius:14px;background:rgba(217,138,76,.16);border:1px solid rgba(217,138,76,.5);text-align:center';
+  c.innerHTML = '<p style="margin:0 0 6px;font-weight:800">📲 Partage la chaîne</p>'
+   + '<p class="hint" style="margin:0 0 10px">Scanne le QR code ou touche le lien : la chaîne s\'ouvre directement. Partage-la à tes parents, amis et visiteurs.</p>'
    + '<canvas id="chQr" style="display:block;margin:0 auto 10px;max-width:100%;border-radius:8px"></canvas>'
    + '<input id="chLinkIn" class="input" readonly style="margin:0 0 10px;text-align:center">'
    + '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
+   + '<button class="btn btn-primary" id="chShareBtn" style="margin:0;width:auto">📤 Partager la chaîne</button>'
    + '<button class="btn btn-primary" id="chInstBtn" style="margin:0;width:auto">⬇ Installer la chaîne</button>'
    + '<button class="btn btn-ghost" id="chCopyBtn" style="margin:0;width:auto">🔗 Copier le lien</button>'
-   + '<button class="btn btn-ghost" id="chShareBtn" style="margin:0;width:auto">📤 Partager</button>'
    + '<button class="btn btn-ghost" id="chDlBtn" style="margin:0;width:auto">⬇ Image du QR</button></div>';
-  sub.insertAdjacentElement('afterend', c);
+  scr.appendChild(c);   /* toujours en dernier : on voit d'abord la chaîne, puis on défile vers le QR code */
   drawQR($('chQr'), LINK, 260); $('chLinkIn').value = LINK;
   $('chInstBtn').onclick = install; $('chCopyBtn').onclick = copy; $('chShareBtn').onclick = share;
   $('chDlBtn').onclick = () => { const a = document.createElement('a'); a.href = qrPng(); a.download = 'qr-code-chaine-shaman-chooz.png'; document.body.appendChild(a); a.click(); a.remove(); };
-  if(standalone()) $('chInstBtn').style.display = 'none';   /* déjà installée : on garde le QR, le lien et le partage */
+  if(standalone()) $('chInstBtn').style.display = 'none';
 }
 
 /* ---- Carte admin : QR code + lien + téléchargement ---- */
@@ -82,6 +82,6 @@ function adminCard(){
   $('chaCopy').onclick = copy; $('chaShare').onclick = share;
   $('chaDl').onclick = () => { const a = document.createElement('a'); a.href = qrPng(); a.download = 'qr-code-chaine-shaman-chooz.png'; document.body.appendChild(a); a.click(); a.remove(); };
 }
-setInterval(() => { if(typeof sccQR !== 'function') return; viewerCard(); adminCard(); }, 2000);
+setInterval(() => { if(typeof sccQR !== 'function') return; viewerCard(); adminCard(); { const c = $('chInstall'), p = $('screen-live'); if(c && p && p.lastElementChild !== c) p.appendChild(c); } }, 2000);
 window.SCC_CHAINE_LIEN = LINK;
 })();
