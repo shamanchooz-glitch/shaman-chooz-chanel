@@ -45,21 +45,30 @@ const share = () => { const t = 'Regarde SHAMAN CHOOZ CHANEL en direct : ' + LIN
 
 /* ---- Installer ---- */
 async function install(){
-  if(!MODE){ location.href = LINK; return; }                 /* le navigateur propose l'installation de la chaîne depuis ce lien */
   if(evt){ try{ evt.prompt(); await evt.userChoice; }catch(e){} evt = null; return; }
+  if(!MODE){ location.href = LINK; return; }                 /* le navigateur propose l'installation de la chaîne depuis ce lien */
   alert(ios ? 'Sur iPhone / iPad : touche le bouton Partager (le carré avec une flèche), puis « Sur l\'écran d\'accueil ».' : 'Dans le menu de ton navigateur (⋮ ou ⋯), choisis « Installer l\'application » ou « Ajouter à l\'écran d\'accueil ».');
 }
 
-/* ---- Carte pour les spectateurs (sur l'écran de la chaîne) ---- */
+/* ---- Carte pour les spectateurs (sur l'écran de la chaîne) : QR code + lien + partager + installer ---- */
 function viewerCard(){
   const sub = document.querySelector('#screen-live .section-sub'); if(!sub || $('chInstall')) return;
   const c = document.createElement('div'); c.id = 'chInstall';
-  c.style.cssText = 'margin:12px 0;padding:14px;border-radius:14px;background:rgba(217,138,76,.16);border:1px solid rgba(217,138,76,.5)';
-  c.innerHTML = '<p style="margin:0 0 8px;font-weight:800">📲 La chaîne dans ta poche</p><p class="hint" style="margin:0 0 10px">' + (MODE ? 'Installe la chaîne : un seul toucher sur l\'icône et tu regardes, sans passer par le site.' : 'Ouvre la chaîne en application : tu pourras l\'installer sur ton téléphone, ta tablette ou ton ordinateur.') + '</p>'
-   + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="chInstBtn" style="margin:0;width:auto">' + (MODE ? '⬇ Installer la chaîne' : '📲 Ouvrir l\'application de la chaîne') + '</button><button class="btn btn-ghost" id="chShareBtn" style="margin:0;width:auto">📤 Partager</button><button class="btn btn-ghost" id="chQrBtn" style="margin:0;width:auto">▦ QR code</button></div><canvas id="chQr" style="display:none;margin:12px auto 0;max-width:100%;border-radius:8px"></canvas>';
+  c.style.cssText = 'margin:12px 0;padding:14px;border-radius:14px;background:rgba(217,138,76,.16);border:1px solid rgba(217,138,76,.5);text-align:center';
+  c.innerHTML = '<p style="margin:0 0 6px;font-weight:800">📲 La chaîne dans ta poche</p>'
+   + '<p class="hint" style="margin:0 0 10px">Scanne le QR code ou clique sur le lien : la chaîne s\'ouvre directement. Partage-le à tes parents, amis et visiteurs.</p>'
+   + '<canvas id="chQr" style="display:block;margin:0 auto 10px;max-width:100%;border-radius:8px"></canvas>'
+   + '<input id="chLinkIn" class="input" readonly style="margin:0 0 10px;text-align:center">'
+   + '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
+   + '<button class="btn btn-primary" id="chInstBtn" style="margin:0;width:auto">⬇ Installer la chaîne</button>'
+   + '<button class="btn btn-ghost" id="chCopyBtn" style="margin:0;width:auto">🔗 Copier le lien</button>'
+   + '<button class="btn btn-ghost" id="chShareBtn" style="margin:0;width:auto">📤 Partager</button>'
+   + '<button class="btn btn-ghost" id="chDlBtn" style="margin:0;width:auto">⬇ Image du QR</button></div>';
   sub.insertAdjacentElement('afterend', c);
-  $('chInstBtn').onclick = install; $('chShareBtn').onclick = share;
-  $('chQrBtn').onclick = () => { const cv = $('chQr'); if(cv.style.display === 'none'){ drawQR(cv, LINK, 260); cv.style.display = 'block'; } else cv.style.display = 'none'; };
+  drawQR($('chQr'), LINK, 260); $('chLinkIn').value = LINK;
+  $('chInstBtn').onclick = install; $('chCopyBtn').onclick = copy; $('chShareBtn').onclick = share;
+  $('chDlBtn').onclick = () => { const a = document.createElement('a'); a.href = qrPng(); a.download = 'qr-code-chaine-shaman-chooz.png'; document.body.appendChild(a); a.click(); a.remove(); };
+  if(standalone()) $('chInstBtn').style.display = 'none';   /* déjà installée : on garde le QR, le lien et le partage */
 }
 
 /* ---- Carte admin : QR code + lien + téléchargement ---- */
@@ -73,6 +82,6 @@ function adminCard(){
   $('chaCopy').onclick = copy; $('chaShare').onclick = share;
   $('chaDl').onclick = () => { const a = document.createElement('a'); a.href = qrPng(); a.download = 'qr-code-chaine-shaman-chooz.png'; document.body.appendChild(a); a.click(); a.remove(); };
 }
-setInterval(() => { if(typeof sccQR !== 'function') return; if(!standalone()) viewerCard(); adminCard(); }, 2000);
+setInterval(() => { if(typeof sccQR !== 'function') return; viewerCard(); adminCard(); }, 2000);
 window.SCC_CHAINE_LIEN = LINK;
 })();
