@@ -5,6 +5,7 @@
    - Android / tablettes / ordinateurs : vrai plein écran + verrouillage en paysage quand le navigateur le permet.
    - iPhone ou tout appareil qui ne sait pas passer en paysage : la vidéo est tournée toute seule de 90°
      (il suffit de tourner le téléphone). Si tu tournes le téléphone, la rotation automatique s'enlève.
+   - Dans l'appli installée sur l'écran d'accueil : plein écran sans aucun message du navigateur.
    - Boutons discrets en haut à droite (ils se cachent après 3 s, touche l'écran pour les revoir) :
      ↔ Remplir (zoom pour couvrir tout l'écran) · 🔄 Sens (inverse le côté) · ✕ Quitter.
    ========================================================== */
@@ -73,7 +74,11 @@ A.fullscreen = function(b){
   document.addEventListener('fullscreenchange', onFsChange); document.addEventListener('webkitfullscreenchange', onFsChange);
   document.addEventListener('keydown', onKey);
   const lock = () => { try{ const o = screen.orientation; if(o && o.lock) o.lock('landscape').then(later, () => {}); }catch(e){} };
-  const req = b.requestFullscreen || b.webkitRequestFullscreen;
+  /* Appli installée (écran d'accueil) : pas de plein écran du navigateur, donc aucun message « Pour quitter le plein écran… ».
+     La vidéo couvre déjà tout l'écran de l'appli. */
+  const installed = touch() && (navigator.standalone === true || ['standalone', 'fullscreen', 'minimal-ui'].some(m => { try{ return matchMedia('(display-mode:' + m + ')').matches; }catch(e){ return false; } }));
+  const req = installed ? null : (b.requestFullscreen || b.webkitRequestFullscreen);
+  if(installed) lock();
   if(req){
     try{
       native = true; const r = req.call(b);

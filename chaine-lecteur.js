@@ -19,8 +19,9 @@ const fmt = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s/60) + ':'
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const list = () => LIST || (LIST = SCCS.playlist().filter(i => i.type === 'slides'));
 const show = id => SCCS.byId[id];
-const visibleBox = () => { for(const q of BOXES){ const b = $(q); if(b && b.offsetParent) return b; } return null; };
-const activeBox = () => { for(const q of BOXES){ const b = $(q); if(b && b.offsetParent && b.querySelector('[data-slides],.sccs-frozen')) return b; } return null; };
+const shown = b => !!b && b.getClientRects().length > 0;   /* vrai aussi en plein écran (position:fixed → offsetParent vide) */
+const visibleBox = () => { for(const q of BOXES){ const b = $(q); if(shown(b)) return b; } return null; };
+const activeBox = () => { for(const q of BOXES){ const b = $(q); if(shown(b) && b.querySelector('[data-slides],.sccs-frozen')) return b; } return null; };
 
 /* Quand le spectateur a choisi lui-même, la boucle commune ne doit pas lui reprendre l'écran */
 SCCS.play = function(host, id, off, opt){
