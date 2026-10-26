@@ -4,7 +4,8 @@ if(!window.SCCS) return;
 let cat = 'Jeux-quiz';
 const C = c => { cat = c; };
 const S = (id, t, pal, sl) => SCCS.add(id, t, cat, pal, sl, { photo:true });
-const Q = (id, t, pal, e, qs) => S(id, t, pal, qs.map((q,i) => [e, 'Question ' + (i+1), q[0] + ' Réponse : ' + q[1]]));
+/* Quiz : une diapositive pour la question, puis une pour la réponse (le spectateur a le temps de réfléchir) */
+const Q = (id, t, pal, e, qs) => S(id, t, pal, [].concat(...qs.map((q,i) => [[e, 'Question ' + (i+1), q[0]], ['✅', 'Réponse ' + (i+1), q[1]]])));
 const R = (id, t, pal, a) => S(id, t, pal, [['🛒','Les ingrédients',a[0]],['🔪','Préparer',a[1]],['🔥','Cuisson',a[2]],['🍽️','Servir',a[3]]]);
 
 C('Jeux-quiz');

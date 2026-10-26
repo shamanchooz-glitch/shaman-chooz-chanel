@@ -29,7 +29,7 @@ OP.forEach((o,oi) => [1,2,3,4,5].forEach(L => {
 C('Jeux-quiz');
 const CAP = 'Côte d\'Ivoire:Yamoussoukro,Sénégal:Dakar,Mali:Bamako,Ghana:Accra,Togo:Lomé,Bénin:Porto-Novo,Burkina Faso:Ouagadougou,Niger:Niamey,Guinée:Conakry,Cameroun:Yaoundé,Gabon:Libreville,Tchad:N\'Djamena,Kenya:Nairobi,Éthiopie:Addis-Abeba,Égypte:Le Caire,Maroc:Rabat,Nigeria:Abuja,Angola:Luanda,Algérie:Alger,France:Paris,Italie:Rome,Espagne:Madrid,Allemagne:Berlin,Portugal:Lisbonne,Belgique:Bruxelles,Royaume-Uni:Londres,Suisse:Berne,Japon:Tokyo,Chine:Pékin,Inde:New Delhi,Brésil:Brasília,Canada:Ottawa'.split(',').map(x=>x.split(':'));
 for(let i = 0; i < 8; i++) S('tx-cap'+(i+1), 'Quiz des capitales '+(i+1), null,
-  CAP.slice(i*4, i*4+4).map((p,j) => ['🏛️','Question '+(j+1),'Quelle est la capitale de : '+p[0]+' ? Réponse : '+p[1]+'.']));
+  [].concat(...CAP.slice(i*4, i*4+4).map((p,j) => [['🏛️','Question '+(j+1),'Quelle est la capitale de : '+p[0]+' ?'],['✅','Réponse '+(j+1),p[1]+'.']])));
 
 C('Culture générale');
 const CT = [['grand','petit'],['chaud','froid'],['jour','nuit'],['monter','descendre'],['riche','pauvre'],['ouvrir','fermer'],['plein','vide'],['lourd','léger'],['rapide','lent'],['propre','sale'],['commencer','finir'],['facile','difficile']];
