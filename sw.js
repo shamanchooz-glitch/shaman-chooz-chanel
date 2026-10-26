@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v46';
+const CACHE_NAME = 'scc-v47';
 
 const APP_SHELL = [
   './',
@@ -39,6 +39,12 @@ const APP_SHELL = [
   './slides-data-pubs13.js',
   './slides-data-pubs14.js',
   './slides-data-pubs15.js',
+  './slides-data-pubs16.js',
+  './slides-data-pubs17.js',
+  './slides-data-pubs18.js',
+  './slides-data-pubs19.js',
+  './slides-data-pubs20.js',
+  './slides-data-pubs21.js',
   './autocomplete.js',
   './games-edu12.js',
   './chaine-spectateurs.js',
