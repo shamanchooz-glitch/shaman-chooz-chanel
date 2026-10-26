@@ -82,6 +82,20 @@ function adminCard(){
   $('chaCopy').onclick = copy; $('chaShare').onclick = share;
   $('chaDl').onclick = () => { const a = document.createElement('a'); a.href = qrPng(); a.download = 'qr-code-chaine-shaman-chooz.png'; document.body.appendChild(a); a.click(); a.remove(); };
 }
-setInterval(() => { if(typeof sccQR !== 'function') return; viewerCard(); adminCard(); { const c = $('chInstall'), p = $('screen-live'); if(c && p && p.lastElementChild !== c) p.appendChild(c); } }, 2000);
+/* ---- Bouton « Installer la chaîne » juste sous le bandeau orange (#sccsBanner), visible dès l'ouverture du lien ---- */
+function installBar(){
+  const A = $('liveAccessWrap'); if(!A || !A.parentElement) return;
+  let bar = $('chInstallTop');
+  if(standalone()){ if(bar) bar.remove(); return; }
+  if(!bar){
+    bar = document.createElement('div'); bar.id = 'chInstallTop'; bar.style.cssText = 'margin:8px 0 12px;text-align:center';
+    bar.innerHTML = '<button class="btn btn-primary" style="width:100%;margin:0">⬇ Installer la chaîne</button><p class="hint" style="margin:6px 0 0">Un clic : la chaîne s\'ajoute sur ton écran d\'accueil.</p>';
+    bar.querySelector('button').onclick = install;
+  }
+  const b = $('sccsBanner');
+  if(b){ if(bar.previousElementSibling !== b) b.after(bar); }
+  else if(bar.nextElementSibling !== A) A.parentElement.insertBefore(bar, A);
+}
+setInterval(() => { installBar(); if(typeof sccQR !== 'function') return; viewerCard(); adminCard(); { const c = $('chInstall'), p = $('screen-live'); if(c && p && p.lastElementChild !== c) p.appendChild(c); } }, 2000);
 window.SCC_CHAINE_LIEN = LINK;
 })();

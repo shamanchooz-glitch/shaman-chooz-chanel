@@ -68,4 +68,35 @@ G('e12ordm','Ordre du ménage','🧽',AR,30,'Classe les étapes dans le bon ordr
 G('e12ordb','Ordre : le bain de bébé','🛁',SN,200,'Classe les gestes du bain dans le bon ordre.', EDU.order([
  { q:'Le bain de bébé, dans l\'ordre :', items:['Préparer serviette et vêtements','Tester l\'eau','Laver doucement','Sécher et habiller'] },
  { q:'Préparer un biberon, dans l\'ordre :', items:['Se laver les mains','Mettre l\'eau tiédie','Ajouter la poudre de lait','Vérifier la chaleur sur le poignet'] }]));
+
+/* ---------- Compléments (jeux 74 à 100) ---------- */
+[5,15,30,75].forEach(r=> NUM('e12pc'+r,'Pourcentage : '+r+' %','％',MA,'Calcule '+r+' % d\'un montant.',()=>{ const p = ri(1,20) * 40; return { q:r+' % de '+p+' = ?', a:p*r/100 }; }));
+[10,20,50].forEach(m=> NUM('e12tri'+m,'Trois nombres jusqu\'à '+m,'➕',MA,'Additionne trois nombres.',()=>{ const a = ri(1,m), b = ri(1,m), c = ri(1,m); return { q:a+' + '+b+' + '+c+' = ?', a:a+b+c }; }));
+[100,1000].forEach(m=> NUM('e12sm'+m,'Soustraire de '+m,'➖',MA,'Calcule '+m+' moins le nombre.',()=>{ const b = ri(1,m-1); return { q:m+' − '+b+' = ?', a:m-b }; }));
+NUM('e12ard','Arrondir à la dizaine','🎯',MA,'Arrondis à la dizaine la plus proche.',()=>{ let x; do{ x = ri(11,99); }while(x % 10 === 5); return { q:'Arrondi de '+x+' à la dizaine = ?', a:Math.round(x/10)*10 }; });
+NUM('e12arc','Arrondir à la centaine','🎯',MA,'Arrondis à la centaine la plus proche.',()=>{ let x; do{ x = ri(101,999); }while(x % 100 === 50); return { q:'Arrondi de '+x+' à la centaine = ?', a:Math.round(x/100)*100 }; });
+[10,20].forEach(m=>{
+  NUM('e12pcar'+m,'Périmètre du carré (≤ '+m+')','🔲',MA,'Périmètre = 4 × côté.',()=>{ const a = ri(2,m); return { q:'Carré de côté '+a+' m : périmètre en m ?', a:4*a }; });
+  NUM('e12acar'+m,'Aire du carré (≤ '+m+')','⬛',MA,'Aire = côté × côté.',()=>{ const a = ri(2,m); return { q:'Carré de côté '+a+' m : aire en m² ?', a:a*a }; });
+});
+[[5,200],[10,500],[12,1000]].forEach((c,i)=> NUM('e12prix'+i,'Prix total (jusqu\'à '+c[0]+' articles)','🛍️',AR,'Calcule le prix total des articles.',()=>{ const n = ri(2,c[0]), p = ri(1,c[1]/25) * 25; return { q:n+' articles à '+p+' F = ? F', a:n*p }; },'Tape le prix total en FCFA puis OK.'));
+[5,8,12].forEach(k=> NUM('e12part'+k,'Partager entre '+k+' personnes','🤝',AR,'Calcule la part de chacun.',()=>{ const n = ri(2,k), v = ri(1,10) * 100; return { q:(n*v)+' F partagés entre '+n+' personnes : part de chacun = ? F', a:v }; },'Tape la part de chacun en FCFA puis OK.'));
+NUM('e12cube','Les cubes','🧊',MA,'Calcule le cube.',()=>{ const b = ri(2,10); return { q:b+'³ = ?', a:b*b*b }; });
+NUM('e12racine','Les racines carrées','√',MA,'Trouve la racine carrée.',()=>{ const b = ri(2,15); return { q:'√'+(b*b)+' = ?', a:b }; });
+G('e12vfc','Hygiène de la cuisine : vrai ou faux','🍳',SN,25,'Les bons réflexes pour cuisiner proprement.', EDU.tf([
+ ['On se lave les mains avant de cuisiner.',true,'C\'est la base de l\'hygiène.'],
+ ['La viande crue peut rester des heures sur la table.',false,'Elle doit rester au frais, sinon les microbes se multiplient.'],
+ ['On lave la planche à découper entre la viande crue et les légumes.',true,'Cela évite de transmettre des microbes.'],
+ ['On lave les fruits et légumes avant de les manger.',true,'Cela enlève la terre et une partie des microbes.']]));
+G('e12vfn','Santé au quotidien : vrai ou faux','💧',SN,190,'Les gestes simples qui protègent la santé.', EDU.tf([
+ ['Boire de l\'eau propre est important chaque jour.',true,'Le corps a besoin d\'eau pour bien fonctionner.'],
+ ['Manger beaucoup de sucre est bon pour les dents.',false,'Le sucre favorise les caries.'],
+ ['Se laver les mains au savon aide à éviter des maladies.',true,'Surtout avant de manger et après les toilettes.'],
+ ['Une moustiquaire aide à se protéger du paludisme.',true,'Elle empêche les moustiques de piquer pendant la nuit.']]));
+G('e12vfg','Culture générale : vrai ou faux','🎓',GE,300,'Teste tes connaissances générales.', EDU.tf([
+ ['La Terre tourne autour du Soleil.',true,'Elle fait un tour complet en un an.'],
+ ['Le soleil se lève à l\'ouest.',false,'Il se lève à l\'est et se couche à l\'ouest.'],
+ ['La baleine est un poisson.',false,'C\'est un mammifère : elle respire de l\'air et allaite ses petits.'],
+ ['Abidjan est la capitale politique de la Côte d\'Ivoire.',false,'La capitale politique est Yamoussoukro ; Abidjan est la capitale économique.']]));
+G('e12melm','Mots mélangés : la maison','🏠',LM,70,'Remets les lettres du mot dans l\'ordre.', EDU.scramble([['BALAI','Il sert à balayer'],['SERPILLIERE','Pour laver le sol'],['EPONGE','Pour la vaisselle'],['LESSIVE','On la fait avec le linge sale'],['CASSEROLE','On y cuit les aliments'],['ASSIETTE','On y mange'],['TORCHON','Il sert à essuyer'],['POUBELLE','On y jette les déchets']]));
 })();
