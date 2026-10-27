@@ -57,15 +57,23 @@ const hasContact = ag => !!(ag.telephones.length || ag.email || ag.adresse || ag
 
 /* ---------- Déclaration d'un diaporama ---------- */
 // SCCS.add(id, titre, categorie, palette, [[emoji, titre, texte], …], { photo:true })   ← 6e paramètre facultatif : affiche ta photo même si ce n'est pas un diaporama « Agence »
+const norm = x => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
+function buildTl(sh){               /* durée de chaque écran = selon la longueur du texte ; recalculée si un texte est remplacé (SCCS.rebuild) */
+  const tl = []; let t = 0; const push = (type, dur, data)=>{ tl.push({ type, start:t, dur, data }); t += dur; };
+  push('intro', 4.5, {});
+  sh.slides.forEach((s,i)=>{ const words = (s.t + ' ' + s.x).trim().split(/\s+/).length; push('slide', clamp(2.4 + words/2.4, 5.5, 13), { s, i }); });
+  push('outro', 5.5, {}); if(sh.agency) push('contact', 15, {});
+  sh.tl = tl; sh.dur = t;
+}
+SCCS.rev = 0;                       /* numéro de révision : change quand des textes sont remplacés (l'ordre de la boucle est alors recalculé) */
+SCCS.rebuild = function(sh, quiet){ if(sh) buildTl(sh); if(!quiet) SCCS.rev++; };   /* quiet = ne change pas la révision (utile quand on remplace beaucoup d'écrans d'un coup) */
 SCCS.add = function(id, titre, cat, pal, slides, opt){
   if(SCCS.byId[id]){ console.warn('Diaporama en double ignoré :', id); return; }
   const sl = slides.map(s=>({ e:s[0], t:s[1], x:s[2] || '' }));
   const sh = { id, titre, cat, pal: PAL[pal] || PAL.bleu, slides: sl, agency: cat === 'Agence', photo: !!(opt && opt.photo) };
-  const tl = []; let t = 0; const push = (type, dur, data)=>{ tl.push({ type, start:t, dur, data }); t += dur; };
-  push('intro', 4.5, {});
-  sl.forEach((s,i)=>{ const words = (s.t + ' ' + s.x).trim().split(/\s+/).length; push('slide', clamp(2.4 + words/2.4, 5.5, 13), { s, i }); });
-  push('outro', 5.5, {}); if(sh.agency) push('contact', 15, {});
-  sh.tl = tl; sh.dur = t;
+  /* clés d'origine (avant toute variante de texte) : l'ordre de la boucle ne dépend que d'elles, donc il reste identique pour tout le monde */
+  sh.k = { gab: sl.map(x => norm(x.t)).join('/'), tit: norm(titre), con: sl.map(x => norm(x.t + '|' + x.x)).join('§') };
+  buildTl(sh);
   SCCS.shows.push(sh); SCCS.byId[id] = sh;
 };
 SCCS.duration = id => SCCS.byId[id] ? SCCS.byId[id].dur : 0;
@@ -77,11 +85,9 @@ SCCS.duration = id => SCCS.byId[id] ? SCCS.byId[id].dur : 0;
       même gabarit (≥ 1 h), même famille d'identifiants (pas deux d'affilée), même catégorie (hors « Agence »).
    L'ordre est entièrement déterministe → identique pour tous les spectateurs, et chaque diaporama passe exactement une fois par tour. */
 function hash32(str){ let h = 2166136261; for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; }
-const norm = x => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
 function buildOrder(){
   const info = SCCS.shows.map(s => ({
-    s, fam: s.id.split('-')[0], cat: s.cat, ag: !!s.agency,
-    gab: s.slides.map(x => norm(x.t)).join('/'), tit: norm(s.titre), con: s.slides.map(x => norm(x.t + '|' + x.x)).join('§')
+    s, fam: s.id.split('-')[0], cat: s.cat, ag: !!s.agency, gab: s.k.gab, tit: s.k.tit, con: s.k.con
   }));
   const groups = {};
   info.forEach(o => (groups[o.gab] = groups[o.gab] || []).push(o));
@@ -105,11 +111,12 @@ function buildOrder(){
   }
   return out.map(o => o.s);
 }
-let PL_CACHE = null, PL_N = -1;      /* l'ordre est calculé une seule fois (et recalculé si des diaporamas s'ajoutent) : la lecture le consulte souvent */
+let PL_CACHE = null, PL_N = '';      /* l'ordre est calculé une seule fois (et recalculé si des diaporamas s'ajoutent) : la lecture le consulte souvent */
 SCCS.playlist = function(){
-  if(!PL_CACHE || PL_N !== SCCS.shows.length){
+  const sig = SCCS.shows.length + ':' + SCCS.rev;
+  if(!PL_CACHE || PL_N !== sig){
     PL_CACHE = buildOrder().map(s => ({ id:'s:' + s.id, title:'🎬 ' + s.titre, type:'slides', ref:s.id, sec:Math.ceil(s.dur), builtin:true }));
-    PL_N = SCCS.shows.length;
+    PL_N = sig;
   }
   return PL_CACHE.slice();
 };
