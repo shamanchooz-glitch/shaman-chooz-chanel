@@ -1,0 +1,15 @@
+/* Mode « Chaîne + Jeux » (lien / QR code …/?app=chaine) : tout le reste du site est caché */
+html.chaine-mode #screen-catalog,
+html.chaine-mode #screen-custom,
+html.chaine-mode #screen-client,
+html.chaine-mode #screen-admin-login,
+html.chaine-mode #screen-admin-dash,
+html.chaine-mode .tab[data-tab="catalog"],
+html.chaine-mode .tab[data-tab="custom"],
+html.chaine-mode .tab[data-tab="client"],
+html.chaine-mode .tab[data-tab="admin"],
+html.chaine-mode #ordersShortcut,
+html.chaine-mode .marquee,
+html.chaine-mode #installBanner { display:none !important; }
+html.chaine-mode .tabbar{ justify-content:center; gap:8px; }
+html.chaine-mode .tab{ max-width:50%; }

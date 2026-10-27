@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SHAMAN CHOOZ CHANEL</title>
 <link rel="manifest" href="manifest.json" id="mf">
-<script>if(/[?&]app=chaine/.test(location.search)){document.getElementById("mf").href="manifest-chaine.json";}</script>
+<script>if(/[?&]app=chaine/.test(location.search)){document.getElementById("mf").href="manifest-chaine.json";document.documentElement.classList.add("chaine-mode");if(location.hash){try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}}}</script>
 <meta name="theme-color" content="#FAF6F0">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="games.css?v=15">
+<link rel="stylesheet" href="chaine-mode.css?v=1">
 </head>
 <body>
 
@@ -731,7 +732,8 @@
 <script src="games-edu12.js?v=3"></script>
 <script src="chaine-spectateurs.js?v=1"></script>
 <script src="qr-lib.js?v=1"></script>
-<script src="chaine-installer.js?v=4"></script>
+<script src="chaine-installer.js?v=5"></script>
+<script src="chaine-mode.js?v=1"></script>
 <script src="diapo-export.js?v=2"></script>
 <script src="voixoff-studio.js?v=5"></script>
 <script>

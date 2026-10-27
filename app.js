@@ -3384,7 +3384,7 @@ function setupInstallBanner(){
 
 /* ---------- QR code + lien de partage (espace admin) ---------- */
 function setupShareTools(){
-  const url = window.location.href.split('#')[0];
+  const url = window.location.href.split('#')[0].split('?')[0];   /* site complet : jamais le lien « chaîne + jeux » */
   document.getElementById('shareLinkInput').value = url;
   document.getElementById('copyLinkBtn').onclick = async ()=>{
     await navigator.clipboard.writeText(url);

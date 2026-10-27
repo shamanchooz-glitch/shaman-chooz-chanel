@@ -1,7 +1,7 @@
 {
-  "name": "SHAMAN CHOOZ CHANEL — En direct",
-  "short_name": "Chaîne SHAMAN",
-  "description": "Regarde la chaîne SHAMAN CHOOZ en direct, 24h/24.",
+  "name": "SHAMAN CHOOZ — Chaîne et Jeux",
+  "short_name": "Chaîne & Jeux",
+  "description": "Regarde la chaîne SHAMAN CHOOZ en direct, 24h/24, et joue aux jeux.",
   "start_url": "index.html?app=chaine",
   "scope": ".",
   "display": "standalone",
