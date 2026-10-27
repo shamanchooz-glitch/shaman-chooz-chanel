@@ -34,7 +34,7 @@
 //   https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video   (qualité supérieure, plus cher)
 // Pour revenir au modèle par défaut, supprime simplement cette variable.
 // Numéro de version du Worker (le site le compare pour te dire si le Worker est à jour).
-const WORKER_VERSION = "2026-10-25-a";
+const WORKER_VERSION = "2026-10-27-a";
 const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video";
 const JSON2VIDEO_API = "https://api.json2video.com/v2/movies";
 
@@ -167,6 +167,36 @@ export default {
       const live = current?.status?.state === "live-inprogress";
       const hlsUrl = `https://customer-${env.CF_CUSTOMER_CODE}.cloudflarestream.com/${env.CF_LIVE_INPUT_ID}/manifest/video.m3u8`;
       return json({ configured: true, live, hlsUrl });
+    }
+
+    /* Caméra du téléphone / de l'ordinateur : donne à l'admin connecté l'adresse WebRTC (WHIP) du Live Input Cloudflare,
+       pour diffuser directement depuis la caméra du navigateur. Les spectateurs regardent ensuite le direct via /live/status (HLS). */
+    if (url.pathname === "/live/whip" && request.method === "POST") {
+      if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID || !env.CF_LIVE_INPUT_ID || !env.FIREBASE_API_KEY) {
+        return json({ configured: false });
+      }
+      let body;
+      try { body = await request.json(); } catch (e) { return json({ error: "bad_request" }, 400); }
+      let user = null;
+      try {
+        const v = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FIREBASE_API_KEY}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: String(body.idToken || "") })
+        });
+        const vd = await v.json();
+        user = vd?.users?.[0] || null;
+      } catch (e) { user = null; }
+      if (!user || (env.ADMIN_EMAIL && String(user.email || "").trim().toLowerCase() !== String(env.ADMIN_EMAIL).trim().toLowerCase())) {
+        return json({ configured: true, error: "unauthorized" }, 401);
+      }
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/live_inputs/${env.CF_LIVE_INPUT_ID}`,
+        { headers: { "Authorization": `Bearer ${env.CF_API_TOKEN}` } }
+      );
+      const data = await res.json();
+      const whip = data?.result?.webRTC?.url;
+      if (!whip) return json({ configured: true, error: "whip_unavailable" }, 502);
+      return json({ configured: true, url: whip });
     }
 
     /* Historique des directs précédents (replays) — Cloudflare Stream enregistre automatiquement

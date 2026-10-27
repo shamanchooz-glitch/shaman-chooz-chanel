@@ -1425,7 +1425,7 @@ function getSourceValue(p){
 }
 function liveProvider(){
   const p = LIVE_SETTINGS.provider;
-  return (p==='cloudflare' || p==='playlist' || p==='auto' || LIVE_PROVIDERS[p]) ? p : 'youtube';
+  return (p==='cloudflare' || p==='camera' || p==='playlist' || p==='auto' || LIVE_PROVIDERS[p]) ? p : 'youtube';
 }
 function isLiveOn(){
   return LIVE_SETTINGS.liveOn !== undefined ? !!LIVE_SETTINGS.liveOn : !!LIVE_SETTINGS.youtubeLive;
@@ -1434,7 +1434,8 @@ function updateLiveProviderUI(){
   const p = document.getElementById('liveProviderSelect').value;
   const manual = !!LIVE_PROVIDERS[p] || p==='cloudflare';
   document.getElementById('manualLiveBox').style.display = manual ? 'block' : 'none';
-  document.getElementById('cloudflareSettingsHint').style.display = p==='cloudflare' ? 'block' : 'none';
+  const camBox = document.getElementById('cameraBox'); if(camBox) camBox.style.display = p==='camera' ? 'block' : 'none';
+  document.getElementById('cloudflareSettingsHint').style.display = (p==='cloudflare' || p==='camera') ? 'block' : 'none';
 }
 async function saveLiveSettings(){
   const provider = document.getElementById('liveProviderSelect').value;
@@ -1797,7 +1798,7 @@ async function resetPricing(){
 
 /* ---------- Robot assistant de l'admin ---------- */
 let BOT_HISTORY = [];
-const EXPECTED_WORKER_VERSION = "2026-10-04-a";
+const EXPECTED_WORKER_VERSION = "2026-10-27-a";
 async function botShowReport(){
   const bubble = botBubble('bot', botReportHtml());
   if(!aiConfigured()) return;
@@ -1818,7 +1819,7 @@ async function botShowReport(){
   botScroll(bubble);
 }
 function providerLabel(p){
-  return ({ auto:'Programmation automatique', playlist:'Boucle de films & séries', cloudflare:'Cloudflare Stream' })[p] || LIVE_PROVIDERS[p] || p;
+  return ({ auto:'Programmation automatique', playlist:'Boucle de films & séries', cloudflare:'Cloudflare Stream', camera:'Caméra du téléphone / de l\'ordinateur' })[p] || LIVE_PROVIDERS[p] || p;
 }
 function botSnapshot(){
   const orders = Object.values(ORDERS || {});
@@ -1975,7 +1976,7 @@ async function botExecute(a){
       }
       case 'set_provider': {
         const p = a.provider;
-        if(!(p==='auto' || p==='playlist' || p==='cloudflare' || LIVE_PROVIDERS[p])) return { ok:false, text:'Source inconnue.' };
+        if(!(p==='auto' || p==='playlist' || p==='cloudflare' || p==='camera' || LIVE_PROVIDERS[p])) return { ok:false, text:'Source inconnue.' };
         LIVE_SETTINGS.provider = p; await DB.update('liveSettings', { provider:p }); refresh();
         return { ok:true, text:`Source changée : ${providerLabel(p)}.` };
       }
@@ -2015,7 +2016,7 @@ async function botExecute(a){
         const days = (Array.isArray(a.days) ? a.days : []).map(Number).filter(d=>d>=0 && d<=6);
         const fixT = t => { const m = String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m ? m[1].padStart(2,'0')+':'+m[2] : ''; };
         const start = fixT(a.start), end = fixT(a.end);
-        const okProv = a.provider === 'cloudflare' || LIVE_PROVIDERS[a.provider];
+        const okProv = a.provider === 'cloudflare' || a.provider === 'camera' || LIVE_PROVIDERS[a.provider];
         if(!days.length || !start || !end || !okProv) return { ok:false, text:'Créneau incomplet (jours, heures ou source manquants).' };
         const list = (LIVE_SETTINGS.schedule || []).slice();
         list.push({ id:'s'+Date.now(), days, start, end, provider:a.provider, label:String(a.label||'').slice(0,80) });
@@ -2192,7 +2193,7 @@ async function botSaveInstructions(){
 const DAY_NAMES = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
 function fillSlotProviderSelect(){
   const sel = document.getElementById('slotProvider');
-  const opts = Object.entries(LIVE_PROVIDERS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') + '<option value="cloudflare">Cloudflare Stream</option>';
+  const opts = Object.entries(LIVE_PROVIDERS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') + '<option value="cloudflare">Cloudflare Stream</option><option value="camera">📷 Caméra du téléphone / de l\'ordinateur</option>';
   sel.innerHTML = opts;
 }
 function renderAdminSchedule(){
@@ -2200,8 +2201,8 @@ function renderAdminSchedule(){
   const list = LIVE_SETTINGS.schedule || [];
   el.innerHTML = list.length ? list.map((s,i)=>`
     <div class="order-card">
-      <div class="row"><strong>${escH(s.label || (LIVE_PROVIDERS[s.provider] || 'Cloudflare Stream'))}</strong><span class="hint" style="margin:0;">${escH(s.start)} → ${escH(s.end)}</span></div>
-      <p class="hint" style="margin:0 0 6px;">${(s.days||[]).slice().sort((x,y)=>((x+6)%7)-((y+6)%7)).map(d=>DAY_NAMES[d]).join(', ')} • ${escH(LIVE_PROVIDERS[s.provider] || 'Cloudflare Stream')}</p>
+      <div class="row"><strong>${escH(s.label || providerLabel(s.provider))}</strong><span class="hint" style="margin:0;">${escH(s.start)} → ${escH(s.end)}</span></div>
+      <p class="hint" style="margin:0 0 6px;">${(s.days||[]).slice().sort((x,y)=>((x+6)%7)-((y+6)%7)).map(d=>DAY_NAMES[d]).join(', ')} • ${escH(providerLabel(s.provider))}</p>
       <button class="btn btn-ghost" style="margin:0;width:auto;padding:8px 14px;" data-delslot="${i}">🗑️ Supprimer</button>
     </div>`).join('') : `<p class="hint">Aucun créneau pour l'instant.</p>`;
   el.querySelectorAll('[data-delslot]').forEach(btn=>{
@@ -2347,7 +2348,7 @@ async function announceLive(){
 }
 async function loadAdminReplays(){
   const el = document.getElementById('adminReplaysList');
-  if(liveProvider()!=='cloudflare'){
+  if(liveProvider()!=='cloudflare' && liveProvider()!=='camera'){
     el.innerHTML = `<p class="hint">Les replays automatiques du site fonctionnent seulement avec Cloudflare Stream. Avec les autres sources, gère tes replays sur la plateforme utilisée (ex: YouTube Studio) ou ajoute-les à la boucle de films & séries.</p>`;
     return;
   }
@@ -2816,7 +2817,7 @@ function fallbackSource(){
   return currentPlaylistState() ? { kind:'playlist' } : { kind:'offline' };
 }
 function liveKindFor(prov, label){
-  if(prov === 'cloudflare') return { kind:'cloudflare', label };
+  if(prov === 'cloudflare' || prov === 'camera') return { kind:'cloudflare', label: label || (prov === 'camera' ? '📷 Caméra en direct' : label) };
   const v = getSourceValue(prov);
   if(!v) return { kind:'offline', msg:"Cette source n'est pas encore configurée.", label };
   if(prov === 'hls') return { kind:'hls', url:v, label };
@@ -2825,6 +2826,7 @@ function liveKindFor(prov, label){
 function resolveLiveSource(){
   const prov = liveProvider();
   if(prov === 'playlist') return currentPlaylistState() ? { kind:'playlist' } : { kind:'offline', msg:'Aucun programme dans la boucle pour le moment.' };
+  if(prov === 'camera') return { kind:'cloudflare', label:'📷 Caméra en direct' };   /* la caméra est envoyée vers Cloudflare Stream : même lecture que les autres directs Cloudflare */
   if(prov === 'auto'){
     const slot = (LIVE_SETTINGS.schedule || []).find(s => slotActive(s, new Date()));
     return slot ? liveKindFor(slot.provider, slot.label) : fallbackSource();
@@ -2972,7 +2974,7 @@ async function checkLiveAnnouncement(){
 async function renderClientReplays(){
   const wrap = document.getElementById('clientReplaysSection');
   if(!wrap) return;
-  if(liveProvider()!=='cloudflare' || !aiConfigured()){ wrap.innerHTML=''; return; }
+  if((liveProvider()!=='cloudflare' && liveProvider()!=='camera') || !aiConfigured()){ wrap.innerHTML=''; return; }
   try{
     const data = await workerGet('/live/replays');
     const publicIds = LIVE_SETTINGS.publicReplays || [];

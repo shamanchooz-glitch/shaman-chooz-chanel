@@ -433,6 +433,7 @@
       <option value="hls">Lien HLS (.m3u8)</option>
       <option value="embed">Lien d'intégration personnalisé (iframe)</option>
       <option value="cloudflare">Cloudflare Stream (payant)</option>
+      <option value="camera">📷 Caméra du téléphone / de l'ordinateur</option>
     </select>
     <div id="manualLiveBox">
       <label class="hint" style="display:flex;align-items:center;gap:8px;margin:10px 0 0;">
@@ -445,6 +446,8 @@
         <input type="checkbox" id="builtinSlidesCheckbox" checked> 🎬 Ajouter à la boucle les diaporamas vidéo intégrés (agence, culture, divertissement)
       </label>
     </div>
+
+    <div id="cameraBox" style="display:none;"></div>
 
     <p class="field-label">🔗 Mes liens de direct</p>
     <p class="hint">Remplis seulement ceux que tu utilises. Ils sont gardés en mémoire pour basculer en un clic.</p>
@@ -734,6 +737,7 @@
 <script src="qr-lib.js?v=1"></script>
 <script src="chaine-installer.js?v=5"></script>
 <script src="chaine-mode.js?v=1"></script>
+<script src="camera-diffusion.js?v=1"></script>
 <script src="diapo-export.js?v=2"></script>
 <script src="voixoff-studio.js?v=5"></script>
 <script>
