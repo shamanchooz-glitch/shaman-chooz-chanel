@@ -246,8 +246,11 @@ Ta chaîne fonctionne avec **Cloudflare Stream** (le service utilisé par de nom
 
 ### Diffuser avec la caméra du téléphone ou de l'ordinateur
 
-Dans l'admin > Chaîne > Réglages > « Source de la diffusion », choisis **📷 Caméra du téléphone / de l'ordinateur** : la caméra s'ouvre directement (arrière ou avant sur téléphone avec le bouton « Avant / arrière », caméra de l'ordinateur ou webcam branchée sur ordinateur avec la liste de choix). Appuie sur **Démarrer la diffusion** : l'image part vers ton Live Input Cloudflare Stream et les spectateurs la voient sur la chaîne.
-Pour que ça marche : le Live Input Cloudflare Stream de cette étape doit exister, le Worker doit avoir les variables `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_LIVE_INPUT_ID`, `CF_CUSTOMER_CODE` **et** `FIREBASE_API_KEY` (+ `ADMIN_EMAIL`), et le dernier `cloudflare-worker.js` doit être envoyé sur GitHub. Garde la page ouverte et l'écran allumé pendant le direct. L'aperçu de la caméra marche même sans Cloudflare ; seule l'envoi aux spectateurs en a besoin.
+Dans l'admin > Chaîne > Réglages > « Source de la diffusion », choisis **📷 Caméra du téléphone / de l'ordinateur** : la caméra s'ouvre directement (arrière ou avant sur téléphone avec le bouton « Avant / arrière » ; caméra de l'ordinateur, ou webcam branchée, avec la liste de choix). Appuie sur **Démarrer la diffusion**. Garde la page ouverte et l'écran allumé pendant le direct.
+
+Deux modes, choisis automatiquement :
+- **Mode direct (gratuit, sans Cloudflare)** : ton appareil envoie l'image directement à chaque spectateur (jusqu'à 6 en même temps). Il demande une seule chose : mettre à jour les règles Firebase. Ouvre Firebase > Realtime Database > **Règles**, colle tout le contenu du fichier `database.rules.json` de ce projet, puis **Publier**.
+- **Cloudflare Stream (beaucoup de spectateurs)** : s'il est configuré (Live Input + variables `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_LIVE_INPUT_ID`, `CF_CUSTOMER_CODE`, `FIREBASE_API_KEY`, `ADMIN_EMAIL` dans le Worker, et dernier `cloudflare-worker.js` envoyé), c'est lui qui est utilisé.
 
 ## Étape 15 — Gérer ta chaîne comme un vrai producteur, depuis l'espace admin
 Ton espace admin a maintenant un onglet **"🔴 Chaîne"**, avec tout ce qu'il faut pour piloter ta chaîne sans jamais toucher au code :

@@ -2841,8 +2841,9 @@ function stopPlayback(){
   if(window.SCCS && SCCS.stop) SCCS.stop(document.querySelector('#livePlayerWrap .live-player-box'));
   const video = document.getElementById('livePlayer');
   const frame = document.getElementById('liveYoutubeFrame');
+  if(window.SCC_CAM_VIEW) SCC_CAM_VIEW.stop();   /* caméra en mode direct */
   if(hlsInstance){ hlsInstance.destroy(); hlsInstance = null; }
-  if(video){ video.pause(); video.removeAttribute('src'); video.load(); video.style.display = 'none'; }
+  if(video){ video.pause(); try{ video.srcObject = null; }catch(e){} video.removeAttribute('src'); video.load(); video.style.display = 'none'; }
   if(frame){ frame.removeAttribute('src'); frame.style.display = 'none'; }
 }
 function playEmbed(url){
@@ -2898,6 +2899,14 @@ async function checkLiveStatus(){
   let res = resolveLiveSource();
   let cfError = '';
 
+  /* Caméra du téléphone / de l'ordinateur : mode direct (sans Cloudflare) ou via Cloudflare Stream selon ce que l'admin a démarré */
+  let camLive = false;
+  if(res.kind === 'cloudflare' && liveProvider() === 'camera' && LIVE_SETTINGS.cameraMode !== 'cloudflare'){
+    const st = window.SCC_CAM_VIEW ? await SCC_CAM_VIEW.status() : { on:false };
+    if(st.on) camLive = true;
+    else res = (LIVE_SETTINGS.fallbackPlaylist !== false) ? fallbackSource() : { kind:'offline' };
+  }
+
   if(res.kind === 'cloudflare'){
     const label = res.label;
     if(!aiConfigured()){
@@ -2917,6 +2926,16 @@ async function checkLiveStatus(){
 
   const customProgram = res.label || LIVE_SETTINGS.currentProgram;
   const programLine = customProgram ? `📺 ${escH(customProgram)}<br>` : '';
+
+  if(camLive){
+    indicator.style.display = 'inline-block';
+    statusText.innerHTML = `${programLine}🔴 En direct — accès valable jusqu'au ${expiry}`;
+    if(CURRENT_PLAY_KEY !== 'cam:direct'){
+      stopPlayback(); CURRENT_PLAY_KEY = 'cam:direct';
+      SCC_CAM_VIEW.start(document.getElementById('livePlayer'));
+    }
+    return;
+  }
 
   if(res.kind === 'embed' || res.kind === 'hls'){
     indicator.style.display = 'inline-block';

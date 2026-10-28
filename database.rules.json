@@ -57,6 +57,27 @@
         ".write": true,
         ".validate": "newData.isNumber()"
       }
+    },
+    "cameraLive": {
+      "state": {
+        ".read": true,
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['on','hb'])"
+      },
+      "ans": {
+        ".write": "auth != null",
+        "$vid": {
+          ".read": true
+        }
+      },
+      "req": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$vid": {
+          ".write": "auth != null || !data.exists() || !newData.exists()",
+          ".validate": "!newData.exists() || (newData.hasChildren(['sdp']) && newData.child('sdp').isString() && newData.child('sdp').val().length < 20000)"
+        }
+      }
     }
   }
 }
