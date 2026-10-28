@@ -34,7 +34,7 @@
 //   https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video   (qualité supérieure, plus cher)
 // Pour revenir au modèle par défaut, supprime simplement cette variable.
 // Numéro de version du Worker (le site le compare pour te dire si le Worker est à jour).
-const WORKER_VERSION = "2026-10-27-a";
+const WORKER_VERSION = "2026-10-28-a";
 const FAL_MODEL_ENDPOINT = "https://queue.fal.run/fal-ai/kling-video/v2.5-turbo/pro/text-to-video";
 const JSON2VIDEO_API = "https://api.json2video.com/v2/movies";
 
@@ -56,6 +56,19 @@ function toB64(buf){
   const u = new Uint8Array(buf); let s = "";
   for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
   return btoa(s);
+}
+
+async function isAdminToken(env, idToken) {
+  if (!env.FIREBASE_API_KEY) return false;
+  try {
+    const v = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FIREBASE_API_KEY}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken: String(idToken || "") })
+    });
+    const u = (await v.json())?.users?.[0];
+    if (!u) return false;
+    return !env.ADMIN_EMAIL || String(u.email || "").trim().toLowerCase() === String(env.ADMIN_EMAIL).trim().toLowerCase();
+  } catch (e) { return false; }
 }
 
 export default {
@@ -167,6 +180,48 @@ export default {
       const live = current?.status?.state === "live-inprogress";
       const hlsUrl = `https://customer-${env.CF_CUSTOMER_CODE}.cloudflarestream.com/${env.CF_LIVE_INPUT_ID}/manifest/video.m3u8`;
       return json({ configured: true, live, hlsUrl });
+    }
+
+    /* ============ CAMÉRA — Cloudflare Realtime (SFU) : GRATUIT jusqu'à 1 000 Go de visionnage par mois, beaucoup de spectateurs ============
+       Ce relais garde le secret de l'application Realtime (RT_APP_ID, RT_APP_SECRET) et transmet les échanges WebRTC.
+       - Diffuser (location "local") : réservé à l'admin connecté. - Regarder (location "remote") : ouvert à tous les spectateurs. */
+    if (url.pathname === "/rt/config" && request.method === "GET") {
+      return json({ configured: !!(env.RT_APP_ID && env.RT_APP_SECRET) });
+    }
+    if (url.pathname.startsWith("/rt/") && request.method === "POST") {
+      if (!env.RT_APP_ID || !env.RT_APP_SECRET) return json({ configured: false, error: "rt_not_configured" }, 503);
+      let body;
+      try { body = await request.json(); } catch (e) { return json({ error: "bad_request" }, 400); }
+      const rt = (path, method, payload) => fetch(`https://rtc.live.cloudflare.com/v1/apps/${env.RT_APP_ID}${path}`, {
+        method, headers: { "Authorization": `Bearer ${env.RT_APP_SECRET}`, "Content-Type": "application/json" },
+        body: payload ? JSON.stringify(payload) : undefined
+      });
+      const out = async (r) => { let d = {}; try { d = await r.json(); } catch (e) {} return json(d, r.ok ? 200 : (r.status || 502)); };
+      const sid = String(body.sessionId || "");
+      const okSid = /^[A-Za-z0-9_-]{6,128}$/.test(sid);
+
+      if (url.pathname === "/rt/session") {
+        return out(await rt("/sessions/new", "POST"));
+      }
+      if (url.pathname === "/rt/tracks") {
+        if (!okSid || !Array.isArray(body.tracks) || body.tracks.length === 0 || body.tracks.length > 4) return json({ error: "bad_request" }, 400);
+        const pushing = body.tracks.some(t => t && t.location === "local") || !!body.sessionDescription;
+        if (pushing) {   /* diffuser = admin seulement */
+          if (!(await isAdminToken(env, body.idToken))) return json({ error: "unauthorized" }, 401);
+          const tracks = body.tracks.map(t => ({ location: "local", mid: String(t.mid), trackName: String(t.trackName || "").slice(0, 40) }));
+          return out(await rt(`/sessions/${sid}/tracks/new`, "POST", { sessionDescription: body.sessionDescription, tracks }));
+        }
+        const tracks = body.tracks.map(t => ({
+          location: "remote", sessionId: String(t.sessionId || ""), trackName: String(t.trackName || "").slice(0, 40)
+        }));
+        if (tracks.some(t => !/^[A-Za-z0-9_-]{6,128}$/.test(t.sessionId))) return json({ error: "bad_request" }, 400);
+        return out(await rt(`/sessions/${sid}/tracks/new`, "POST", { tracks }));
+      }
+      if (url.pathname === "/rt/renegotiate") {
+        if (!okSid || !body.sessionDescription || body.sessionDescription.type !== "answer") return json({ error: "bad_request" }, 400);
+        return out(await rt(`/sessions/${sid}/renegotiate`, "PUT", { sessionDescription: body.sessionDescription }));
+      }
+      return json({ error: "not_found" }, 404);
     }
 
     /* Caméra du téléphone / de l'ordinateur : donne à l'admin connecté l'adresse WebRTC (WHIP) du Live Input Cloudflare,

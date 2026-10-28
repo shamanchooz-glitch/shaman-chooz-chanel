@@ -2900,10 +2900,10 @@ async function checkLiveStatus(){
   let cfError = '';
 
   /* Caméra du téléphone / de l'ordinateur : mode direct (sans Cloudflare) ou via Cloudflare Stream selon ce que l'admin a démarré */
-  let camLive = false;
+  let camLive = false, camSt = null;
   if(res.kind === 'cloudflare' && liveProvider() === 'camera' && LIVE_SETTINGS.cameraMode !== 'cloudflare'){
     const st = window.SCC_CAM_VIEW ? await SCC_CAM_VIEW.status() : { on:false };
-    if(st.on) camLive = true;
+    if(st.on){ camLive = true; camSt = st; }
     else res = (LIVE_SETTINGS.fallbackPlaylist !== false) ? fallbackSource() : { kind:'offline' };
   }
 
@@ -2930,9 +2930,10 @@ async function checkLiveStatus(){
   if(camLive){
     indicator.style.display = 'inline-block';
     statusText.innerHTML = `${programLine}🔴 En direct — accès valable jusqu'au ${expiry}`;
-    if(CURRENT_PLAY_KEY !== 'cam:direct'){
-      stopPlayback(); CURRENT_PLAY_KEY = 'cam:direct';
-      SCC_CAM_VIEW.start(document.getElementById('livePlayer'));
+    const camKey = 'cam:' + (camSt.mode || 'p2p') + ':' + (camSt.sid || '');   /* nouvelle session de l'admin = nouvelle clé = reconnexion */
+    if(CURRENT_PLAY_KEY !== camKey){
+      stopPlayback(); CURRENT_PLAY_KEY = camKey;
+      SCC_CAM_VIEW.start(document.getElementById('livePlayer'), camSt);
     }
     return;
   }

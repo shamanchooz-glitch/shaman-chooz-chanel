@@ -1,9 +1,10 @@
 /* SOURCE DE DIFFUSION « CAMÉRA DU TÉLÉPHONE / DE L'ORDINATEUR » (admin > Chaîne > Réglages de la chaîne > Source de la diffusion).
    - Téléphone : ouvre la caméra arrière (par défaut) ou avant, bouton pour basculer entre les deux.
    - Ordinateur : ouvre la caméra de l'ordinateur ; s'il y en a plusieurs (webcam USB, caméra externe…), une liste permet de choisir.
-   - « Démarrer la diffusion » envoie l'image et le son en direct aux spectateurs, de deux façons (choisie automatiquement) :
-       1) CLOUDFLARE STREAM (si le relais Cloudflare est configuré : route /live/whip + variables CF_*) → beaucoup de spectateurs.
-       2) MODE DIRECT sans Cloudflare (WebRTC de ton appareil vers chaque spectateur, le signal passe par Firebase « cameraLive »)
+   - « Démarrer la diffusion » envoie l'image et le son en direct aux spectateurs, de trois façons (la première disponible est utilisée) :
+       1) CLOUDFLARE STREAM (payant ; relais configuré : route /live/whip + variables CF_*) → beaucoup de spectateurs.
+       2) CLOUDFLARE REALTIME (SFU) — GRATUIT jusqu'à 1 000 Go de visionnage par mois (variables RT_APP_ID et RT_APP_SECRET du Worker) → beaucoup de spectateurs.
+       3) MODE DIRECT sans rien configurer (WebRTC de ton appareil vers chaque spectateur, signal par Firebase « cameraLive »)
           → gratuit, jusqu'à MAX_PEERS spectateurs en même temps. Nécessite les règles Firebase de database.rules.json.
    Ce fichier contient aussi la partie « spectateur » du mode direct (window.SCC_CAM_VIEW), utilisée par le lecteur de la chaîne (app.js).
    Nécessite une adresse https:// (obligatoire pour toutes les caméras de navigateur). */
@@ -34,7 +35,7 @@ function iceDone(p, ms){
    ===================================================================== */
 let stream = null, pc = null, senders = {}, resource = '', facing = 'environment', devId = '';
 let live = false, stopping = true, retries = 0, wake = null, tried = false, discTimer = null, busy = false;
-let p2p = false, peers = {}, hbTimer = null, reqRef = null, stateRef = null;
+let p2p = false, peers = {}, hbTimer = null, reqRef = null, stateRef = null, rtOn = false;
 
 function status(t, cls){ const e = $('camStatus'); if(e){ e.textContent = t; e.style.color = cls === 'err' ? '#c0392b' : cls === 'ok' ? '#1e8449' : ''; } }
 function errText(e){
@@ -48,7 +49,7 @@ function errText(e){
 function build(){
   const box = $('cameraBox'); if(!box || box.dataset.built) return; box.dataset.built = '1';
   box.innerHTML = '<p class="field-label" style="margin-top:12px">📷 Caméra du ' + (touch ? 'téléphone' : 'téléphone / de l\'ordinateur') + '</p>'
-   + '<p class="hint">Garde cette page ouverte et l\'écran allumé pendant la diffusion. Les spectateurs voient ton direct sur la chaîne. Sans Cloudflare Stream, la diffusion se fait en « mode direct » (jusqu\'à ' + MAX_PEERS + ' spectateurs en même temps) ; avec Cloudflare Stream, il n\'y a pas de limite.</p>'
+   + '<p class="hint">Garde cette page ouverte et l\'écran allumé pendant la diffusion. Les spectateurs voient ton direct sur la chaîne. Beaucoup de spectateurs : Cloudflare Realtime (gratuit) ou Cloudflare Stream. Sinon, « mode direct » (jusqu\'à ' + MAX_PEERS + ' spectateurs en même temps).</p>'
    + '<video id="camPreview" autoplay muted playsinline style="width:100%;max-height:340px;border-radius:14px;background:#000;object-fit:contain"></video>'
    + '<p id="camStatus" class="hint" style="font-weight:700;margin:8px 0">Appuie sur « Ouvrir la caméra ».</p>'
    + '<select class="input" id="camDevice" title="Choisir la caméra" style="display:none"></select>'
@@ -196,15 +197,25 @@ function closePc(){ clearTimeout(discTimer); if(pc){ const p = pc; pc = null; tr
 /* ---------- Diffusion 2 : mode direct sans Cloudflare (WebRTC vers chaque spectateur, signal via Firebase) ---------- */
 function nPeers(){ return Object.keys(peers).length; }
 function p2pStatus(){ status('🔴 EN DIRECT (mode direct) — ' + nPeers() + ' spectateur(s) connecté(s), ' + MAX_PEERS + ' au maximum en même temps.', 'ok'); }
-async function startP2P(){
+/* état du direct dans Firebase (cameraLive/state) : lu par les spectateurs ; « hb » = battement toutes les 10 s */
+async function publishState(extra){
   const db = fbdb(); if(!db) throw new Error("Firebase n'est pas disponible sur cette page.");
   stateRef = db.ref('cameraLive/state');
-  try{
-    await db.ref('cameraLive/req').remove(); await db.ref('cameraLive/ans').remove();
-    await stateRef.set({ on:true, hb:STAMP() });
-  }catch(e){ throw new Error(isDenied(e) ? RULES_MSG : String(e && e.message || e)); }
+  try{ await stateRef.set(Object.assign({ on:true, hb:STAMP() }, extra || {})); }
+  catch(e){ throw new Error(isDenied(e) ? RULES_MSG : String(e && e.message || e)); }
   try{ stateRef.onDisconnect().set({ on:false, hb:STAMP() }); }catch(e){}
   clearInterval(hbTimer); hbTimer = setInterval(() => { stateRef.update({ on:true, hb:STAMP() }).catch(() => {}); }, 10000);
+}
+function stopState(){
+  clearInterval(hbTimer); hbTimer = null;
+  try{ if(stateRef){ stateRef.onDisconnect().cancel(); stateRef.set({ on:false, hb:STAMP() }).catch(() => {}); } }catch(e){}
+  stateRef = null;
+}
+async function startP2P(){
+  const db = fbdb(); if(!db) throw new Error("Firebase n'est pas disponible sur cette page.");
+  try{ await db.ref('cameraLive/req').remove(); await db.ref('cameraLive/ans').remove(); }
+  catch(e){ throw new Error(isDenied(e) ? RULES_MSG : String(e && e.message || e)); }
+  await publishState({ mode:'p2p' });
   reqRef = db.ref('cameraLive/req');
   reqRef.on('child_added', s => onRequest(s.key, s.val()), e => status(isDenied(e) ? RULES_MSG : '⚠️ ' + (e && e.message), 'err'));
   p2p = true; p2pStatus();
@@ -235,16 +246,48 @@ async function onRequest(vid, v){
   }catch(e){ drop(); }
 }
 function stopP2P(){
-  if(!p2p && !stateRef) return;
-  p2p = false; clearInterval(hbTimer); hbTimer = null;
+  if(!p2p){ return; }
+  p2p = false;
   const db = fbdb();
   try{ if(reqRef) reqRef.off(); }catch(e){} reqRef = null;
   Object.keys(peers).forEach(k => { try{ peers[k].close(); }catch(e){} }); peers = {};
-  if(db){
-    try{ if(stateRef){ stateRef.onDisconnect().cancel(); stateRef.set({ on:false, hb:STAMP() }).catch(() => {}); } }catch(e){}
-    db.ref('cameraLive/req').remove().catch(() => {}); db.ref('cameraLive/ans').remove().catch(() => {});
-  }
-  stateRef = null;
+  if(db){ db.ref('cameraLive/req').remove().catch(() => {}); db.ref('cameraLive/ans').remove().catch(() => {}); }
+}
+
+/* ---------- Diffusion 3 : Cloudflare Realtime (SFU) — gratuit, beaucoup de spectateurs ---------- */
+const rtLimit = snd => { try{ const p = snd.getParameters(); if(!p.encodings || !p.encodings.length) p.encodings = [{}]; p.encodings[0].maxBitrate = 1200000; snd.setParameters(p).catch(() => {}); }catch(e){} };
+async function startRealtime(){
+  const cfg = await workerGet('/rt/config');
+  if(!cfg || !cfg.configured) return false;
+  const idToken = await firebase.auth().currentUser.getIdToken();
+  const sess = await workerPost('/rt/session', {});
+  if(!sess || !sess.sessionId) throw new Error('Cloudflare Realtime : session impossible à créer');
+  closePc();
+  const me = pc = new RTCPeerConnection({ iceServers:[{ urls:'stun:stun.cloudflare.com:3478' }], bundlePolicy:'max-bundle' });
+  senders = {};
+  stream.getTracks().forEach(t => { const tr = me.addTransceiver(t, { direction:'sendonly', streams:[stream] }); senders[t.kind] = tr.sender; });
+  me.onconnectionstatechange = () => {
+    if(me !== pc || stopping) return;
+    const st = me.connectionState;
+    if(st === 'connected'){ clearTimeout(discTimer); retries = 0; status('🔴 EN DIRECT (Cloudflare Realtime, gratuit) — les spectateurs te voient.', 'ok'); }
+    else if(st === 'disconnected' || st === 'failed'){ clearTimeout(discTimer); discTimer = setTimeout(restartRealtime, st === 'failed' ? 200 : 4000); }
+  };
+  await me.setLocalDescription(await me.createOffer());
+  const tracks = me.getTransceivers().filter(tr => tr.sender && tr.sender.track).map(tr => ({ location:'local', mid:tr.mid, trackName:tr.sender.track.kind }));
+  const r = await workerPost('/rt/tracks', { idToken, sessionId: sess.sessionId, sessionDescription:{ type:'offer', sdp: me.localDescription.sdp }, tracks });
+  const bad = (r.tracks || []).find(x => x && x.errorCode);
+  if(!r.sessionDescription || bad) throw new Error('Cloudflare Realtime : ' + ((bad && (bad.errorDescription || bad.errorCode)) || 'réponse inattendue'));
+  await me.setRemoteDescription(r.sessionDescription);
+  me.getSenders().forEach(snd => { if(snd.track && snd.track.kind === 'video') rtLimit(snd); });
+  await publishState({ mode:'realtime', sid: sess.sessionId, audio: !!senders.audio });
+  rtOn = true;
+  return true;
+}
+async function restartRealtime(){
+  if(stopping || !live || !rtOn) return;
+  if(++retries > 5){ status("⚠️ La connexion est perdue. Vérifie ton Internet puis appuie sur « Démarrer la diffusion ».", 'err'); stopLive(false); return; }
+  status('🔄 Connexion perdue, nouvelle tentative (' + retries + '/5)…');
+  try{ await startRealtime(); }catch(e){ clearTimeout(discTimer); discTimer = setTimeout(restartRealtime, 2500 * retries); }
 }
 
 /* ---------- Démarrer / arrêter ---------- */
@@ -266,6 +309,10 @@ async function goLive(){
         closePc(); note = "Cloudflare Stream indisponible : diffusion en mode direct.";
       }
     }
+    if(!mode && hasRelay()){
+      try{ if(await startRealtime()) mode = 'realtime'; }
+      catch(e){ if(String(e && e.message) === 'unauthorized') throw e; closePc(); stopState(); rtOn = false; note = "Cloudflare Realtime indisponible (" + String(e && e.message || e).slice(0, 80) + ") : diffusion en mode direct."; }
+    }
     if(!mode){ await startP2P(); mode = 'p2p'; }
     setLive(true);
     /* La source de la chaîne devient « caméra » pour tous les spectateurs, avec le bon mode */
@@ -274,9 +321,10 @@ async function goLive(){
       try{ await DB.set('liveSettings', LIVE_SETTINGS); }catch(e){}
     }
     if(mode === 'p2p'){ p2pStatus(); if(note) say(note); }
+    else if(mode === 'realtime'){ if(pc && pc.connectionState === 'connected') status('🔴 EN DIRECT (Cloudflare Realtime, gratuit) — les spectateurs te voient.', 'ok'); else status('Connexion au direct…'); }
     else if(pc && pc.connectionState === 'connected') status('🔴 EN DIRECT (Cloudflare) — les spectateurs te voient avec quelques secondes de décalage.', 'ok');
   }catch(e){
-    stopping = true; closePc(); stopP2P(); setLive(false);
+    stopping = true; closePc(); stopP2P(); stopState(); rtOn = false; setLive(false);
     const m = String(e && e.message || e);
     status(m === 'unauthorized' ? "⚠️ Reconnecte-toi à l'espace admin puis réessaie." : (m.charAt(0) === '⚠' ? m : '⚠️ ' + m), 'err');
   }
@@ -284,7 +332,7 @@ async function goLive(){
 }
 async function stopLive(user){
   stopping = true; setLive(false);
-  const r = resource; resource = ''; closePc(); stopP2P();
+  const r = resource; resource = ''; rtOn = false; closePc(); stopP2P(); stopState();
   if(r){ try{ await fetch(r, { method:'DELETE' }); }catch(e){} }
   if(user) status('⏹ Diffusion arrêtée. La caméra reste ouverte ; la chaîne repasse sur la boucle de programmes.', 'ok');
 }
@@ -305,7 +353,7 @@ window.addEventListener('pagehide', () => { if(live) stopLive(false); closeCamer
    PARTIE SPECTATEUR (mode direct) : window.SCC_CAM_VIEW — appelée par le lecteur de la chaîne (app.js)
    ===================================================================== */
 window.SCC_CAM_VIEW = (function(){
-  let vpc = null, tok = 0, ref = null, vid = '', timer = null, el = null, fails = 0, offT = null;
+  let vpc = null, tok = 0, ref = null, vid = '', timer = null, el = null, fails = 0, cur = {};
   const note = t => { const e = $('liveStatusText'); if(e && t) e.innerHTML += '<br>' + t; };
   const again = () => { try{ CURRENT_PLAY_KEY = ''; }catch(e){} };   /* le prochain contrôle de la chaîne (≈20 s) relance la connexion */
   async function status(){
@@ -313,32 +361,56 @@ window.SCC_CAM_VIEW = (function(){
     try{
       const [s, o] = await Promise.all([db.ref('cameraLive/state').once('value'), db.ref('.info/serverTimeOffset').once('value')]);
       const v = s.val(); if(!v || !v.on) return { on:false };
-      return { on: (Date.now() + (o.val() || 0)) - (v.hb || 0) < 45000 };
+      return { on: (Date.now() + (o.val() || 0)) - (v.hb || 0) < 45000, sid: v.sid || '', audio: v.audio !== false, mode: v.mode || (v.sid ? 'realtime' : 'p2p') };
     }catch(e){ return { on:false, err:true }; }
   }
   function cleanup(){
-    tok++; clearTimeout(timer); clearTimeout(offT);
+    tok++; clearTimeout(timer);
     if(ref){ try{ ref.off(); }catch(e){} ref = null; }
     const db = fbdb(); if(db && vid){ db.ref('cameraLive/req/' + vid).remove().catch(() => {}); }
     if(vpc){ const p = vpc; vpc = null; try{ p.ontrack = null; p.onconnectionstatechange = null; p.close(); }catch(e){} }
     vid = '';
   }
-  async function go(){
-    cleanup(); const my = tok; const db = fbdb(); if(!db || !el) return;
-    vid = 'v' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-    const me = vpc = new RTCPeerConnection({ iceServers: ICE });
-    me.addTransceiver('video', { direction:'recvonly' }); me.addTransceiver('audio', { direction:'recvonly' });
+  /* une seule MediaStream pour l'image ET le son (les deux pistes n'arrivent pas toujours en même temps) */
+  function wire(me, my){
+    const ms = new MediaStream(); let shown = false;
     me.ontrack = e => {
       if(my !== tok) return;
-      const ms = (e.streams && e.streams[0]) || (() => { const m = new MediaStream(); m.addTrack(e.track); return m; })();
-      el.style.display = 'block'; el.srcObject = ms; el.muted = false;
+      if(!ms.getTracks().includes(e.track)) ms.addTrack(e.track);
+      if(!shown){ shown = true; el.style.display = 'block'; el.srcObject = ms; el.muted = false; }
       el.play().catch(() => { el.muted = true; el.play().catch(() => {}); });
     };
     me.onconnectionstatechange = () => {
       if(my !== tok) return; const s = me.connectionState;
-      if(s === 'connected'){ fails = 0; clearTimeout(timer); const d = fbdb(); if(d) d.ref('cameraLive/req/' + vid).remove().catch(() => {}); }
+      if(s === 'connected'){ fails = 0; clearTimeout(timer); const d = fbdb(); if(d && vid) d.ref('cameraLive/req/' + vid).remove().catch(() => {}); }
       else if(s === 'failed') retry(); else if(s === 'disconnected') setTimeout(() => { if(my === tok && me.connectionState !== 'connected') retry(); }, 5000);
     };
+    timer = setTimeout(() => { if(my === tok && me.connectionState !== 'connected') retry(); }, 15000);
+  }
+  /* Cloudflare Realtime : on « tire » l'image du diffuseur par le relais */
+  async function goRt(){
+    cleanup(); const my = tok; if(!el) return;
+    const me = vpc = new RTCPeerConnection({ iceServers:[{ urls:'stun:stun.cloudflare.com:3478' }], bundlePolicy:'max-bundle' });
+    wire(me, my);
+    try{
+      const sess = await workerPost('/rt/session', {}); if(my !== tok) return;
+      const tracks = [{ location:'remote', sessionId:cur.sid, trackName:'video' }];
+      if(cur.audio) tracks.push({ location:'remote', sessionId:cur.sid, trackName:'audio' });
+      const r = await workerPost('/rt/tracks', { sessionId: sess.sessionId, tracks }); if(my !== tok) return;
+      if(r.sessionDescription){
+        await me.setRemoteDescription(r.sessionDescription);
+        await me.setLocalDescription(await me.createAnswer());
+        await workerPost('/rt/renegotiate', { sessionId: sess.sessionId, sessionDescription:{ type:'answer', sdp: me.localDescription.sdp } });
+      }
+    }catch(e){ if(my === tok) retry(); }
+  }
+  /* Mode direct : connexion de l'appareil de l'admin à ce spectateur, signal par Firebase */
+  async function goP2P(){
+    cleanup(); const my = tok; const db = fbdb(); if(!db || !el) return;
+    vid = 'v' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    const me = vpc = new RTCPeerConnection({ iceServers: ICE });
+    me.addTransceiver('video', { direction:'recvonly' }); me.addTransceiver('audio', { direction:'recvonly' });
+    wire(me, my);
     try{
       await me.setLocalDescription(await me.createOffer()); await iceDone(me, 2500);
       if(my !== tok) return;
@@ -349,16 +421,16 @@ window.SCC_CAM_VIEW = (function(){
         if(v.sdp){ try{ await me.setRemoteDescription({ type:'answer', sdp:v.sdp }); }catch(e){} }
       });
       await db.ref('cameraLive/req/' + vid).set({ sdp: me.localDescription.sdp, t: Date.now() });
-      timer = setTimeout(() => { if(my === tok && me.connectionState !== 'connected') retry(); }, 15000);
     }catch(e){ if(my === tok) retry(); }
   }
+  const go = () => (cur.mode === 'realtime' && cur.sid) ? goRt() : goP2P();
   function retry(){
     if(++fails > 3){ cleanup(); note('⚠️ Connexion au direct impossible pour le moment. Nouvel essai dans un instant…'); fails = 0; again(); return; }
     go();
   }
   return {
     status,
-    start(video){ el = video; fails = 0; go(); },
+    start(video, st){ el = video; cur = st || {}; fails = 0; go(); },
     stop(){ cleanup(); if(el){ try{ el.srcObject = null; }catch(e){} } }
   };
 })();

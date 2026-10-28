@@ -248,9 +248,19 @@ Ta chaîne fonctionne avec **Cloudflare Stream** (le service utilisé par de nom
 
 Dans l'admin > Chaîne > Réglages > « Source de la diffusion », choisis **📷 Caméra du téléphone / de l'ordinateur** : la caméra s'ouvre directement (arrière ou avant sur téléphone avec le bouton « Avant / arrière » ; caméra de l'ordinateur, ou webcam branchée, avec la liste de choix). Appuie sur **Démarrer la diffusion**. Garde la page ouverte et l'écran allumé pendant le direct.
 
-Deux modes, choisis automatiquement :
-- **Mode direct (gratuit, sans Cloudflare)** : ton appareil envoie l'image directement à chaque spectateur (jusqu'à 6 en même temps). Il demande une seule chose : mettre à jour les règles Firebase. Ouvre Firebase > Realtime Database > **Règles**, colle tout le contenu du fichier `database.rules.json` de ce projet, puis **Publier**.
-- **Cloudflare Stream (beaucoup de spectateurs)** : s'il est configuré (Live Input + variables `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_LIVE_INPUT_ID`, `CF_CUSTOMER_CODE`, `FIREBASE_API_KEY`, `ADMIN_EMAIL` dans le Worker, et dernier `cloudflare-worker.js` envoyé), c'est lui qui est utilisé.
+L'application choisit toute seule le premier mode disponible :
+1. **Cloudflare Stream** (payant) : si tu l'as configuré (étape 14, route `/live/whip`).
+2. **Cloudflare Realtime — GRATUIT, beaucoup de spectateurs** : voir ci-dessous.
+3. **Mode direct** (gratuit, rien à configurer sauf les règles Firebase) : ton appareil envoie l'image directement à chaque spectateur, jusqu'à 6 en même temps.
+
+**Règles Firebase (nécessaires pour les modes 2 et 3)** : Firebase > Realtime Database > **Règles**, colle tout le contenu du fichier `database.rules.json`, puis **Publier**.
+
+**Configurer Cloudflare Realtime (gratuit)**
+1. Va sur dash.cloudflare.com (le même compte que ton Worker) > **Realtime** > **SFU** (anciennement « Calls ») > **Create application**. Donne un nom (ex. « chaine »).
+2. Copie l'**App ID** et l'**App Secret** (le secret n'est montré qu'une fois).
+3. Ouvre ton Worker > Settings > Variables et ajoute : `RT_APP_ID` (l'App ID) et `RT_APP_SECRET` (le secret, coche « Encrypt »). Vérifie que `FIREBASE_API_KEY` et `ADMIN_EMAIL` y sont aussi (ils servent à reconnaître l'admin).
+4. Colle le nouveau `cloudflare-worker.js` dans l'éditeur du Worker et clique **Deploy**.
+Au moment où ce guide est écrit, Cloudflare Realtime offre 1 000 Go de visionnage par mois gratuits (ensuite environ 0,05 $ par Go). À 720p, 1 Go = environ 1 h 30 de visionnage par spectateur, donc environ 1 500 heures de visionnage cumulées par mois. Vérifie les tarifs actuels sur la page Cloudflare Realtime. Cloudflare peut changer les noms de menus : cherche « Realtime » ou « Calls ».
 
 ## Étape 15 — Gérer ta chaîne comme un vrai producteur, depuis l'espace admin
 Ton espace admin a maintenant un onglet **"🔴 Chaîne"**, avec tout ce qu'il faut pour piloter ta chaîne sans jamais toucher au code :
