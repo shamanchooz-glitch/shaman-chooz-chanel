@@ -3,7 +3,7 @@
    - Ordinateur : ouvre la caméra de l'ordinateur ; s'il y en a plusieurs (webcam USB, caméra externe…), une liste permet de choisir.
    - « Démarrer la diffusion » envoie l'image et le son en direct aux spectateurs, de trois façons (la première disponible est utilisée) :
        1) CLOUDFLARE STREAM (payant ; relais configuré : route /live/whip + variables CF_*) → beaucoup de spectateurs.
-       2) CLOUDFLARE REALTIME (SFU) — GRATUIT jusqu'à 1 000 Go de visionnage par mois (variables RT_APP_ID et RT_APP_SECRET du Worker) → beaucoup de spectateurs.
+       2) CLOUDFLARE REALTIME (SFU) — gratuit jusqu'à 1 000 Go/mois MAIS Cloudflare demande une carte bancaire pour créer l'application (variables RT_APP_ID et RT_APP_SECRET du Worker) → beaucoup de spectateurs.
        3) MODE DIRECT sans rien configurer (WebRTC de ton appareil vers chaque spectateur, signal par Firebase « cameraLive »)
           → gratuit, jusqu'à MAX_PEERS spectateurs en même temps. Nécessite les règles Firebase de database.rules.json.
    Ce fichier contient aussi la partie « spectateur » du mode direct (window.SCC_CAM_VIEW), utilisée par le lecteur de la chaîne (app.js).
@@ -49,7 +49,7 @@ function errText(e){
 function build(){
   const box = $('cameraBox'); if(!box || box.dataset.built) return; box.dataset.built = '1';
   box.innerHTML = '<p class="field-label" style="margin-top:12px">📷 Caméra du ' + (touch ? 'téléphone' : 'téléphone / de l\'ordinateur') + '</p>'
-   + '<p class="hint">Garde cette page ouverte et l\'écran allumé pendant la diffusion. Les spectateurs voient ton direct sur la chaîne. Beaucoup de spectateurs : Cloudflare Realtime (gratuit) ou Cloudflare Stream. Sinon, « mode direct » (jusqu\'à ' + MAX_PEERS + ' spectateurs en même temps).</p>'
+   + '<p class="hint">Garde cette page ouverte et l\'écran allumé pendant la diffusion. Les spectateurs voient ton direct sur la chaîne. Sans rien configurer, la diffusion se fait en « mode direct » (jusqu\'à ' + MAX_PEERS + ' spectateurs en même temps, sans carte bancaire). Pour un nombre illimité de spectateurs, gratuit et sans carte, utilise une plateforme (voir plus bas).</p>'
    + '<video id="camPreview" autoplay muted playsinline style="width:100%;max-height:340px;border-radius:14px;background:#000;object-fit:contain"></video>'
    + '<p id="camStatus" class="hint" style="font-weight:700;margin:8px 0">Appuie sur « Ouvrir la caméra ».</p>'
    + '<select class="input" id="camDevice" title="Choisir la caméra" style="display:none"></select>'

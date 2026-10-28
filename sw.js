@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v57';
+const CACHE_NAME = 'scc-v58';
 
 const APP_SHELL = [
   './',
@@ -59,6 +59,7 @@ const APP_SHELL = [
   './chaine-mode.js',
   './chaine-mode.css',
   './camera-diffusion.js',
+  './diffusion-gratuite.js',
   './diapo-export.js',
   './voixoff-studio.js',
   './manifest-chaine.json',

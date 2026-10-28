@@ -250,10 +250,12 @@ Dans l'admin > Chaîne > Réglages > « Source de la diffusion », choisis **�
 
 L'application choisit toute seule le premier mode disponible :
 1. **Cloudflare Stream** (payant) : si tu l'as configuré (étape 14, route `/live/whip`).
-2. **Cloudflare Realtime — GRATUIT, beaucoup de spectateurs** : voir ci-dessous.
-3. **Mode direct** (gratuit, rien à configurer sauf les règles Firebase) : ton appareil envoie l'image directement à chaque spectateur, jusqu'à 6 en même temps.
+2. **Cloudflare Realtime** (gratuit jusqu'à 1 000 Go/mois, mais **Cloudflare demande une carte bancaire** pour le créer) : voir ci-dessous, seulement si tu as une carte.
+3. **Mode direct** (gratuit, sans carte bancaire, rien à configurer sauf les règles Firebase) : ton appareil envoie l'image directement à chaque spectateur, jusqu'à 6 en même temps.
 
 **Règles Firebase (nécessaires pour les modes 2 et 3)** : Firebase > Realtime Database > **Règles**, colle tout le contenu du fichier `database.rules.json`, puis **Publier**.
+
+**Spectateurs illimités, gratuit, SANS carte bancaire** : choisis une plateforme (Twitch, YouTube, Kick ou Facebook) dans le bloc vert « Beaucoup de spectateurs » sous la source de diffusion. Tu filmes avec l'application de la plateforme (caméra avant ou arrière du téléphone, ou webcam de l'ordinateur) et la chaîne affiche leur direct avec ton pass. Écris ton nom de chaîne (ou colle le lien), appuie sur « Utiliser pour la chaîne », puis sur « Je suis en direct » quand tu commences. Les règles de chaque plateforme (abonnés minimum, vérification par SMS…) peuvent changer : regarde sur leur site.
 
 **Configurer Cloudflare Realtime (gratuit)**
 1. Va sur dash.cloudflare.com (le même compte que ton Worker) > **Realtime** > **SFU** (anciennement « Calls ») > **Create application**. Donne un nom (ex. « chaine »).
