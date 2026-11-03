@@ -6,8 +6,8 @@
    Les taux bougent : ces montants sont des ordres de grandeur. Tu peux les changer ici à la main (3 chiffres par ligne).
 
    ► POUR CHOISIR LES PAYS DIFFUSÉS DANS LA CHAÎNE : change la ligne « window.ACT_ACTIFS » tout en bas.
-        null                       = tous les pays (4 100 vidéos)
-        ['fcfa']                   = seulement la Côte d'Ivoire et la zone FCFA (100 vidéos)
+        null                       = tous les pays (des milliers de vidéos)
+        ['fcfa']                   = seulement la Côte d'Ivoire et la zone FCFA (une vidéo par activité)
         ['fcfa','ngn','ghs','mad'] = ces monnaies seulement (clés = « id » de chaque ligne)
    ========================================================== */
 window.ACT_PAYS = [
@@ -95,5 +95,7 @@ window.ACT_PAYS = [
    pays:["Lesotho"] }
 ];
 
-/* Pays diffusés dans la chaîne (voir explication en haut). null = tous. */
-window.ACT_ACTIFS = null;
+/* Pays diffusés dans la chaîne (voir explication en haut).
+   ['fcfa'] = seulement la Côte d'Ivoire et la zone FCFA (c'est le réglage actuel : la boucle reste courte et bien variée).
+   Pour diffuser aussi les autres monnaies africaines : remplace par  window.ACT_ACTIFS = null;  (toutes les monnaies = des milliers de vidéos en plus). */
+window.ACT_ACTIFS = ['fcfa'];

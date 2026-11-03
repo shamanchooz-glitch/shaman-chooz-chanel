@@ -125,7 +125,7 @@ SCCS.playlist = function(){
 const wrapCache = {};
 function wrap(g, text, font, maxW){
   const k = font + '|' + maxW + '|' + text; if(wrapCache[k]) return wrapCache[k];
-  g.font = font; const words = String(text).split(/\s+/); const lines = []; let cur = '';
+  g.font = font; const words = String(text).split(/[ \t\r\n]+/); /* l'espace insécable (ex. 5\u00a0000) ne coupe pas la ligne */ const lines = []; let cur = '';
   words.forEach(w=>{ const test = cur ? cur + ' ' + w : w; if(g.measureText(test).width > maxW && cur){ lines.push(cur); cur = w; } else cur = test; });
   if(cur) lines.push(cur); return (wrapCache[k] = lines);
 }
