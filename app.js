@@ -37,7 +37,7 @@ const DB = {
   async update(path, value){
     if(this.ready) return this.ref(path).update(value);
     const current = await this.get(path, {});
-    await this.set(path, {...current, ...value});
+    await this.set(path, Object.assign({}, current, value));
   },
   async remove(path){
     if(this.ready) return this.ref(path).remove();
@@ -470,10 +470,10 @@ function openOrderPaymentSheet(order){
     if(!selectedPay) return toast('Choisis un moyen de paiement', 'err');
     if(!name || !phone || !ref) return toast('Remplis tous les champs', 'err');
     const accessCode = await getOrCreateAccessCode(phone);
-    await DB.push('orders', {
-      ...order, payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref, accessCode,
+    await DB.push('orders', Object.assign({}, order, {
+      payMethod: selectedPay, buyerName: name, buyerPhone: phone, ref, accessCode,
       status:'pending', createdAt: Date.now()
-    });
+    }));
     showAccessCodeConfirmation(accessCode);
   };
   document.getElementById('sheetOverlay').classList.add('open');
@@ -642,7 +642,7 @@ async function init(){
   CATALOG = await DB.get('catalog', null);
   if(!CATALOG){
     CATALOG = {};
-    SEED_CATALOG.forEach((v,i)=>{ CATALOG['seed'+i] = {...v, videoUrl:''}; });
+    SEED_CATALOG.forEach((v,i)=>{ CATALOG['seed'+i] = Object.assign({}, v, { videoUrl:'' }); });
     await DB.set('catalog', CATALOG);
   }
   ORDERS = await DB.get('orders', {});
@@ -662,7 +662,7 @@ async function init(){
     LIVE_SETTINGS = { offlineMessage:'Hors antenne pour le moment — reviens plus tard !', currentProgram:'', maintenanceMode:false, maintenanceMessage:'' };
     await DB.set('liveSettings', LIVE_SETTINGS);
   }
-  LAST_SEEN_ANNOUNCEMENT_TS = LIVE_SETTINGS.announcement?.ts || 0;
+  LAST_SEEN_ANNOUNCEMENT_TS = (LIVE_SETTINGS.announcement && LIVE_SETTINGS.announcement.ts) || 0;
 
   renderFilters();
   renderCatalog();
@@ -1018,7 +1018,7 @@ async function lookupClientOrders(){
   list.querySelectorAll('[data-generate]').forEach(btn=>{
     btn.onclick = ()=>{
       const id = btn.dataset.generate;
-      const order = {...ORDERS[id], __id:id};
+      const order = Object.assign({}, ORDERS[id], { __id:id });
       if(order.type === 'custom') runSimpleGeneration(order);
       else runAiGeneration(order);
     };
@@ -1145,7 +1145,7 @@ function renderAdminStats(){
 
   const soldCount = {};
   Object.values(ORDERS).filter(o=>o.status==='paid' && o.itemId).forEach(o=>{
-    soldCount[o.itemId] = soldCount[o.itemId] || { count:0, revenue:0, title:(CATALOG[o.itemId]?.title || o.title) };
+    soldCount[o.itemId] = soldCount[o.itemId] || { count:0, revenue:0, title:((CATALOG[o.itemId] || {}).title || o.title) };
     soldCount[o.itemId].count++; soldCount[o.itemId].revenue += (o.price||0);
   });
   const topSold = Object.values(soldCount).sort((a,b)=>b.count-a.count).slice(0,5);
@@ -1175,7 +1175,7 @@ function renderAdminStats(){
 
   const catRevenue = {};
   paid.filter(o=>o.itemId).forEach(o=>{
-    const cat = CATALOG[o.itemId]?.cat || 'Autre';
+    const cat = (CATALOG[o.itemId] || {}).cat || 'Autre';
     catRevenue[cat] = (catRevenue[cat]||0) + (o.price||0);
   });
   const catEntries = Object.entries(catRevenue).sort((a,b)=>b[1]-a[1]);
@@ -1274,7 +1274,7 @@ function renderAdminLivePasses(){
       const name = prompt('Nom du pass :', p.name); if(name===null) return;
       const days = parseInt(prompt('Durée en jours :', p.days)); if(isNaN(days)) return;
       const price = parseInt(prompt('Prix en FCFA :', p.price)); if(isNaN(price)) return;
-      LIVE_PASSES[id] = { ...p, name, days, price };
+      LIVE_PASSES[id] = Object.assign({}, p, { name, days, price });
       await DB.set('livePasses', LIVE_PASSES);
       renderAdminLivePasses(); renderAdminLiveStats();
       toast('Pass mis à jour.', 'ok');
@@ -1357,7 +1357,7 @@ function exportLiveCsv(){
   activeLivePassOrders().forEach(([,o])=>{
     rows.push([o.buyerName, o.buyerPhone, o.passName, o.price, new Date(o.createdAt).toLocaleString('fr-FR'), new Date(o.liveExpiresAt).toLocaleString('fr-FR'), o.liveExpiresAt>Date.now()?'Actif':'Expiré']);
   });
-  const csv = rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const csv = rows.map(r => r.map(v => `"${String(v == null ? '' : v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1597,7 +1597,7 @@ function ogClipSeconds(voice){
   return 0;
 }
 function ogCostFCFA(totalSec){
-  const c = { ...PR_DEFAULTS, ...((LIVE_SETTINGS.pricing && LIVE_SETTINGS.pricing.costs) || {}) };
+  const c = Object.assign({}, PR_DEFAULTS, (LIVE_SETTINGS.pricing && LIVE_SETTINGS.pricing.costs) || {});
   return Math.round(totalSec * (c.usd * c.rate + c.asm));
 }
 function ogUpdateEstimate(){
@@ -1751,7 +1751,7 @@ function renderPricingAnalysis(){
 function renderAdminPricing(){
   const cur = getPricing();
   const saved = (LIVE_SETTINGS.pricing && LIVE_SETTINGS.pricing.costs) || {};
-  const costs = { ...PR_DEFAULTS, ...saved };
+  const costs = Object.assign({}, PR_DEFAULTS, saved);
   const set = (k, val)=>{ document.getElementById(PR_FIELDS[k]).value = val; };
   Object.keys(PR_DEFAULTS).forEach(k=> set(k, costs[k]));
   set('base', cur.baseFee); set('real', cur.realistePerSec); set('tpl', cur.templatePerSec);
@@ -1957,18 +1957,19 @@ async function botExecute(a){
     switch(a.type){
       case 'set_prices': {
         const cur = getPricing();
-        const costs = { ...PR_DEFAULTS, ...((LIVE_SETTINGS.pricing && LIVE_SETTINGS.pricing.costs) || {}) };
+        const costs = Object.assign({}, PR_DEFAULTS, (LIVE_SETTINGS.pricing && LIVE_SETTINGS.pricing.costs) || {});
+        const keep = (x, d) => (x == null ? d : x);   /* garde l'ancien prix si le nouveau n'est pas donné */
         const nv = {
-          baseFee: num(a.baseFee) ?? cur.baseFee, realistePerSec: num(a.realistePerSec) ?? cur.realistePerSec,
-          templatePerSec: num(a.templatePerSec) ?? cur.templatePerSec, customBase: num(a.customBase) ?? cur.customBase,
-          customPerScene: num(a.customPerScene) ?? cur.customPerScene
+          baseFee: keep(num(a.baseFee), cur.baseFee), realistePerSec: keep(num(a.realistePerSec), cur.realistePerSec),
+          templatePerSec: keep(num(a.templatePerSec), cur.templatePerSec), customBase: keep(num(a.customBase), cur.customBase),
+          customPerScene: keep(num(a.customPerScene), cur.customPerScene)
         };
-        const v = { ...costs, base:nv.baseFee, real:nv.realistePerSec, tpl:nv.templatePerSec, cbase:nv.customBase, cscene:nv.customPerScene };
+        const v = Object.assign({}, costs, { base:nv.baseFee, real:nv.realistePerSec, tpl:nv.templatePerSec, cbase:nv.customBase, cscene:nv.customPerScene });
         const { rows, invalid } = pricingAnalyze(v);
         if(invalid) return { ok:false, text:'Prix invalides.' };
         const bad = rows.filter(r=>!r.ok);
         if(bad.length) return { ok:false, text:`Refusé : ces prix sont trop bas pour ta marge de ${costs.margin} %. Prix minimum : ` + bad.slice(0,4).map(r=>`${r.label} ≥ ${fcfa(r.minPrice)}`).join(' ; ') + '.' };
-        const pricing = { ...nv, costs };
+        const pricing = Object.assign({}, nv, { costs });
         LIVE_SETTINGS.pricing = pricing;
         await DB.update('liveSettings', { pricing });
         try{ updateCustomPriceTag(); updateAiRealistePriceTag(); updateAiTemplatePriceTag(); updateAdminPriceTag(); }catch(e){}
@@ -2450,7 +2451,7 @@ function exportOrdersCsv(){
       o.payMethod, o.ref, o.status, o.price, o.accessCode||''
     ]);
   });
-  const csv = rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const csv = rows.map(r => r.map(v => `"${String(v == null ? '' : v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2538,7 +2539,7 @@ function renderAdminCatalog(){
       const title = prompt('Titre :', v.title); if(title===null) return;
       const cat = prompt('Catégorie :', v.cat); if(cat===null) return;
       const price = parseInt(prompt('Prix en FCFA :', v.price)); if(isNaN(price)) return;
-      CATALOG[id] = {...v, title, cat, price};
+      CATALOG[id] = Object.assign({}, v, { title, cat, price });
       await DB.set('catalog', CATALOG);
       renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos();
       toast('Vidéo mise à jour.', 'ok');
@@ -2548,7 +2549,7 @@ function renderAdminCatalog(){
     btn.onclick = async ()=>{
       const src = CATALOG[btn.dataset.duplicatevideo];
       const id = 'v'+Date.now();
-      CATALOG[id] = {...src, title: src.title + ' (copie)', createdAt: Date.now(), views:0};
+      CATALOG[id] = Object.assign({}, src, { title: src.title + ' (copie)', createdAt: Date.now(), views:0 });
       await DB.set('catalog', CATALOG);
       renderAdminCatalog(); renderFilters(); renderCatalog(); renderFreeVideos();
       toast('Vidéo dupliquée — modifie-la si besoin.', 'ok');

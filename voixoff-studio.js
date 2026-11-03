@@ -140,7 +140,7 @@ async function run(){
       if(file){                                                                       /* vidéo importée + texte à dire */
         const txt = $('voTxt').value.trim(); if(!txt) throw new Error('Écris le texte à dire (zone « Texte à dire »).');
         const v = document.createElement('video'); v.src = URL.createObjectURL(file); v.muted = true; v.playsInline = true; await new Promise((ok, ko) => { v.onloadedmetadata = ok; v.onerror = () => ko(new Error('Vidéo illisible.')); });
-        const parts = txt.split(/(?<=[.!?])\s+/).filter(Boolean); let at = .4;
+        const parts = txt.replace(/([.!?])\s+/g, '$1\u0001').split('\u0001').filter(Boolean); let at = .4;
         for(let i = 0; i < parts.length; i++){ status('🔊 Création de la voix ' + (i + 1) + '/' + parts.length); prog((i + 1) / parts.length); const b = await speak(ctx, parts[i]); voices.push({ buf:b, at }); at += b.duration + .35; }
         total = Math.max(v.duration, at + .5); let started = false;
         draw = (T, g) => { if(!started && T > 0){ started = true; v.play().catch(() => {}); } const { W, H } = X(), r = Math.min(W / v.videoWidth, H / v.videoHeight); g.fillStyle = '#000'; g.fillRect(0, 0, W, H); g.drawImage(v, (W - v.videoWidth * r) / 2, (H - v.videoHeight * r) / 2, v.videoWidth * r, v.videoHeight * r); };

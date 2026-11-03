@@ -1258,5 +1258,5 @@ module.exports = QRCode;
 
 };
 var __QR = __req('index'), __L = __req('QRErrorCorrectLevel');
-window.sccQR = function(text){ var q = new __QR(-1, __L.M); q.addData(String(text)); q.make(); return q.modules; };
+window.sccQR = function(text, level){ var lv = (level && __L[level] !== undefined) ? __L[level] : __L.M; var q = new __QR(-1, lv); q.addData(String(text)); q.make(); return q.modules; };
 })();

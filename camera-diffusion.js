@@ -78,8 +78,8 @@ async function getStream(){
   const wantMic = $('camMic').checked, base = { width:{ ideal:1280 }, height:{ ideal:720 }, frameRate:{ ideal:30, max:30 } };
   const audio = wantMic ? { echoCancellation:true, noiseSuppression:true, autoGainControl:true } : false;
   const tries = [];
-  if(devId) tries.push({ ...base, deviceId:{ exact:devId } });
-  else if(touch){ tries.push({ ...base, facingMode:{ exact:facing } }); tries.push({ ...base, facingMode:{ ideal:facing } }); }
+  if(devId) tries.push(Object.assign({}, base, { deviceId:{ exact:devId } }));
+  else if(touch){ tries.push(Object.assign({}, base, { facingMode:{ exact:facing } })); tries.push(Object.assign({}, base, { facingMode:{ ideal:facing } })); }
   tries.push(base); tries.push(true);
   let last;
   for(const v of tries){

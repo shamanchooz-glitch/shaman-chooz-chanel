@@ -4,8 +4,19 @@
 (function(){
 'use strict';
 const $ = id => document.getElementById(id);
-const BASE = location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '');
+/* ADRESSE OFFICIELLE DE LA CHAÎNE. Laisse vide : le site détecte tout seul sa vraie adresse en ligne.
+   Si un jour ton site change d'adresse (nouveau nom de domaine), colle ici l'adresse complète, ex. 'https://monsite.com/' */
+const LIEN_OFFICIEL = '';
+function baseUrl(){
+  let u = LIEN_OFFICIEL ? String(LIEN_OFFICIEL).replace(/[?#].*$/, '') : (location.protocol + '//' + location.host + location.pathname);
+  u = u.replace(/index\.html$/i, '');
+  if(!/\/$/.test(u)){ const last = u.split('/').pop(); u = last.indexOf('.') < 0 ? u + '/' : u.replace(/[^/]*$/, ''); }   /* …/mon-site  →  …/mon-site/ */
+  if(/^http:\/\//i.test(u) && !/^http:\/\/(localhost|127\.|192\.168\.|10\.)/i.test(u)) u = u.replace(/^http:/i, 'https:');   /* https partout : indispensable pour l'installation, le plein écran et le son */
+  return u;
+}
+const BASE = baseUrl();
 const LINK = BASE + '?app=chaine';
+const LINK_OK = /^https:\/\//i.test(LINK) && !/^https:\/\/(localhost|127\.|192\.168\.|10\.)/i.test(LINK);   /* faux si le site est ouvert depuis un fichier ou un test local */
 const MODE = /[?&]app=chaine/.test(location.search);
 const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -25,19 +36,37 @@ if(MODE){
   }, 400);
 }
 
-/* ---- QR code ---- */
+/* ---- QR code ----
+   Fabriqué pour être lu par TOUS les téléphones, récents ou anciens : noir pur sur blanc pur, marge blanche de 4 modules,
+   modules de taille entière (jamais flous), protection renforcée (Q) quand elle ne rend pas le code plus serré (sinon M),
+   et le lien est écrit en toutes lettres sous l'image téléchargée au cas où l'appareil photo ne lit pas le code. */
+function qrMatrix(text){
+  const m = sccQR(text, 'M'), q = sccQR(text, 'Q');
+  return q.length === m.length ? q : m;   /* plus de protection (Q) seulement si le code n'en devient pas plus serré : gros carrés = lecture facile, même sur un vieux téléphone */
+}
+function paintQR(g, m, x0, y0, px){
+  g.fillStyle = '#000';
+  for(let r = 0; r < m.length; r++) for(let c = 0; c < m.length; c++) if(m[r][c]) g.fillRect(x0 + c * px, y0 + r * px, px, px);
+}
 function drawQR(cv, text, size){
-  const m = sccQR(text), n = m.length, q = 4, px = Math.max(2, Math.floor(size / (n + 2 * q))), W = px * (n + 2 * q);
-  cv.width = cv.height = W; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, W); g.fillStyle = '#000';
-  for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(m[r][c]) g.fillRect((c + q) * px, (r + q) * px, px, px);
+  const m = qrMatrix(text), n = m.length, q = 4, px = Math.max(3, Math.floor(size / (n + 2 * q))), W = px * (n + 2 * q);
+  cv.width = cv.height = W; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, W);
+  paintQR(g, m, q * px, q * px, px);
 }
 function qrPng(){
-  const cv = document.createElement('canvas'), tmp = document.createElement('canvas'); drawQR(tmp, LINK, 520);
-  cv.width = 640; cv.height = 760; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 640, 760);
-  g.drawImage(tmp, 60, 120, 520, 520); g.fillStyle = '#222'; g.textAlign = 'center';
-  g.font = 'bold 34px system-ui, sans-serif'; g.fillText('SHAMAN CHOOZ CHANEL', 320, 62);
-  g.font = '26px system-ui, sans-serif'; g.fillText('Scanne : la chaîne en direct et les jeux', 320, 100);
-  g.font = '22px system-ui, sans-serif'; g.fillText('Installable sur téléphone, tablette et ordinateur', 320, 700);
+  const m = qrMatrix(LINK), n = m.length, q = 4, px = Math.max(8, Math.floor(560 / (n + 2 * q))), side = n * px;
+  const CW = 720, x0 = Math.round((CW - side) / 2), y0 = 150, yText = y0 + side + q * px + 20, CH = yText + 120;
+  const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH;
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, CW, CH);
+  paintQR(g, m, x0, y0, px);
+  g.fillStyle = '#222'; g.textAlign = 'center';
+  g.font = 'bold 38px system-ui, Arial, sans-serif'; g.fillText('SHAMAN CHOOZ CHANEL', CW / 2, 62);
+  g.font = '28px system-ui, Arial, sans-serif'; g.fillText('Scanne : la chaîne en direct et les jeux', CW / 2, 106);
+  let fs = 30; g.font = 'bold ' + fs + 'px system-ui, Arial, sans-serif';
+  while(g.measureText(LINK).width > CW - 40 && fs > 14){ fs -= 1; g.font = 'bold ' + fs + 'px system-ui, Arial, sans-serif'; }
+  g.fillText(LINK, CW / 2, yText + 10);
+  g.font = '22px system-ui, Arial, sans-serif'; g.fillText('Le QR code ne s\'ouvre pas ? Tape ce lien dans ton navigateur.', CW / 2, yText + 56);
+  g.fillText('Installable sur téléphone, tablette et ordinateur', CW / 2, yText + 92);
   return cv.toDataURL('image/png');
 }
 const copy = async () => {
@@ -59,7 +88,7 @@ function shareSheet(){
     ['✉️ E-mail', 'mailto:?subject=' + e(SHARE_TITLE) + '&body=' + full]
   ];
   const o = document.createElement('div'); o.id = 'chShareSheet';
-  o.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center';
+  o.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center';
   o.innerHTML = '<div style="width:100%;max-width:480px;background:var(--surface,#fff);color:var(--text,#222);border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));box-sizing:border-box">'
    + '<p style="margin:0 0 12px;font-weight:800;text-align:center">📤 Partager la chaîne et les jeux</p>'
    + opts.map(x => '<a class="btn btn-ghost" style="display:block;text-align:center;text-decoration:none;margin:0 0 8px" target="_blank" rel="noopener" href="' + x[1] + '">' + x[0] + '</a>').join('')
@@ -94,7 +123,7 @@ function viewerCard(scrId, k){
   c.style.cssText = 'margin:28px 0 12px;padding:16px;border-radius:14px;background:rgba(217,138,76,.16);border:1px solid rgba(217,138,76,.5);text-align:center';
   c.innerHTML = '<p style="margin:0 0 6px;font-weight:800">📲 Partage la chaîne et les jeux</p>'
    + '<p class="hint" style="margin:0 0 10px">Scanne le QR code ou touche le lien : la chaîne et les jeux s\'ouvrent directement. Partage-les à tes parents, amis et visiteurs.</p>'
-   + '<canvas id="chQr' + k + '" style="display:block;margin:0 auto 10px;max-width:100%;border-radius:8px"></canvas>'
+   + '<canvas id="chQr' + k + '" style="display:block;margin:0 auto 10px;max-width:100%;height:auto;image-rendering:pixelated;border-radius:8px"></canvas>'
    + '<input id="chLinkIn' + k + '" class="input" readonly style="margin:0 0 10px;text-align:center">'
    + '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
    + '<button class="btn btn-primary" id="chShareBtn' + k + '" style="margin:0;width:auto">📤 Partager</button>'
@@ -120,10 +149,15 @@ function topShare(scrId, k){
 function adminCard(){
   const host = $('adminTab-live'); if(!host || $('chAdminQr')) return;
   const b = document.createElement('div'); b.id = 'chAdminQr'; b.style.cssText = 'margin:0 0 16px;padding:14px;border-radius:14px;background:rgba(127,127,127,.12);text-align:center';
-  b.innerHTML = '<p class="field-label" style="margin:0">📲 QR code et lien de la chaîne + jeux</p><p class="hint" style="margin:6px 0 10px">Tes spectateurs scannent le QR code ou ouvrent le lien : seuls la chaîne et les jeux s\'ouvrent (gratuits ou avec pass). Le reste du site reste caché. Ils peuvent aussi l\'installer.</p><canvas id="chAdminQrCv" style="max-width:100%;border-radius:8px"></canvas>'
+  b.innerHTML = '<p class="field-label" style="margin:0">📲 QR code et lien de la chaîne + jeux</p><p class="hint" style="margin:6px 0 10px">Tes spectateurs scannent le QR code ou ouvrent le lien : seuls la chaîne et les jeux s\'ouvrent (gratuits ou avec pass). Le reste du site reste caché. Ils peuvent aussi l\'installer.</p><canvas id="chAdminQrCv" style="max-width:100%;height:auto;image-rendering:pixelated;border-radius:8px"></canvas>'
    + '<input id="chAdminLink" class="input" readonly style="margin:10px 0;text-align:center"><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" id="chaCopy" style="margin:0;width:auto">🔗 Copier le lien</button><button class="btn btn-ghost" id="chaShare" style="margin:0;width:auto">📤 Partager</button><button class="btn btn-ghost" id="chaDl" style="margin:0;width:auto">⬇ Télécharger le QR code</button></div>';
   const vb = $('viewersBox'); if(vb) vb.insertAdjacentElement('afterend', b); else host.insertBefore(b, host.firstChild);
   drawQR($('chAdminQrCv'), LINK, 260); $('chAdminLink').value = LINK;
+  if(!LINK_OK){
+    const w = document.createElement('p'); w.className = 'hint'; w.style.cssText = 'color:#c0392b;font-weight:700;margin:0 0 10px';
+    w.textContent = '⚠️ Ce lien n\'est pas l\'adresse en ligne de ton site (https). Ouvre ton site depuis son adresse internet officielle, puis reviens ici pour récupérer le bon QR code.';
+    $('chAdminQrCv').insertAdjacentElement('beforebegin', w);
+  }
   $('chaCopy').onclick = copy; $('chaShare').onclick = share; $('chaDl').onclick = dlQr;
 }
 /* ---- Bouton « Installer la chaîne » juste sous le bandeau orange (#sccsBanner), visible dès l'ouverture du lien ---- */

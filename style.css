@@ -79,7 +79,7 @@ body{top:0 !important;}
 
 /* ===== Photo plein écran ===== */
 .lightbox{
-  position:fixed; inset:0; background:rgba(10,9,16,.94); z-index:200;
+  position:fixed; top:0; right:0; bottom:0; left:0; background:rgba(10,9,16,.94); z-index:200;
   display:none; align-items:center; justify-content:center; padding:24px;
 }
 .lightbox.open{display:flex;}
@@ -141,7 +141,7 @@ body{top:0 !important;}
   border-radius:100px; z-index:3; letter-spacing:.4px;
 }
 .reel-play{
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:3;
+  position:absolute; top:0; right:0; bottom:0; left:0; display:flex; align-items:center; justify-content:center; z-index:3;
 }
 .reel-play span{
   width:44px;height:44px;border-radius:50%; background:rgba(255,255,255,.15);
@@ -155,7 +155,7 @@ body{top:0 !important;}
 
 /* ===== Fiche produit / modal ===== */
 .sheet-overlay{
-  position:fixed; inset:0; background:rgba(10,9,16,.7); z-index:150; display:none;
+  position:fixed; top:0; right:0; bottom:0; left:0; background:rgba(10,9,16,.7); z-index:150; display:none;
 }
 .sheet-overlay.open{display:block;}
 .sheet{
@@ -337,7 +337,7 @@ body{top:0 !important;}
   position:absolute; top:-4px; right:-4px; min-width:22px; height:22px; border-radius:11px; padding:0 5px;
   background:var(--danger); color:#fff; font-size:12px; font-weight:800; display:none; align-items:center; justify-content:center;
 }
-#botOverlay{ position:fixed; inset:0; z-index:3000; background:var(--bg); display:none; flex-direction:column; }
+#botOverlay{ position:fixed; top:0; right:0; bottom:0; left:0; z-index:3000; background:var(--bg); display:none; flex-direction:column; }
 #botOverlay.open{ display:flex; }
 #botOverlayHead{
   display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface);
@@ -365,7 +365,7 @@ body{top:0 !important;}
 #botSendBtn:disabled{ opacity:.5; }
 
 /* ---------- Autocomplétion des champs de recherche (autocomplete.js) ---------- */
-.acx{position:fixed;z-index:99999;display:none;max-height:min(46vh,320px);overflow-y:auto;background:var(--card,#fff);border:1px solid var(--border,#e3d9c8);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.acx{position:fixed;z-index:99999;display:none;max-height:320px;max-height:min(46vh,320px);overflow-y:auto;background:var(--card,#fff);border:1px solid var(--border,#e3d9c8);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .acx.on{display:block}
 .acx-i{padding:12px 14px;font-size:15px;color:var(--text,#2B2318);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid rgba(0,0,0,.06)}
 .acx-i:last-child{border-bottom:0}

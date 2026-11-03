@@ -55,7 +55,7 @@
 /* ---------- Écran de jeu ---------- */
 body.gm-open{ overflow:hidden; }
 .gm-ov{
-  position:fixed; inset:0; z-index:500; display:flex; flex-direction:column;
+  position:fixed; top:0; right:0; bottom:0; left:0; z-index:500; display:flex; flex-direction:column;
   background:#17120c; color:#f6efe4; user-select:none; -webkit-user-select:none;
   padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
   overscroll-behavior:contain; touch-action:manipulation;
@@ -90,7 +90,7 @@ body.gm-open{ overflow:hidden; }
 .gm-key.sm{ height:46px; font-size:15px; min-width:54px; }
 
 .gm-panel{
-  position:absolute; inset:0; z-index:5; background:rgba(14,9,3,.9); display:none;
+  position:absolute; top:0; right:0; bottom:0; left:0; z-index:5; background:rgba(14,9,3,.9); display:none;
   flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:24px 22px;
   text-align:center; overflow:auto;
 }

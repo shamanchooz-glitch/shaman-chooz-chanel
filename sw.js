@@ -10,7 +10,7 @@
 // reçoivent bien la nouvelle version au lieu de l'ancienne mise en cache.
 // ============================================================
 
-const CACHE_NAME = 'scc-v61';
+const CACHE_NAME = 'scc-v62';
 
 const APP_SHELL = [
   './',
@@ -19,6 +19,7 @@ const APP_SHELL = [
   './games.css',
   './app.js',
   './test-voix.html',
+  './chaine-compat.js',
   './chaine-lecteur.js',
   './chaine-paysage.js',
   './chaine-acces.js',

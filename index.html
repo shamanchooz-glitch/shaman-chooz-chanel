@@ -6,15 +6,21 @@
 <title>SHAMAN CHOOZ CHANEL</title>
 <link rel="manifest" href="manifest.json" id="mf">
 <script>if(/[?&]app=chaine/.test(location.search)){document.getElementById("mf").href="manifest-chaine.json";document.documentElement.classList.add("chaine-mode");if(location.hash){try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}}}</script>
+<script src="chaine-compat.js?v=1"></script>
 <meta name="theme-color" content="#FAF6F0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SHAMAN CHOOZ">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="games.css?v=15">
+<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="games.css?v=16">
 <link rel="stylesheet" href="chaine-mode.css?v=1">
 </head>
 <body>
+<noscript><p style="margin:0;padding:18px;background:#a8372b;color:#fff;font:600 16px/1.5 sans-serif;text-align:center">Pour regarder la chaîne, active JavaScript dans les réglages de ton navigateur, puis recharge la page.</p></noscript>
 
 <!-- ===== Bandeau chaîne ===== -->
 <header class="channel-band">
@@ -191,7 +197,7 @@
   <div id="livePlayerWrap" style="display:none;">
     <div class="live-player-box">
       <video id="livePlayer" controls playsinline muted style="width:100%;border-radius:14px;background:#000;"></video>
-      <iframe id="liveYoutubeFrame" title="Chaîne en direct" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen style="display:none;width:100%;aspect-ratio:16/9;border:0;border-radius:14px;background:#000;"></iframe>
+      <iframe id="liveYoutubeFrame" title="Chaîne en direct" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen webkitallowfullscreen mozallowfullscreen style="display:none;width:100%;aspect-ratio:16/9;border:0;border-radius:14px;background:#000;"></iframe>
       <span class="live-indicator" id="liveIndicator">🔴 EN DIRECT</span>
     </div>
     <p class="hint" id="liveStatusText" style="margin-top:8px;"></p>
@@ -698,10 +704,10 @@
 <script src="slides-data-metiers2.js?v=1"></script>
 <script src="games-edu10.js?v=1"></script>
 <script src="admin-preview.js?v=2"></script>
-<script src="app.js?v=22"></script>
+<script src="app.js?v=23"></script>
 <script src="autocomplete.js?v=1"></script>
-<script src="chaine-lecteur.js?v=3"></script>
-<script src="chaine-paysage.js?v=2"></script>
+<script src="chaine-lecteur.js?v=4"></script>
+<script src="chaine-paysage.js?v=3"></script>
 <script src="chaine-acces.js?v=5"></script>
 <script src="slides-data-metiers3.js?v=1"></script>
 <script src="games-edu11.js?v=1"></script>
@@ -751,13 +757,13 @@
 <script src="slides-variantes.js?v=1"></script>
 <script src="games-edu12.js?v=3"></script>
 <script src="chaine-spectateurs.js?v=1"></script>
-<script src="qr-lib.js?v=1"></script>
-<script src="chaine-installer.js?v=5"></script>
+<script src="qr-lib.js?v=2"></script>
+<script src="chaine-installer.js?v=6"></script>
 <script src="chaine-mode.js?v=2"></script>
-<script src="camera-diffusion.js?v=4"></script>
+<script src="camera-diffusion.js?v=5"></script>
 <script src="diffusion-gratuite.js?v=1"></script>
 <script src="diapo-export.js?v=2"></script>
-<script src="voixoff-studio.js?v=5"></script>
+<script src="voixoff-studio.js?v=6"></script>
 <script>
 /* Contrôle des fichiers du site : si une mise à jour est restée à moitié (ancien fichier en mémoire ou pas encore envoyé),
    la page se répare toute seule une fois, puis prévient clairement au lieu de rester vide. */
