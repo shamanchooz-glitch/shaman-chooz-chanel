@@ -1,19 +1,19 @@
 /* ==========================================================
-   ACTIVITÉS — « 400 IDÉES POUR ÊTRE AUTONOME » : le moteur qui fabrique les vidéos
-   Il prend les 400 activités et les budgets de chaque pays (activites-pays.js)
+   ACTIVITÉS — « 500 IDÉES POUR ÊTRE AUTONOME » : le moteur qui fabrique les vidéos
+   Il prend les 500 activités et les budgets de chaque pays (activites-pays.js)
    et crée UNE vidéo par activité et par monnaie, avec ta photo :
      • Activités 1 à 100   (slides-data-activites1.js à 4.js)  → 6 écrans + page « Contactez-nous » de l'agence :
          1. l'idée (SHAMAN CHOOZ la présente)       4. « Avec le 3e budget »
          2. « Avec le 1er budget »                   5. Vendre, épargner, évoluer
          3. « Avec le 2e budget »                    6. Un conseil de SHAMAN CHOOZ (tourne sur 8 conseils)
-     • Activités 101 à 400 (slides-data-activites5.js à 16.js) → 7 écrans + page « Contactez-nous » de l'agence :
+     • Activités 101 à 500 (slides-data-activites5.js à 20.js) → 7 écrans + page « Contactez-nous » de l'agence :
          les mêmes 5 premiers écrans, puis  6. Le conseil de SHAMAN CHOOZ propre à l'activité
-         et  7. un conseil général de réussite (tourne sur 12 conseils pour les activités 101 à 200 et sur 10 autres pour les activités 201 à 400 ; 4 conseils de plus pour la zone FCFA : statut d'entreprenant, cahier de recettes, aides officielles, arnaques)
-   Ce fichier doit être chargé APRÈS slides-engine.js, activites-pays.js et slides-data-activites1.js … 16.js (voir index.html).
-   Pour ajouter une activité : ajoute une ligne dans l'un des fichiers slides-data-activites1.js … 16.js.
+         et  7. un conseil général de réussite (tourne sur 12 conseils pour les activités 101 à 200, sur 10 autres pour les activités 201 à 400 et sur 10 autres encore pour les activités 401 à 500 ; 4 conseils de plus pour la zone FCFA : statut d'entreprenant, cahier de recettes, aides officielles, arnaques)
+   Ce fichier doit être chargé APRÈS slides-engine.js, activites-pays.js et slides-data-activites1.js … 20.js (voir index.html).
+   Pour ajouter une activité : ajoute une ligne dans l'un des fichiers slides-data-activites1.js … 20.js.
    Pour ajouter / corriger une monnaie : modifie activites-pays.js. Pour limiter les pays diffusés : ligne ACT_ACTIFS dans activites-pays.js
    (par exemple  window.ACT_ACTIFS = ['fcfa'];  pour ne diffuser que la Côte d'Ivoire et la zone FCFA).
-   Identifiants : « acfcfa-001 » … « acfcfa-400 » (FCFA), « acngn-001 » … (nairas), etc.
+   Identifiants : « acfcfa-001 » … « acfcfa-500 » (FCFA), « acngn-001 » … (nairas), etc.
    ========================================================== */
 (function(){
 if(!window.SCCS || !window.ACT100 || !window.ACT_PAYS) return;
@@ -65,6 +65,20 @@ const CONSEILS3 = [
  ['🌟',"Crois en toi","Chaque grand commerçant a commencé petit. Avec du sérieux, de la patience et un peu d'argent mis de côté, tu peux construire ton autonomie pas à pas."]
 ];
 
+/* Conseil général de réussite des activités 401 à 500 : 10 conseils de plus pour tous les pays */
+const CONSEILS4 = [
+ ['⚖️',"Respecte la loi et ton voisinage","Renseigne-toi sur les autorisations et les droits de place de ta commune, et ne gêne jamais le passage ni tes voisins. Un commerce en règle dure plus longtemps."],
+ ['🦺',"Ta sécurité d'abord","Gants, chaussures solides, tenue adaptée, prudence avec le feu, l'électricité et la route : aucun gain ne vaut une blessure. Protège-toi et protège tes clients."],
+ ['🛟',"Prévois les imprévus","Garde toujours une petite réserve pour une panne, une pluie, une maladie ou un retard de livraison. Une petite caisse de secours t'évite de tout arrêter."],
+ ['📍',"Choisis bien ton emplacement","Installe-toi là où les gens passent et ont besoin de ton produit. Observe pendant quelques jours : qui passe, à quelle heure, et ce qu'ils achètent."],
+ ['🚚',"Trouve un bon fournisseur","Compare les prix et la qualité chez plusieurs fournisseurs, puis garde ceux qui sont sérieux et réguliers. Un bon fournisseur est un vrai partenaire."],
+ ['🍎',"Prends soin de ta santé","Dors assez, bois de l'eau et mange à ta faim. Si tu tombes malade, ton activité s'arrête : ta santé est ton premier capital."],
+ ['🗣️',"Reste honnête sur ce que tu vends","Ne promets jamais ce que ton produit ou ton service ne peut pas faire. Un client déçu parle à dix personnes, un client content en amène dix."],
+ ['🎓',"Apprends chaque jour","Regarde des tutoriels, pose des questions aux meilleurs de ton métier et teste de nouvelles idées. Ceux qui apprennent restent toujours devant."],
+ ['✍️',"Écris tes accords","Avec un fournisseur, un client ou un associé, note ce qui est promis : prix, quantité, date. Un accord écrit évite beaucoup de disputes."],
+ ['🚫',"Méfie-toi des prêts risqués","N'emprunte jamais à un taux très élevé ni à quelqu'un qui te met la pression. Avance petit à petit avec ton épargne et des prêts sérieux et connus."]
+];
+
 /* Conseils de plus pour la Côte d'Ivoire et la zone FCFA (pays de l'OHADA : statut d'« entreprenant » prévu par l'Acte uniforme sur le droit commercial général) */
 const CONSEILS_FCFA = [
  ['📝',"Déclare ton activité","Dans les pays de l'OHADA, dont la Côte d'Ivoire, tu peux déclarer ton petit commerce comme « entreprenant » : c'est un statut simple. En Côte d'Ivoire, renseigne-toi au CEPICI."],
@@ -99,14 +113,15 @@ window.ACT_PAYS.forEach(p => {
   });
 });
 
-/* ---------- Activités 101 à 400 (nouvelles : 7 écrans) ---------- */
+/* ---------- Activités 101 à 500 (nouvelles : 7 écrans) ---------- */
 const LOTS = [
   { data: Array.isArray(window.ACT200) ? window.ACT200 : [], debut: 101, nom: '101 à 200 (slides-data-activites5.js … 8.js)', pool: CONSEILS2 },
-  { data: Array.isArray(window.ACT400) ? window.ACT400 : [], debut: 201, nom: '201 à 400 (slides-data-activites9.js … 16.js)', pool: CONSEILS3 }
+  { data: Array.isArray(window.ACT400) ? window.ACT400 : [], debut: 201, nom: '201 à 400 (slides-data-activites9.js … 16.js)', pool: CONSEILS3 },
+  { data: Array.isArray(window.ACT500) ? window.ACT500 : [], debut: 401, nom: '401 à 500 (slides-data-activites17.js … 20.js)', pool: CONSEILS4 }
 ];
 const concerne = (a, id) => { const z = a[9]; if(!Array.isArray(z) || !z.length) return true; return z.indexOf(id) >= 0 || (z.indexOf('AO') >= 0 && AO.indexOf(id) >= 0); };
 LOTS.forEach(L => {
-  const attendu = L.debut === 101 ? 100 : 200;
+  const attendu = L.debut === 201 ? 200 : 100;
   if(L.data.length && L.data.length !== attendu) console.warn('Activités : ' + L.data.length + ' activités chargées au lieu de ' + attendu + ' (' + L.nom + ').');
   let kk = 0;
   window.ACT_PAYS.forEach(p => {
