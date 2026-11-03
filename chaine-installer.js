@@ -28,11 +28,13 @@ window.addEventListener('appinstalled', () => { evt = null; say('✅ La chaîne 
 /* ---- Ouvrir directement la chaîne quand on arrive par le lien / le QR code / l'icône installée ---- */
 if(MODE){
   let touched = false, n = 0;
-  document.addEventListener('pointerdown', () => { touched = true; }, { once:true, capture:true });
+  /* Dès que la personne touche l'écran, on la laisse tranquille. On écoute plusieurs types de touche : les anciens iPhone (avant iOS 13)
+     n'envoient pas « pointerdown », et la personne était alors renvoyée de force vers la chaîne quand elle touchait « Jeux ». */
+  ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { touched = true; }, { once:true, capture:true }));
   const t = setInterval(() => {
-    const s = $('screen-live');
     if(touched || ++n > 25){ clearInterval(t); return; }
-    if(s && !s.classList.contains('active') && typeof showScreen === 'function'){ try{ showScreen('live'); }catch(e){} }
+    const a = document.querySelector('.screen.active');   /* on ne force la chaîne que si ni la chaîne ni les jeux ne sont affichés */
+    if((!a || (a.id !== 'screen-live' && a.id !== 'screen-games')) && typeof showScreen === 'function'){ try{ showScreen('live'); }catch(e){} }
   }, 400);
 }
 

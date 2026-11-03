@@ -2,7 +2,8 @@
    - Lien / QR code …/?app=chaine : seuls la chaîne en direct et la salle de jeux sont accessibles (le reste est caché ET bloqué).
    - Barre sous l'en-tête pour basculer en un clic, sans recharger la page (donc sans se reconnecter à l'admin) :
        • sur le site complet : « 📺 Aller à la chaîne et aux jeux » (visible par tout le monde, c'est la vue publique) ;
-       • dans la chaîne + jeux : « 🏠 Aller au site complet » visible UNIQUEMENT pour toi (compte admin connecté sur cet appareil). Les spectateurs qui arrivent par le QR code ne le voient jamais.
+       • dans la chaîne + jeux : « 🏠 Aller au site complet » visible pour toi (compte admin connecté sur cet appareil) ET pour un visiteur qui est
+         venu du site complet en touchant « Aller à la chaîne et aux jeux » (il doit pouvoir revenir). Les spectateurs qui arrivent directement par le QR code ne le voient jamais.
    - L'adresse du navigateur suit le mode (avec ou sans ?app=chaine), donc actualiser la page garde le même mode.
    Nécessite chaine-mode.css (dans <head>) et app.js (fonction showScreen). */
 (function(){
@@ -13,6 +14,8 @@ const html = document.documentElement;
 const PARAM = /(^|[?&])app=chaine(&|$)/;
 const TITLE0 = document.title;
 let tag0 = null, lastSite = 'catalog';
+let fromSite = false;   /* vrai si cette personne a quitté le site complet pour la chaîne (dans cet onglet) : elle peut donc y revenir */
+try{ fromSite = sessionStorage.getItem('scc_from_site') === '1'; }catch(e){}
 window.SCC_CHAINE_MODE = PARAM.test(location.search.replace(/^\?/, '?'));
 
 /* 1. En mode chaîne, tout écran demandé qui n'est pas la chaîne ou les jeux ramène à la chaîne */
@@ -38,6 +41,7 @@ function setMode(on){
   const from = activeName();
   if(on && from && OK.indexOf(from) < 0) lastSite = from;   /* on se souvient d'où on vient (catalogue, tableau de bord admin…) */
   window.SCC_CHAINE_MODE = on;
+  if(on){ fromSite = true; try{ sessionStorage.setItem('scc_from_site', '1'); }catch(e){} }
   html.classList.toggle('chaine-mode', on);
   document.title = on ? 'SHAMAN CHOOZ — Chaîne et Jeux' : TITLE0;
   tagline();
@@ -50,7 +54,7 @@ function setMode(on){
     show(back);
   }
   button();
-  try{ window.scrollTo({ top:0 }); }catch(e){}
+  try{ window.scrollTo(0, 0); }catch(e){}   /* forme lue par tous les navigateurs, même anciens */
 }
 window.SCC_SET_CHAINE_MODE = setMode; window.SCC_IS_OWNER = () => isOwner();
 
@@ -86,7 +90,7 @@ function button(){
   b.textContent = chaine ? '🏠 Aller au site complet' : '📺 Aller à la chaîne et aux jeux';
   b.title = chaine ? 'Passer au site complet' : 'Passer à la chaîne et aux jeux';
   b.setAttribute('aria-label', b.title);
-  bar.style.display = (chaine && !isOwner()) ? 'none' : '';   /* les spectateurs du QR code ne voient jamais « site complet » */
+  bar.style.display = (chaine && !isOwner() && !fromSite) ? 'none' : '';   /* les spectateurs arrivés directement par le QR code ne voient jamais « site complet » */
 }
 
 /* 6. Filet de sécurité en mode chaîne : jamais un autre écran que la chaîne ou les jeux */
