@@ -1066,14 +1066,45 @@ async function recordAdminLogin(){
   }
 }
 
+/* ---------- Admin : activation du formulaire de connexion ----------
+   Activée TOUT DE SUITE au chargement de app.js (le formulaire est placé plus haut dans index.html),
+   sans attendre Firebase ni la fin du chargement de la page : le bouton « Se connecter »
+   ne peut donc plus rester inactif si un autre élément met du temps à arriver ou manque. */
+function bindAdminLogin(){
+  const btn = document.getElementById('adminLoginBtn');
+  const pwd = document.getElementById('adminPwInput');
+  const eye = document.getElementById('eyeToggle');
+  if(btn) btn.onclick = ()=> adminLogin();
+  if(pwd) pwd.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); adminLogin(); } };
+  if(eye) eye.onclick = ()=>{
+    const inp = document.getElementById('adminPwInput');
+    if(!inp) return;
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    eye.textContent = inp.type === 'password' ? '👁' : '🙈';
+  };
+}
+
 /* ---------- Admin : connexion ---------- */
 /* Depuis que la base de données est protégée par de vraies règles Firebase, la connexion
    admin utilise Firebase Authentication (voir firebase-config.js pour créer ce compte).
    Sans Firebase connecté, un mot de passe de démonstration local reste disponible pour tester. */
+let ADMIN_LOGIN_BUSY = false;
 async function adminLogin(){
+  if(ADMIN_LOGIN_BUSY) return;
   const pw = document.getElementById('adminPwInput').value;
   const errEl = document.getElementById('adminLoginError');
   errEl.textContent = '';
+  if(!pw){ errEl.textContent = 'Écris ton mot de passe admin.'; return; }
+  ADMIN_LOGIN_BUSY = true;
+  const loginBtn = document.getElementById('adminLoginBtn');
+  if(loginBtn){ loginBtn.disabled = true; loginBtn.textContent = 'Connexion…'; }
+  try{ await adminLoginInner(pw, errEl); }
+  finally{
+    ADMIN_LOGIN_BUSY = false;
+    if(loginBtn){ loginBtn.disabled = false; loginBtn.textContent = 'Se connecter'; }
+  }
+}
+async function adminLoginInner(pw, errEl){
   const onSuccess = ()=>{
     ADMIN_LOGGED_IN = true;
     document.getElementById('adminPwInput').value = '';
@@ -3126,12 +3157,14 @@ function bindEvents(){
   document.getElementById('ogScenes').addEventListener('input', ogUpdateEstimate);
   Object.values(PR_FIELDS).forEach(id=> document.getElementById(id).addEventListener('input', renderPricingAnalysis));
   document.getElementById('prApplyBtn').onclick = applyPricing;
-  document.getElementById('botSendBtn').onclick = botSend;
-  document.getElementById('botAddRuleBtn').onclick = botAddRuleFromForm;
-  document.getElementById('botFab').onclick = openBotOverlay;
-  document.getElementById('botCloseBtn').onclick = closeBotOverlay;
-  document.getElementById('botSettingsBtn').onclick = ()=> document.getElementById('botOverlay').classList.toggle('settings-open');
-  document.getElementById('botInput').addEventListener('input', e=>{ e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; });
+  const _bot = (id, fn)=>{ const el = document.getElementById(id); if(el) el.onclick = fn; };
+  _bot('botSendBtn', botSend);
+  _bot('botAddRuleBtn', botAddRuleFromForm);
+  _bot('botFab', openBotOverlay);
+  _bot('botCloseBtn', closeBotOverlay);
+  _bot('botSettingsBtn', ()=>{ const o = document.getElementById('botOverlay'); if(o) o.classList.toggle('settings-open'); });
+  const _botIn = document.getElementById('botInput');
+  if(_botIn) _botIn.addEventListener('input', e=>{ e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; });
   setInterval(updateBotFab, 2000);
   document.getElementById('botSaveInstrBtn').onclick = botSaveInstructions;
   document.getElementById('botReportBtn').onclick = ()=>{ botBubble('user', 'Fais-moi le point du site'); botShowReport(); };
@@ -3218,13 +3251,7 @@ function bindEvents(){
   setupInstallBanner();
   setupShareTools();
 
-  document.getElementById('adminLoginBtn').onclick = adminLogin;
-  document.getElementById('eyeToggle').onclick = ()=>{
-    const inp = document.getElementById('adminPwInput');
-    inp.type = inp.type === 'password' ? 'text' : 'password';
-    document.getElementById('eyeToggle').textContent = inp.type === 'password' ? '👁' : '🙈';
-  };
-  document.getElementById('adminPwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') adminLogin(); });
+  bindAdminLogin(); // (déjà activée dès le chargement ; on la réactive ici sans risque)
   const adminLogoutNow = ()=>{ ADMIN_LOGGED_IN = false; if(DB.ready) firebase.auth().signOut(); showScreen('catalog'); };
   document.getElementById('adminLogoutBtn').onclick = adminLogoutNow;
   /* Sécurité : l'espace admin se ferme tout seul après 10 minutes sans toucher l'écran (ordinateur partagé ou oublié ouvert) */
@@ -3434,4 +3461,5 @@ function setupShareTools(){
   });
 }
 
+bindAdminLogin();
 init();

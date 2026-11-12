@@ -659,6 +659,19 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Bulle du robot (visible seulement quand tu es connecté à l'admin) -->
+<button id="botFab" aria-label="Ouvrir le robot assistant">🤖<span id="botFabBadge"></span></button>
+<div id="botOverlay" role="dialog" aria-label="Robot assistant">
+  <div id="botOverlayHead">
+    <strong style="font-size:18px;">🤖 Mon robot</strong>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="botSettingsBtn" aria-label="Réglages du robot" style="margin:0;width:auto;padding:8px 12px;">⚙️</button>
+      <button class="btn btn-ghost" id="botCloseBtn" style="margin:0;width:auto;padding:8px 12px;">✖️ Fermer</button>
+    </div>
+  </div>
+  <div id="botOverlayBody"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -704,7 +717,7 @@
 <script src="slides-data-metiers2.js?v=1"></script>
 <script src="games-edu10.js?v=1"></script>
 <script src="admin-preview.js?v=2"></script>
-<script src="app.js?v=23"></script>
+<script src="app.js?v=24"></script>
 <script src="autocomplete.js?v=1"></script>
 <script src="chaine-lecteur.js?v=4"></script>
 <script src="chaine-paysage.js?v=3"></script>
@@ -868,17 +881,5 @@
 <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 <script src="studio-clips.js?v=1"></script>
 
-<!-- Bulle du robot (visible seulement quand tu es connecté à l'admin) -->
-<button id="botFab" aria-label="Ouvrir le robot assistant">🤖<span id="botFabBadge"></span></button>
-<div id="botOverlay" role="dialog" aria-label="Robot assistant">
-  <div id="botOverlayHead">
-    <strong style="font-size:18px;">🤖 Mon robot</strong>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost" id="botSettingsBtn" aria-label="Réglages du robot" style="margin:0;width:auto;padding:8px 12px;">⚙️</button>
-      <button class="btn btn-ghost" id="botCloseBtn" style="margin:0;width:auto;padding:8px 12px;">✖️ Fermer</button>
-    </div>
-  </div>
-  <div id="botOverlayBody"></div>
-</div>
 </body>
 </html>
