@@ -1,9 +1,10 @@
 /* ==========================================================
    STUDIO CLIPS PUB — SHAMAN CHOOZ CHANEL
-   Admin > 🔴 Chaîne : tu écris une description, le clip (lumière, mouvement de caméra, ambiance)
-   se crée avec la voix off. Tu le visualises, puis « Mettre dans la chaîne » : il rejoint la boucle
-   avec tous les autres diaporamas (voix, son et écran toujours allumés, comme le reste).
-   Gratuit : tout est dessiné dans le téléphone. Les clips sont gardés dans Firebase (liveSettings/studioClips).
+   Le nouveau studio est la page « studio-clips.html » (photos de fond, voix off, musique,
+   vidéo à télécharger, chaîne en boucle). Ici, dans Admin > 🔴 Chaîne, on garde seulement :
+   – un bouton qui ouvre le nouveau studio ;
+   – la lecture des anciens clips déjà enregistrés dans Firebase (liveSettings/studioClips),
+     pour qu'ils continuent de tourner dans la chaîne (tu peux les retirer avec 🗑).
    ========================================================== */
 (function(){
 'use strict';
@@ -11,19 +12,6 @@ if(!window.SCCS || !SCCS.add) return;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const PAL = {dore:['#1a0e04','#f5a623','#ffd98a','#ff7a1a'],neon:['#07041a','#00e5ff','#ff2bd6','#7a5cff'],aqua:['#021a24','#17b8d8','#9be7ff','#2ee59d'],luxe:['#0a0a0a','#d4af37','#f5e6b0','#8c6d1f'],fete:['#25062a','#ff4f9a','#ffb03a','#6ee7ff']};
-const KW = {neon:/n[ée]on|nuit|soir|club|disco|dj/i,aqua:/mer|eau|plage|frais|piscine|wifi|internet|connexion/i,luxe:/luxe|premium|[ée]l[ée]gan|vip|chic/i,fete:/f[êe]te|danse|anniv|mariage|concert|cadeau|promo|solde/i};
-const autoAmb = t => { for(const k in KW) if(KW[k].test(t)) return k; return 'dore'; };
-const CAMS = ['zin','panL','zout','panR','tilt','orb'];
-const camOf = (t,i) => /zoom/i.test(t)?'zin':/gauche|panoram/i.test(t)?'panL':/droite/i.test(t)?'panR':/drone|ciel|haut/i.test(t)?'tilt':/tourne|orbit|360/i.test(t)?'orb':CAMS[i%6];
-
-/* ---------- Création des scènes à partir de la description ---------- */
-function scenes(tx, cta, du){
-  let ss = tx.replace(/\s+/g,' ').trim().split(/(?<=[.!?;…])\s+/).filter(Boolean);
-  ss = ss.flatMap(s => { if(s.split(' ').length <= 14) return [s]; const m = s.split(/(?<=,)\s+/); return m.length > 1 ? m : [s]; });
-  if(cta) ss.push(cta);
-  const e = ss.map(s => s.split(' ').length * .42 + 1.2), k = Math.min(2.2, Math.max(1, du / (e.reduce((a,b)=>a+b,0) || 1)));
-  return ss.map((s,i) => [s, camOf(s,i), +(e[i]*k).toFixed(1)]);
-}
 
 /* ---------- Rendu (s'adapte à la taille du canevas : 16:9 dans la chaîne, vertical possible) ---------- */
 function cam(c,p,W,H){ const e = p*p*(3-2*p); switch(c){ case'zin':return[1+.3*e,0,0,0]; case'zout':return[1.3-.3*e,0,0,0]; case'panL':return[1.25,(.5-e)*.1*W,0,0]; case'panR':return[1.25,(e-.5)*.1*W,0,0]; case'tilt':return[1.25,0,(.5-e)*.08*H,0]; default:return[1.3,0,0,(e-.5)*.05]; } }
@@ -78,41 +66,21 @@ setInterval(() => { const r = remote(); if(r) sync(r); }, 8000);
 addEventListener('load', () => { const r = remote(); if(r) sync(r); setTimeout(() => { const q = remote(); if(q) sync(q); }, 4000); });
 
 /* ---------- Section admin ---------- */
-let editId = '';
-function form(){ const tx = $('csTx').value.trim(), cta = $('csCta').value.trim(), du = +$('csDu').value, am = $('csAm').value === 'auto' ? autoAmb(tx) : $('csAm').value;
-  return { titre: ($('csTi').value.trim() || tx.slice(0,40)).replace(/[<>&"]/g,''), amb: am, tx, cta, du, sc: tx ? scenes(tx,cta,du) : [], ts: Date.now() }; }
-function info(){ const f = form(), s = f.sc.reduce((a,x)=>a+x[2],0); $('csInfo').textContent = f.tx ? '≈ ' + Math.round(s) + ' s · ' + f.sc.length + ' scènes' + (s < f.du*.85 ? ' — ajoute des phrases pour arriver à ' + f.du + ' s' : '') : ''; }
-function prev(c){ const box = $('csBox'); const sh = reg(c || form(), true); if(!sh) return; box.style.display = 'block'; SCCS.play(box, 'clip-draft', 0, { main:false }); box.scrollIntoView({ behavior:'smooth', block:'center' }); }
-function save(){ const f = form(); if(!f.sc.length){ alert("Écris d'abord la description du clip."); return; }
-  const id = editId || 'clip-' + Date.now().toString(36), map = Object.assign({}, CL); f.id = id; map[id] = f;
-  try{ if(window.LIVE_SETTINGS || typeof LIVE_SETTINGS !== 'undefined') LIVE_SETTINGS.studioClips = map; }catch(e){}
-  Promise.resolve(DB.update('liveSettings', { studioClips: map })).then(() => { sync(map); editId = ''; if(window.toast) toast('✅ Clip ajouté à la boucle de la chaîne', 'ok'); $('csSave').textContent = '✅ Mettre dans la chaîne'; })
-    .catch(() => alert("Enregistrement impossible : vérifie la connexion et que tu es connecté à l'admin."));
-}
-function drawList(){ const el = $('csList'); if(!el) return; const ids = Object.keys(CL);
-  el.innerHTML = ids.length ? ids.map(id => `<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line,#e7e7e7)"><b style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎞️ ${esc(CL[id].titre)}</b><button class="chip" data-cs="p:${id}">▶</button><button class="chip" data-cs="e:${id}">✏️</button><button class="chip" data-cs="d:${id}">🗑</button></div>`).join('') : '<p class="hint">Aucun clip pour le moment.</p>'; }
+function prev(c){ const box = $('csBox'); if(!box || !c) return; const sh = reg(c, true); if(!sh) return; box.style.display = 'block'; SCCS.play(box, 'clip-draft', 0, { main:false }); box.scrollIntoView({ behavior:'smooth', block:'center' }); }
+function drawList(){ const el = $('csList'); if(!el) return; const ids = Object.keys(CL), old = $('csOld'); if(old) old.style.display = ids.length ? 'block' : 'none';
+  el.innerHTML = ids.map(id => `<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line,#e7e7e7)"><b style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎞️ ${esc(CL[id].titre)}</b><button class="chip" data-cs="p:${id}">▶</button><button class="chip" data-cs="d:${id}">🗑</button></div>`).join(''); }
 function del(id){ if(!confirm('Retirer ce clip de la chaîne ?')) return; const map = Object.assign({}, CL); delete map[id];
   try{ LIVE_SETTINGS.studioClips = Object.keys(map).length ? map : null; }catch(e){}
   Promise.resolve(DB.update('liveSettings', { studioClips: Object.keys(map).length ? map : null })).then(() => sync(map)); }
 function build(){ const host = $('adminTab-live'); if(!host || $('clipStudio')) return;
   host.insertAdjacentHTML('afterbegin', `<div id="clipStudio" style="margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line,#e7e7e7)">
 <p class="field-label" style="margin-top:0">🎞️ Studio Clips pub — voix off incluse, gratuit</p>
-<p class="hint">Décris ta pub : scènes, lumière, mouvement de caméra (zoom, panoramique, drone…), ambiance. Le clip se crée, tu le visualises, puis tu le mets dans la chaîne.</p>
-<textarea class="input" id="csTx" rows="6" placeholder="Nuit à Abidjan, lumière dorée sur la ville. Zoom sur le WiFi 6 Shaman Hotspot. Connexion ultra rapide dans tout le quartier. Tickets dès 100 FCFA."></textarea>
-<input class="input" id="csTi" placeholder="Titre du clip (facultatif)"><input class="input" id="csCta" placeholder="Appel à l'action en dernière scène (ex : WhatsApp +225 …)">
-<select class="input" id="csAm"><option value="auto">Ambiance : automatique</option><option value="dore">Dorée chaude</option><option value="neon">Néon nuit</option><option value="aqua">Aqua fraîche</option><option value="luxe">Luxe noir et or</option><option value="fete">Fête rose</option></select>
-<select class="input" id="csDu"><option value="60">Durée visée : 60 s</option><option value="90">90 s</option><option value="120">2 min</option></select>
-<p class="hint" id="csInfo"></p>
-<button class="btn btn-primary" id="csPrev">👁 Visualiser le clip</button>
-<div id="csBox" class="live-player-box" style="display:none;margin-top:10px"></div>
-<p class="hint">Touche 🔊 sur l'image pour entendre la voix off pendant l'aperçu.</p>
-<button class="btn btn-teal" id="csSave">✅ Mettre dans la chaîne</button>
-<p class="field-label">Clips dans la chaîne</p><div id="csList"></div></div>`);
-  ['csTx','csCta','csDu'].forEach(i => $(i).addEventListener('input', info)); $('csDu').onchange = info;
-  $('csPrev').onclick = () => { if(!form().sc.length) return alert("Écris d'abord la description du clip."); prev(); };
-  $('csSave').onclick = save;
+<p class="hint">Décris ta pub : scènes, lumière, mouvement de caméra, photos de fond, voix off et musique. Tu peux la lancer, la télécharger en vidéo ou l'enregistrer dans ta chaîne. Le studio s'ouvre dans une page à part.</p>
+<a class="btn btn-primary" href="studio-clips.html" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none">🎬 Ouvrir le Studio Clips</a>
+<div id="csOld" style="display:none"><p class="field-label">Anciens clips dans la chaîne</p><div id="csList"></div>
+<div id="csBox" class="live-player-box" style="display:none;margin-top:10px"></div></div></div>`);
   $('csList').addEventListener('click', e => { const b = e.target.closest('[data-cs]'); if(!b) return; const [a,id] = b.dataset.cs.split(':'), c = CL[id]; if(!c) return;
-    if(a === 'p') prev(c); else if(a === 'd') del(id); else { editId = id; $('csTx').value = c.tx || ''; $('csTi').value = c.titre || ''; $('csCta').value = c.cta || ''; $('csAm').value = c.amb || 'auto'; $('csDu').value = c.du || 60; $('csSave').textContent = '💾 Enregistrer les changements'; info(); $('csTx').scrollIntoView({ behavior:'smooth', block:'center' }); } });
+    if(a === 'p') prev(c); else if(a === 'd') del(id); });
   drawList();
 }
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
