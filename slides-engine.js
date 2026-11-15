@@ -383,6 +383,7 @@ function keepStart(){
 function keepStop(){ try{ if(KEEP && !KEEP.paused) KEEP.pause(); }catch(e){} }
 function startMusic(){
   if(MUSIC) return; const ac = audioCtx(); if(!ac) return; keepStart();
+  try{ const t = AC.currentTime; MASTER.gain.cancelScheduledValues(t); MASTER.gain.setValueAtTime(.05, t); }catch(e){}   // volume remis après une coupure nette
   let n = 0;
   const note = ()=>{
     if(!AC || AC.state !== 'running') return;
@@ -395,7 +396,8 @@ function startMusic(){
   MUSIC = setInterval(note, 4000);
 }
 function stopMusic(){ if(MUSIC){ clearInterval(MUSIC); MUSIC = 0; } }
-function soundOff(){ cancelSpeech(); stopMusic(); keepStop(); }
+function muteTail(){ try{ if(AC && MASTER){ const t = AC.currentTime; MASTER.gain.cancelScheduledValues(t); MASTER.gain.setTargetAtTime(0, t, .03); } }catch(e){} }
+function soundOff(){ cancelSpeech(); stopMusic(); keepStop(); muteTail(); }
 
 /* Gardien : tant qu'un lecteur a le son, on vérifie que tout tourne et on relance ce qui s'est arrêté. */
 function guard(){
@@ -445,6 +447,12 @@ function stopInst(inst){
 }
 /* SCCS.stop()      → arrête tous les lecteurs ;  SCCS.stop(element) → arrête seulement celui de cet élément */
 SCCS.stop = function(host){ INST.slice().forEach(i=>{ if(!host || i.host === host) stopInst(i); }); };
+/* SCCS.silence(element) → arrête CE lecteur ET coupe tout de suite le son (sans le délai de 3,5 s).
+   Utilisé quand on quitte la chaîne (ex. pour aller dans les Jeux). */
+SCCS.silence = function(host){
+  INST.slice().forEach(i=>{ if(!host || i.host === host) stopInst(i); });
+  if(!OWNER){ clearTimeout(DROP_T); DROP_T = 0; soundOff(); }
+};
 SCCS.setSound = function(on){
   SCCS.sound = !!on;
   const m = INST.find(i=>i.main); if(m) setOwner(on ? m : (OWNER === m ? null : OWNER));

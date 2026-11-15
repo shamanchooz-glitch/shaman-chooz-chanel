@@ -3088,7 +3088,11 @@ function showScreen(name){
 
   // Sur l'écran "Chaîne", on vérifie toutes les 20s si la diffusion est en direct ou non
   clearInterval(LIVE_STATUS_TIMER);
-  if(name!=='live'){ clearTimeout(PLAYLIST_TIMER); stopPlayback(); }
+  if(name!=='live'){
+    clearTimeout(PLAYLIST_TIMER); stopPlayback();
+    // on quitte la chaîne : arrêt réel de l'image ET coupure immédiate du son (musique + voix), même en mode « Ton choix »
+    if(window.SCCS && SCCS.silence) SCCS.silence(document.querySelector('#livePlayerWrap .live-player-box'));
+  }
   if(name==='live'){
     renderLivePassSwatches();
     renderClientReplays();

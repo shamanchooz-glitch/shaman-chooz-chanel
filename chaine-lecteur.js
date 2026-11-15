@@ -32,6 +32,13 @@ SCCS.stop = function(host){
   if(!internal && free && host && host.matches && host.matches(ALL)) return;
   return origStop.apply(this, arguments);
 };
+/* Quand on QUITTE la chaîne (ex. onglet Jeux) : arrêt réel, même si le spectateur avait choisi sa vidéo.
+   Au retour, la chaîne repart sur le direct, avec le son. */
+const origSilence = SCCS.silence;
+SCCS.silence = function(host){
+  if(host && host.matches && host.matches(ALL)){ free = null; clearFrozen(); }
+  return origSilence ? origSilence.apply(this, arguments) : undefined;
+};
 
 function liveState(){ try{ return typeof currentPlaylistState === 'function' ? currentPlaylistState() : null; }catch(e){ return null; } }
 function now(){
